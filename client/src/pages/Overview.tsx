@@ -82,7 +82,7 @@ export default function OverviewPage() {
       synergyIndex: "Synergy Index",
       businessUnits: "Business Units",
       businessDesc: "Operating signals and quantitative decision entries are split by division while preserving one unified premium visual language.",
-      riskTitle: "Today’s risk priorities",
+      riskTitle: "Today's risk priorities",
       risk1: "Ham inventory concentration in the pork division is above the warning line and should be handled in the quant decision engine first.",
       risk2: "Cold-chain fulfillment in poultry remains stable, but regional order structure divergence requires secondary market monitoring.",
       risk3: "Soybean meal volatility is rising in feed operations, and raw-material days of supply should be closely watched.",
@@ -207,7 +207,7 @@ export default function OverviewPage() {
       zh: { label: "生猪年出栏", desc: "猪事业部年度出栏规模", unit: "万头" },
       en: { label: "Annual hog output", desc: "Annual shipping scale of the pork division", unit: "10k head" },
       ja: { label: "年間生豚出荷", desc: "豚事業部の年間出荷規模", unit: "万頭" },
-      th: { label: "ปริมาณสุกรออกตลาดต่อปี", desc: "ขนาดการออกสินค้าต่อปีของธุรกิจสุกร", unit: "หมื่นตัว" },
+      th: { label: "ผลผลิตสุกรรายปี", desc: "ขนาดการส่งออกประจำปีของธุรกิจสุกร", unit: "หมื่นตัว" },
     },
     broiler_output: {
       zh: { label: "白羽肉鸡屠宰量", desc: "鸡事业部白羽肉鸡处理规模", unit: "百万只" },
@@ -272,30 +272,32 @@ export default function OverviewPage() {
         title={copy.sectionTitle}
         description={copy.sectionDesc}
         aside={
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="data-chip text-sm">{copy.heroSignalA}</div>
-            <div className="data-chip text-sm">{copy.heroSignalB}</div>
-            <div className="data-chip text-sm">{copy.heroSignalC}</div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="data-chip text-[12px]">{copy.heroSignalA}</div>
+            <div className="data-chip text-[12px]">{copy.heroSignalB}</div>
+            <div className="data-chip text-[12px]">{copy.heroSignalC}</div>
           </div>
         }
       />
 
+      {/* Control deck */}
       <GlassPanel className="mb-6 overflow-visible">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
-            <h3 className="mt-2 text-2xl font-semibold text-white">{copy.flagship}</h3>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
+            <h3 className="mt-2 text-xl font-bold tracking-tight text-white">{copy.flagship}</h3>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <TimeframeToggle value={timeframe} onChange={setTimeframe} />
-            <Badge className="rounded-full border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-cyan-100">
+            <Badge className="rounded-lg border-cyan-400/15 bg-cyan-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-cyan-200/80">
               {copy.dataUpdated} {data ? new Date(data.generatedAt).toLocaleTimeString() : "--:--:--"}
             </Badge>
           </div>
         </div>
       </GlassPanel>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {/* KPI metrics */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {topMetrics.map((metric, index) => (
           <MetricCard
             key={metric.code}
@@ -309,41 +311,42 @@ export default function OverviewPage() {
         ))}
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.3fr_1fr]">
+      {/* Chain flow + Business units */}
+      <div className="mt-6 grid gap-5 xl:grid-cols-[1.3fr_1fr]">
         <GlassPanel>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{copy.chainFlow}</p>
-              <h3 className="mt-2 text-xl font-semibold text-white">{copy.chainFlowTitle}</h3>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.chainFlow}</p>
+              <h3 className="mt-2 text-lg font-bold tracking-tight text-white">{copy.chainFlowTitle}</h3>
             </div>
-            <div className="data-chip text-sm">{copy.chainFlowDesc}</div>
+            <div className="data-chip text-[12px]">{copy.chainFlowDesc}</div>
           </div>
 
-          <div className="mt-7 grid gap-4 md:grid-cols-3">
+          <div className="mt-6 grid gap-3 md:grid-cols-3">
             {copy.chainStages.map((stage, index) => (
               <motion.div
                 key={stage}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.08 * index, duration: 0.4 }}
-                className="metric-orb relative rounded-[28px] p-4"
+                transition={{ delay: 0.06 * index, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="group relative rounded-xl border border-white/[0.05] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.008)),rgba(6,14,28,0.9)] p-4 transition-all hover:border-cyan-400/15 hover:bg-[rgba(56,152,255,0.03)]"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-cyan-300/20 bg-cyan-400/10 text-cyan-200">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/[0.06] text-cyan-300 transition-all group-hover:bg-cyan-400/[0.1] group-hover:shadow-[0_0_14px_rgba(56,180,255,0.1)]">
                     {index < 2 ? <Orbit className="h-4 w-4" /> : index < 5 ? <Factory className="h-4 w-4" /> : index < 7 ? <Boxes className="h-4 w-4" /> : index === 7 ? <Snowflake className="h-4 w-4" /> : <Network className="h-4 w-4" />}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-white">{stage}</p>
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">{copy.stage} {index + 1}</p>
+                    <p className="text-[13px] font-semibold text-white">{stage}</p>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-500">{copy.stage} {index + 1}</p>
                   </div>
                 </div>
-                <div className="mt-5 flex items-center justify-between text-sm">
+                <div className="mt-4 flex items-center justify-between text-[12px]">
                   <span className="text-slate-500">{copy.synergyIndex}</span>
-                  <span className="font-mono text-cyan-100">{92 + index * 0.6}%</span>
+                  <span className="num-display font-semibold text-cyan-200">{92 + index * 0.6}%</span>
                 </div>
-                <Progress value={74 + index * 2.4} className="mt-3 h-2.5 bg-white/8" />
+                <Progress value={74 + index * 2.4} className="mt-2.5 h-1.5 bg-white/[0.06]" />
                 {index < copy.chainStages.length - 1 ? (
-                  <ArrowRight className="absolute -right-3 top-1/2 hidden h-5 w-5 text-cyan-200/60 xl:block" />
+                  <ArrowRight className="absolute -right-2.5 top-1/2 hidden h-4 w-4 text-cyan-300/40 xl:block" />
                 ) : null}
               </motion.div>
             ))}
@@ -353,14 +356,14 @@ export default function OverviewPage() {
         <GlassPanel>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.businessUnits}</p>
-              <h3 className="mt-2 text-xl font-semibold text-white">{copy.businessDesc}</h3>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.businessUnits}</p>
+              <h3 className="mt-2 text-lg font-bold tracking-tight text-white">{copy.businessDesc}</h3>
             </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
-              <Sparkles className="h-4.5 w-4.5" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/[0.06] text-cyan-300">
+              <Sparkles className="h-4 w-4" />
             </div>
           </div>
-          <div className="mt-6 space-y-4">
+          <div className="mt-5 space-y-3">
             {data?.businessCards.map(card => {
               const localized = businessCopy[card.id as keyof typeof businessCopy]?.[language];
               const isPork = card.id === "pork";
@@ -368,20 +371,20 @@ export default function OverviewPage() {
                 <button
                   key={card.id}
                   onClick={() => setLocation(isPork ? "/pork" : "/overview")}
-                  className="glass-line group w-full rounded-[30px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.045),rgba(255,255,255,0.015)),rgba(8,14,24,0.92)] p-5 text-left transition-all duration-300 hover:translate-y-[-2px]"
+                  className="group w-full rounded-xl border border-white/[0.05] bg-[linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01)),rgba(6,14,28,0.9)] p-5 text-left transition-all duration-300 hover:border-cyan-400/15 hover:bg-[rgba(56,152,255,0.03)] hover:shadow-[0_8px_30px_rgba(56,152,255,0.06)]"
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <Badge className="rounded-full border-white/10 bg-white/[0.05] text-slate-200">{localized?.name ?? card.name}</Badge>
-                    <span className="text-sm font-medium text-cyan-200">+{card.delta}%</span>
+                    <Badge className="rounded-lg border-white/[0.08] bg-white/[0.04] text-[12px] font-semibold text-slate-200">{localized?.name ?? card.name}</Badge>
+                    <span className="num-display text-[13px] font-bold text-emerald-400">+{card.delta}%</span>
                   </div>
-                  <div className="mt-5 flex items-end justify-between gap-4">
+                  <div className="mt-4 flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-base font-semibold text-white">{localized?.detail ?? card.detail}</p>
-                      <p className="mt-3 text-sm text-slate-500">{localized?.unit ?? card.unit}</p>
+                      <p className="text-[14px] font-semibold text-white">{localized?.detail ?? card.detail}</p>
+                      <p className="mt-2 text-[12px] text-slate-500">{localized?.unit ?? card.unit}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-mono text-4xl font-semibold text-white">{card.highlight}</p>
-                      <p className="mt-2 text-sm text-slate-400">{isPork ? copy.gotoPork : localized?.name ?? card.name}</p>
+                      <p className="num-display text-3xl font-bold text-white">{card.highlight}</p>
+                      <p className="mt-1.5 text-[12px] text-slate-400">{isPork ? copy.gotoPork : localized?.name ?? card.name}</p>
                     </div>
                   </div>
                 </button>
@@ -391,82 +394,89 @@ export default function OverviewPage() {
         </GlassPanel>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+      {/* Risk + Division panels */}
+      <div className="mt-6 grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
         <GlassPanel>
-          <div className="flex items-center gap-3 text-amber-200">
+          <div className="flex items-center gap-3 text-amber-300">
             <CircleAlert className="h-5 w-5" />
-            <h3 className="text-lg font-semibold text-white">{copy.riskTitle}</h3>
+            <h3 className="text-lg font-bold text-white">{copy.riskTitle}</h3>
           </div>
-          <div className="mt-5 space-y-4">
+          <div className="mt-5 space-y-3">
             {riskCards.map((item, index) => (
-              <div key={item.text} className="rounded-[24px] border border-white/8 bg-white/[0.04] p-4">
+              <motion.div
+                key={item.text}
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 * index, duration: 0.4 }}
+                className="rounded-xl border border-white/[0.05] bg-[rgba(6,14,28,0.7)] p-4"
+              >
                 <div className="flex items-center justify-between gap-3">
-                  <Badge className="rounded-full border-amber-400/20 bg-amber-400/10 text-amber-100">0{index + 1}</Badge>
-                  <span className="text-xs uppercase tracking-[0.22em] text-slate-500">{copy.riskLevel} · {item.level}</span>
+                  <Badge className="rounded-lg border-amber-400/15 bg-amber-400/[0.06] text-[11px] font-semibold text-amber-200">0{index + 1}</Badge>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">{copy.riskLevel} · {item.level}</span>
                 </div>
-                <p className="mt-4 text-sm leading-6 text-slate-300">{item.text}</p>
-                <div className="mt-4 rounded-[18px] border border-cyan-400/10 bg-cyan-400/5 p-3 text-sm text-cyan-100/85">
-                  <span className="text-[11px] uppercase tracking-[0.22em] text-slate-500">{copy.response}</span>
-                  <p className="mt-2">{item.action}</p>
+                <p className="mt-3 text-[13px] leading-[1.7] text-slate-300/90">{item.text}</p>
+                <div className="mt-3 rounded-lg border border-cyan-400/10 bg-cyan-400/[0.03] p-3">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">{copy.response}</span>
+                  <p className="mt-1.5 text-[12.5px] leading-[1.6] text-cyan-200/80">{item.action}</p>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </GlassPanel>
 
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid gap-5 xl:grid-cols-2">
           <GlassPanel>
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Poultry Division</p>
-                <h3 className="mt-2 text-xl font-semibold text-white">{copy.poultryTitle}</h3>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">Poultry Division</p>
+                <h3 className="mt-2 text-lg font-bold tracking-tight text-white">{copy.poultryTitle}</h3>
               </div>
-              <Badge className="rounded-full border-violet-400/20 bg-violet-400/10 text-violet-100">{copy.visualRule}</Badge>
+              <Badge className="rounded-lg border-violet-400/15 bg-violet-400/[0.06] text-[10px] font-semibold text-violet-200">{copy.visualRule}</Badge>
             </div>
-            <div className="mt-5 grid gap-4">
+            <div className="mt-4 grid gap-3">
               {copy.poultryMetrics.map(([label, value, unit], index) => (
-                <div key={label} className="metric-orb rounded-[24px] p-4">
+                <div key={label} className="rounded-xl border border-white/[0.05] bg-[rgba(6,14,28,0.7)] p-4">
                   <div className="flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-sm text-slate-500">{label}</p>
-                      <p className="mt-4 font-mono text-3xl font-semibold text-white">
+                      <p className="text-[12px] text-slate-500">{label}</p>
+                      <p className="mt-3 num-display text-2xl font-bold text-white">
                         {value}
-                        <span className="ml-2 text-base text-slate-400">{unit}</span>
+                        <span className="ml-2 text-[13px] font-medium text-slate-400">{unit}</span>
                       </p>
                     </div>
-                    <Badge className="rounded-full border-white/10 bg-white/[0.05] text-slate-200">0{index + 1}</Badge>
+                    <Badge className="rounded-lg border-white/[0.06] bg-white/[0.03] text-[11px] font-semibold text-slate-300">0{index + 1}</Badge>
                   </div>
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-sm leading-6 text-slate-400">{copy.poultryDesc}</p>
+            <p className="mt-3 text-[12px] leading-[1.7] text-slate-400/80">{copy.poultryDesc}</p>
           </GlassPanel>
 
           <GlassPanel>
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Feed Division</p>
-                <h3 className="mt-2 text-xl font-semibold text-white">{copy.feedTitle}</h3>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">Feed Division</p>
+                <h3 className="mt-2 text-lg font-bold tracking-tight text-white">{copy.feedTitle}</h3>
               </div>
-              <Badge className="rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-100">{copy.visualRule}</Badge>
+              <Badge className="rounded-lg border-emerald-400/15 bg-emerald-400/[0.06] text-[10px] font-semibold text-emerald-200">{copy.visualRule}</Badge>
             </div>
-            <div className="mt-5 grid gap-4">
+            <div className="mt-4 grid gap-3">
               {copy.feedMetrics.map(([label, value, unit], index) => (
-                <div key={label} className="metric-orb rounded-[24px] p-4">
+                <div key={label} className="rounded-xl border border-white/[0.05] bg-[rgba(6,14,28,0.7)] p-4">
                   <div className="flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-sm text-slate-500">{label}</p>
-                      <p className="mt-4 font-mono text-3xl font-semibold text-white">
+                      <p className="text-[12px] text-slate-500">{label}</p>
+                      <p className="mt-3 num-display text-2xl font-bold text-white">
                         {value}
-                        <span className="ml-2 text-base text-slate-400">{unit}</span>
+                        <span className="ml-2 text-[13px] font-medium text-slate-400">{unit}</span>
                       </p>
                     </div>
-                    <Badge className="rounded-full border-white/10 bg-white/[0.05] text-slate-200">0{index + 1}</Badge>
+                    <Badge className="rounded-lg border-white/[0.06] bg-white/[0.03] text-[11px] font-semibold text-slate-300">0{index + 1}</Badge>
                   </div>
                 </div>
               ))}
             </div>
-            <p className="mt-4 text-sm leading-6 text-slate-400">{copy.feedDesc}</p>
+            <p className="mt-3 text-[12px] leading-[1.7] text-slate-400/80">{copy.feedDesc}</p>
           </GlassPanel>
         </div>
       </div>

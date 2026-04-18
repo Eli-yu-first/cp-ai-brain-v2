@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { CheckCircle2, CircleAlert, Sigma, ShieldAlert, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -263,23 +264,23 @@ export default function QuantPage() {
         eyebrow={copy.sectionEyebrow}
         title={copy.sectionTitle}
         description={copy.sectionDesc}
-        aside={<div className="data-chip text-sm">{copy.formulaSignal}</div>}
+        aside={<div className="data-chip text-[12px]">{copy.formulaSignal}</div>}
       />
 
       <GlassPanel className="mb-6 overflow-visible">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
-            <h3 className="mt-2 text-2xl font-semibold text-white">{copy.compareTitle}</h3>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
+            <h3 className="mt-2 text-xl font-bold tracking-tight text-white">{copy.compareTitle}</h3>
           </div>
-          <div className="data-chip text-sm">{copy.compareDesc}</div>
+          <Badge className="rounded-lg border-cyan-400/15 bg-cyan-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-cyan-200/80">{copy.compareDesc}</Badge>
         </div>
       </GlassPanel>
 
       <div className="grid gap-6 xl:grid-cols-[1.08fr_1.42fr]">
         <div className="space-y-6">
           <GlassPanel>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.inputs}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.inputs}</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-1">
               <div>
                 <p className="mb-2 text-sm text-slate-400">{copy.chooseBatch}</p>
@@ -344,12 +345,15 @@ export default function QuantPage() {
 
         <div className="space-y-6">
           <div className="grid gap-5 md:grid-cols-3">
-            {data?.scenarios.map(scenario => {
+            {data?.scenarios.map((scenario, index) => {
               const isRecommended = recommendedScenario?.scenarioId === scenario.scenarioId;
               return (
-                <div
+                <motion.div
                   key={scenario.scenarioId}
-                  className={`relative overflow-hidden rounded-[32px] border p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_80px_rgba(3,7,18,0.52)] ${
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.08 * index, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  className={`group relative overflow-hidden rounded-[32px] border p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_80px_rgba(3,7,18,0.52)] transition-all duration-300 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_80px_rgba(3,7,18,0.52),0_0_30px_rgba(56,189,248,0.06)] ${
                     isRecommended
                       ? "border-cyan-300/20 bg-[radial-gradient(circle_at_top,_rgba(75,215,255,0.18),_transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.018)),linear-gradient(180deg,rgba(9,17,31,0.94),rgba(7,12,22,0.92))]"
                       : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015)),linear-gradient(180deg,rgba(8,14,24,0.92),rgba(7,12,22,0.9))]"
@@ -362,8 +366,8 @@ export default function QuantPage() {
                   ) : null}
                   <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-cyan-400/8 blur-3xl" />
                   <div className="relative">
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.holdMonth} {scenario.holdMonths}M</p>
-                    <h3 className="mt-2 text-3xl font-semibold text-white">{copy.monthPlan} {scenario.holdMonths}</h3>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.holdMonth} {scenario.holdMonths}M</p>
+                    <h3 className="mt-2 num-display text-3xl font-bold tracking-tight text-white">{copy.monthPlan} {scenario.holdMonths}</h3>
                     <div className="mt-4 flex items-center justify-between gap-3">
                       <Badge className={scenario.action === "持有" ? "rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-100" : "rounded-full border-rose-400/20 bg-rose-400/10 text-rose-100"}>
                         {actionMap[scenario.action]?.[language] ?? scenario.action}
@@ -374,31 +378,31 @@ export default function QuantPage() {
                     </div>
 
                     <div className="mt-5 space-y-3 text-sm text-slate-300">
-                      <div className="flex items-center justify-between rounded-[20px] border border-white/8 bg-white/[0.04] px-4 py-3"><span>{copy.breakEven}</span><span className="font-mono">¥{scenario.breakEvenPrice.toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between rounded-[20px] border border-white/8 bg-white/[0.04] px-4 py-3"><span>{copy.expectedSell}</span><span className="font-mono">¥{scenario.expectedSellPrice.toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between rounded-[20px] border border-white/8 bg-white/[0.04] px-4 py-3"><span>{copy.netProfit}</span><span className={scenario.netProfitPerKg > 0 ? "font-mono text-emerald-200" : "font-mono text-rose-200"}>¥{scenario.netProfitPerKg.toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between rounded-[20px] border border-white/8 bg-white/[0.04] px-4 py-3"><span>{copy.risk}</span><span>{riskMap[scenario.riskLevel]?.[language] ?? scenario.riskLevel} · {scenario.riskScore}</span></div>
+                      <div className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"><span className="text-[13px] text-slate-400">{copy.breakEven}</span><span className="num-display font-semibold text-white">¥{scenario.breakEvenPrice.toFixed(2)}</span></div>
+                      <div className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"><span className="text-[13px] text-slate-400">{copy.expectedSell}</span><span className="num-display font-semibold text-white">¥{scenario.expectedSellPrice.toFixed(2)}</span></div>
+                      <div className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"><span className="text-[13px] text-slate-400">{copy.netProfit}</span><span className={scenario.netProfitPerKg > 0 ? "num-display font-semibold text-emerald-300" : "num-display font-semibold text-rose-300"}>¥{scenario.netProfitPerKg.toFixed(2)}</span></div>
+                      <div className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"><span className="text-[13px] text-slate-400">{copy.risk}</span><span className="text-[13px] font-medium text-slate-200">{riskMap[scenario.riskLevel]?.[language] ?? scenario.riskLevel} · {scenario.riskScore}</span></div>
                     </div>
 
                     <p className="mt-4 text-sm leading-6 text-slate-400">{scenario.reason}</p>
                     <Button
                       onClick={() => setPendingScenarioId(scenario.scenarioId)}
-                      className={`mt-5 w-full rounded-2xl ${
+                      className={`mt-5 w-full rounded-xl font-semibold transition-all duration-300 ${
                         isRecommended
-                          ? "bg-[linear-gradient(135deg,#84ebff,#4ed8ff_38%,#86a8ff)] text-slate-950 hover:opacity-95"
-                          : "bg-white/[0.08] text-white hover:bg-white/[0.12]"
+                          ? "bg-[linear-gradient(135deg,rgba(56,189,248,0.15),rgba(56,152,255,0.1))] border border-cyan-400/20 text-cyan-100 hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.2),rgba(56,152,255,0.15))] hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(56,189,248,0.1)]"
+                          : "bg-white/[0.06] border border-white/[0.08] text-slate-200 hover:bg-white/[0.1] hover:border-white/[0.12]"
                       }`}
                     >
                       {copy.confirmAction} {actionMap[scenario.action]?.[language] ?? scenario.action}
                     </Button>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
 
           <GlassPanel>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.aiExplanation}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.aiExplanation}</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="metric-orb rounded-[24px] p-4 text-sm leading-7 text-slate-300">
                 <div className="flex items-center gap-3 text-white"><CheckCircle2 className="h-4 w-4 text-emerald-300" />{copy.clearConclusion}</div>
@@ -445,7 +449,7 @@ export default function QuantPage() {
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-2xl border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]">{copy.cancel}</AlertDialogCancel>
             <AlertDialogAction
-              className="rounded-2xl bg-[linear-gradient(135deg,#84ebff,#4ed8ff_38%,#86a8ff)] text-slate-950 hover:opacity-95"
+              className="rounded-xl bg-[linear-gradient(135deg,rgba(56,189,248,0.15),rgba(56,152,255,0.1))] border border-cyan-400/20 text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.2),rgba(56,152,255,0.15))] hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(56,189,248,0.1)] transition-all duration-300"
               onClick={event => {
                 event.preventDefault();
                 if (!pendingScenario) return;

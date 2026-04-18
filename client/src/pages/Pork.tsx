@@ -24,6 +24,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { createTrailingViewport, shiftViewport, zoomViewport } from "./porkChartViewport";
@@ -533,23 +534,23 @@ export default function PorkPage() {
         title={copy.sectionTitle}
         description={copy.sectionDesc}
         aside={
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="data-chip text-sm">{copy.liveSignalA}</div>
-            <div className="data-chip text-sm">{copy.liveSignalB}</div>
-            <div className="data-chip text-sm">{copy.liveSignalC}</div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="data-chip text-[12px]">{copy.liveSignalA}</div>
+            <div className="data-chip text-[12px]">{copy.liveSignalB}</div>
+            <div className="data-chip text-[12px]">{copy.liveSignalC}</div>
           </div>
         }
       />
 
       <GlassPanel className="mb-6 overflow-visible">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
-            <h3 className="mt-2 text-2xl font-semibold text-white">{copy.marketDeck}</h3>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
+            <h3 className="mt-2 text-xl font-bold tracking-tight text-white">{copy.marketDeck}</h3>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="data-chip text-sm">{copy.refreshed}</div>
-            <div className="data-chip text-sm">{data?.selectedRegionName ?? copy.national}</div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Badge className="rounded-lg border-cyan-400/15 bg-cyan-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-cyan-200/80">{copy.refreshed}</Badge>
+            <Badge className="rounded-lg border-white/[0.08] bg-white/[0.04] px-3.5 py-2 text-[11px] font-semibold text-slate-200">{data?.selectedRegionName ?? copy.national}</Badge>
           </div>
         </div>
       </GlassPanel>
@@ -559,50 +560,62 @@ export default function PorkPage() {
       <div className="mt-6 space-y-6">
         <GlassPanel>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.liveMarketEyebrow}</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">{copy.liveMarketTitle}</h3>
-            <p className="mt-2 text-sm text-slate-400">{copy.liveMarketDesc}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.liveMarketEyebrow}</p>
+            <h3 className="mt-2 text-lg font-bold tracking-tight text-white">{copy.liveMarketTitle}</h3>
+            <p className="mt-2 text-[13px] leading-[1.7] text-slate-400/80">{copy.liveMarketDesc}</p>
           </div>
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {liveInputCards.map(item => (
-              <div key={item.code} className="metric-orb rounded-[20px] p-5">
+            {liveInputCards.map((item, index) => (
+              <motion.div
+                key={item.code}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * index, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="group metric-orb rounded-[20px] p-5 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(56,152,255,0.06)]"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-white">{item.title}</p>
-                    <p className="mt-1 text-[11px] uppercase tracking-[0.24em] text-slate-500">{item.suffix ?? "LIVE"}</p>
+                    <p className="text-[13px] font-semibold text-white">{item.title}</p>
+                    <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.24em] text-slate-500">{item.suffix ?? "LIVE"}</p>
                   </div>
-                  <Badge className={item.changeRate >= 0 ? "rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-100" : "rounded-full border-rose-400/20 bg-rose-400/10 text-rose-100"}>
+                  <Badge className={item.changeRate >= 0 ? "rounded-lg border-emerald-400/15 bg-emerald-400/[0.06] text-[11px] font-semibold text-emerald-200" : "rounded-lg border-rose-400/15 bg-rose-400/[0.06] text-[11px] font-semibold text-rose-200"}>
                     {item.changeRate >= 0 ? "+" : ""}{item.changeRate.toFixed(2)}%
                   </Badge>
                 </div>
-                <p className="mt-5 text-3xl font-semibold text-white">{item.unit === "¥/kg" ? "¥" : ""}{item.value.toFixed(2)}</p>
-                <p className="mt-2 text-sm text-slate-500">{item.unit}</p>
-              </div>
+                <p className="mt-5 num-display text-3xl font-bold text-white">{item.unit === "¥/kg" ? "¥" : ""}{item.value.toFixed(2)}</p>
+                <p className="mt-2 text-[12px] text-slate-500">{item.unit}</p>
+              </motion.div>
             ))}
           </div>
         </GlassPanel>
 
         <GlassPanel>
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.benchmarkEyebrow}</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">{copy.benchmarkTitle}</h3>
-            <p className="mt-2 text-sm text-slate-400">{copy.benchmarkDesc}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.benchmarkEyebrow}</p>
+            <h3 className="mt-2 text-lg font-bold tracking-tight text-white">{copy.benchmarkTitle}</h3>
+            <p className="mt-2 text-[13px] leading-[1.7] text-slate-400/80">{copy.benchmarkDesc}</p>
           </div>
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {(data?.benchmarkQuotes ?? []).map(item => (
-              <div key={item.code} className="metric-orb rounded-[20px] p-5">
+            {(data?.benchmarkQuotes ?? []).map((item, index) => (
+              <motion.div
+                key={item.code}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 * index, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="group metric-orb rounded-[20px] p-5 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(56,152,255,0.06)]"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-white">{language === "zh" ? item.name : item.englishName}</p>
-                    <p className="mt-1 text-[11px] uppercase tracking-[0.24em] text-slate-500">{copy.todayPrice}</p>
+                    <p className="text-[13px] font-semibold text-white">{language === "zh" ? item.name : item.englishName}</p>
+                    <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.24em] text-slate-500">{copy.todayPrice}</p>
                   </div>
-                  <Badge className={item.changeRate >= 0 ? "rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-100" : "rounded-full border-rose-400/20 bg-rose-400/10 text-rose-100"}>
+                  <Badge className={item.changeRate >= 0 ? "rounded-lg border-emerald-400/15 bg-emerald-400/[0.06] text-[11px] font-semibold text-emerald-200" : "rounded-lg border-rose-400/15 bg-rose-400/[0.06] text-[11px] font-semibold text-rose-200"}>
                     {item.changeRate >= 0 ? "+" : ""}{item.changeRate.toFixed(2)}%
                   </Badge>
                 </div>
-                <p className="mt-5 text-3xl font-semibold text-white">{item.unit === "¥/kg" ? "¥" : ""}{item.price.toFixed(2)}</p>
-                <p className="mt-2 text-sm text-slate-500">{item.unit}</p>
-              </div>
+                <p className="mt-5 num-display text-3xl font-bold text-white">{item.unit === "¥/kg" ? "¥" : ""}{item.price.toFixed(2)}</p>
+                <p className="mt-2 text-[12px] text-slate-500">{item.unit}</p>
+              </motion.div>
             ))}
           </div>
         </GlassPanel>
@@ -610,8 +623,8 @@ export default function PorkPage() {
         <GlassPanel>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.marketDynamics}</p>
-              <h3 className="mt-2 text-xl font-semibold text-white">{copy.marketTitle}</h3>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.marketDynamics}</p>
+              <h3 className="mt-2 text-lg font-bold tracking-tight text-white">{copy.marketTitle}</h3>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="flex min-w-[180px] flex-col gap-2 text-sm text-slate-400">
@@ -912,7 +925,7 @@ export default function PorkPage() {
               </div>
             ))}
           </div>
-          <Button onClick={() => setLocation("/quant")} className="mt-5 w-full rounded-2xl bg-[linear-gradient(135deg,#84ebff,#4ed8ff_38%,#86a8ff)] text-slate-950 hover:opacity-95">{copy.openEngine}<ArrowRight className="h-4 w-4" /></Button>
+          <Button onClick={() => setLocation("/quant")} className="mt-5 w-full rounded-xl bg-[linear-gradient(135deg,rgba(56,189,248,0.15),rgba(56,152,255,0.1))] border border-cyan-400/20 text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.2),rgba(56,152,255,0.15))] hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(56,189,248,0.1)] transition-all duration-300">{copy.openEngine}<ArrowRight className="h-4 w-4" /></Button>
         </GlassPanel>
 
         <div className="grid gap-6 xl:grid-cols-2">

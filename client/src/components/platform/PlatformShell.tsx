@@ -15,6 +15,7 @@ import {
   Sparkles,
   UsersRound,
   Workflow,
+  Zap,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useLocation } from "wouter";
@@ -102,46 +103,60 @@ export function PlatformShell({
   return (
     <div className="min-h-screen text-foreground">
       <div className="relative flex min-h-screen">
+        {/* ═══ SIDEBAR ═══ */}
         <aside className="hidden xl:flex xl:w-[316px] xl:flex-col xl:px-4 xl:py-4">
-          <div className="glass-line relative flex h-full flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(9,16,29,0.95),rgba(7,12,22,0.98))] shadow-[0_30px_90px_rgba(2,8,20,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(86,196,255,0.14),transparent_22%),linear-gradient(180deg,transparent,rgba(50,96,255,0.06))]" />
+          <div className="glass-line relative flex h-full flex-col overflow-hidden rounded-[28px] border border-white/[0.07] bg-[linear-gradient(180deg,rgba(6,14,30,0.96),rgba(4,10,22,0.98))] shadow-[0_32px_100px_rgba(0,4,15,0.5),inset_0_1px_0_rgba(255,255,255,0.06)]">
+            {/* Ambient glow */}
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_20%_0%,rgba(56,152,255,0.1),transparent),radial-gradient(ellipse_40%_30%_at_80%_100%,rgba(56,100,255,0.06),transparent)]" />
 
-            <div className="relative px-6 pb-6 pt-7">
-              <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018)),linear-gradient(180deg,rgba(9,16,29,0.94),rgba(8,13,24,0.94))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_20px_70px_rgba(0,0,0,0.26)]">
+            {/* Brand card */}
+            <div className="relative px-5 pb-5 pt-6">
+              <div className="holo-card p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div className="eyebrow-chip">{t("common.demoMode")}</div>
-                  <div className="data-chip flex items-center gap-2 text-xs">
-                    <Activity className="h-3.5 w-3.5 text-emerald-300" />
+                  <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-3 py-1.5 text-xs font-medium text-emerald-300">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                    </span>
                     <span>{shellCopy.liveStatus}</span>
                   </div>
                 </div>
 
-                <div className="mt-6">
-                  <p className="text-sm uppercase tracking-[0.32em] text-cyan-100/70">{t("common.platformName")}</p>
-                  <h1 className="mt-4 text-[2rem] font-semibold leading-none text-white">{t("common.platformTagline")}</h1>
-                  <p className="mt-4 max-w-xs text-sm leading-6 text-slate-400">{shellCopy.workspace} · {shellCopy.aiControl}</p>
-                  <p className="mt-2 text-[11px] uppercase tracking-[0.24em] text-cyan-200/55">{shellCopy.hubLine}</p>
+                <div className="mt-5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/60">{t("common.platformName")}</p>
+                  <h1 className="mt-3 text-[1.75rem] font-bold leading-[1.1] tracking-tight text-white">{t("common.platformTagline")}</h1>
+                  <p className="mt-3 text-[13px] leading-relaxed text-slate-400/90">{shellCopy.workspace} · {shellCopy.aiControl}</p>
+                  <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.28em] text-cyan-200/40">{shellCopy.hubLine}</p>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 gap-3">
-                  <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-3">
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">01</p>
-                    <p className="mt-2 text-sm font-medium text-white">{shellCopy.formulaTag}</p>
+                <div className="mt-5 grid grid-cols-2 gap-2.5">
+                  <div className="group rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3 transition-all hover:border-cyan-400/15 hover:bg-cyan-400/[0.04]">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-3 w-3 text-cyan-400/60" />
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">01</p>
+                    </div>
+                    <p className="mt-2 text-[13px] font-semibold text-white/90">{shellCopy.formulaTag}</p>
                   </div>
-                  <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-3">
-                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">02</p>
-                    <p className="mt-2 text-sm font-medium text-white">{shellCopy.governanceTag}</p>
+                  <div className="group rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3 transition-all hover:border-cyan-400/15 hover:bg-cyan-400/[0.04]">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-3 w-3 text-cyan-400/60" />
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">02</p>
+                    </div>
+                    <p className="mt-2 text-[13px] font-semibold text-white/90">{shellCopy.governanceTag}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="relative px-4 pb-4">
+            {/* Map */}
+            <div className="relative px-4 pb-3">
               <GlobalAssetMap />
             </div>
 
-            <nav className="relative flex-1 px-4 pb-4">
-              <div className="space-y-2.5">
+            {/* Navigation */}
+            <nav className="relative flex-1 px-3 pb-3">
+              <div className="space-y-1.5">
                 {navItems.map((item, index) => {
                   const Icon = navIcons[index]!;
                   const isActive = location === item.href;
@@ -150,26 +165,36 @@ export function PlatformShell({
                       key={item.href}
                       onClick={() => setLocation(item.href)}
                       className={cn(
-                        "group relative flex w-full items-center gap-4 overflow-hidden rounded-[26px] border px-4 py-4 text-left transition-all duration-300",
+                        "group relative flex w-full items-center gap-3.5 overflow-hidden rounded-2xl border px-3.5 py-3.5 text-left transition-all duration-300",
                         isActive
-                          ? "border-cyan-400/30 bg-[linear-gradient(135deg,rgba(75,183,255,0.16),rgba(53,114,255,0.14)_58%,rgba(255,255,255,0.03))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_18px_50px_rgba(0,0,0,0.28)]"
-                          : "border-transparent bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.05]",
+                          ? "border-cyan-400/25 bg-[linear-gradient(135deg,rgba(56,152,255,0.12),rgba(40,100,255,0.1)_60%,rgba(255,255,255,0.02))] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_12px_40px_rgba(0,4,15,0.35)]"
+                          : "border-transparent bg-transparent hover:border-white/[0.06] hover:bg-white/[0.03]",
                       )}
                     >
-                      <div className={cn("absolute inset-y-3 left-0 w-[3px] rounded-full transition-all", isActive ? "bg-cyan-300 shadow-[0_0_18px_rgba(56,189,248,0.8)]" : "bg-transparent")} />
+                      {/* Active indicator */}
+                      <div className={cn(
+                        "absolute inset-y-2.5 left-0 w-[2.5px] rounded-full transition-all duration-300",
+                        isActive
+                          ? "bg-cyan-400 shadow-[0_0_12px_rgba(56,189,248,0.7)]"
+                          : "bg-transparent"
+                      )} />
+
                       <div
                         className={cn(
-                          "relative flex h-12 w-12 items-center justify-center rounded-[18px] border transition-all",
+                          "relative flex h-10 w-10 items-center justify-center rounded-xl border transition-all duration-300",
                           isActive
-                            ? "border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
-                            : "border-white/8 bg-white/[0.03] text-slate-400 group-hover:text-slate-100",
+                            ? "border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200"
+                            : "border-white/[0.06] bg-white/[0.02] text-slate-500 group-hover:border-white/[0.1] group-hover:text-slate-300",
                         )}
                       >
-                        <Icon className="h-4.5 w-4.5" />
+                        <Icon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className={cn("truncate text-sm font-semibold", isActive ? "text-white" : "text-slate-200")}>{item.label}</p>
-                        <p className="mt-1 truncate text-[11px] uppercase tracking-[0.22em] text-slate-500">{shellCopy.commandDeck}</p>
+                        <p className={cn(
+                          "truncate text-[13px] font-semibold transition-colors",
+                          isActive ? "text-white" : "text-slate-300 group-hover:text-white"
+                        )}>{item.label}</p>
+                        <p className="mt-0.5 truncate text-[10px] font-medium uppercase tracking-[0.2em] text-slate-600">{shellCopy.commandDeck}</p>
                       </div>
                     </button>
                   );
@@ -177,49 +202,65 @@ export function PlatformShell({
               </div>
             </nav>
 
-            <div className="relative p-4 pt-0">
-              <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015)),rgba(8,14,24,0.92)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                <div className="flex items-center gap-3 text-cyan-100">
-                  <ShieldCheck className="h-5 w-5" />
-                  <p className="text-sm font-semibold text-white">{shellCopy.humanAiTitle}</p>
+            {/* Governance card */}
+            <div className="relative p-3 pt-0">
+              <div className="holo-card p-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-400/15 bg-cyan-400/[0.06]">
+                    <ShieldCheck className="h-4 w-4 text-cyan-300" />
+                  </div>
+                  <p className="text-[13px] font-bold text-white">{shellCopy.humanAiTitle}</p>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-400">{shellCopy.humanAiBody}</p>
+                <p className="mt-3 text-[12.5px] leading-[1.7] text-slate-400/90">{shellCopy.humanAiBody}</p>
               </div>
             </div>
           </div>
         </aside>
 
-        <div className="flex min-h-screen min-w-0 flex-1 flex-col xl:pl-2">
-          <header className="sticky top-0 z-30 border-b border-white/8 bg-[linear-gradient(180deg,rgba(6,11,20,0.88),rgba(6,11,20,0.74))] backdrop-blur-2xl">
-            <div className="flex items-center justify-between gap-4 px-4 py-4 md:px-8 md:py-5">
+        {/* ═══ MAIN CONTENT ═══ */}
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col xl:pl-1">
+          {/* Header bar */}
+          <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-[linear-gradient(180deg,rgba(4,10,22,0.92),rgba(4,10,22,0.8))] backdrop-blur-2xl">
+            <div className="flex items-center justify-between gap-4 px-4 py-3.5 md:px-8 md:py-4">
               <div className="min-w-0">
-                <p className="text-[11px] uppercase tracking-[0.36em] text-cyan-200/80">{eyebrow}</p>
-                <h2 className="mt-3 truncate text-2xl font-semibold text-white md:text-[2rem]">{title}</h2>
+                <div className="flex items-center gap-3">
+                  <div className="hidden h-5 w-[2px] rounded-full bg-cyan-400/60 md:block" />
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-cyan-300/70">{eyebrow}</p>
+                </div>
+                <h2 className="mt-2 truncate text-xl font-bold tracking-tight text-white md:text-2xl">{title}</h2>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="hidden items-center gap-3 rounded-full border border-white/8 bg-white/[0.04] px-4 py-2 text-sm text-slate-300 md:flex">
-                  <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,0.9)]" />
+              <div className="flex items-center gap-2.5">
+                {/* Live status badge */}
+                <div className="hidden items-center gap-2.5 rounded-full border border-white/[0.06] bg-white/[0.03] px-4 py-2 text-[13px] font-medium text-slate-300/90 backdrop-blur-sm md:flex">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
+                  </span>
                   <span>{t("common.generatedByFormula")}</span>
                 </div>
+
+                {/* Language selector */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
                       size="icon"
-                      className="rounded-full border-white/10 bg-white/[0.05] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:bg-white/[0.09]"
+                      className="h-9 w-9 rounded-xl border-white/[0.08] bg-white/[0.03] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-white/[0.12] hover:bg-white/[0.06] hover:text-white"
                     >
-                      <Globe className="h-5 w-5" />
+                      <Globe className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52 rounded-[22px] border-white/10 bg-slate-950/95 p-2 text-slate-100">
+                  <DropdownMenuContent align="end" className="w-48 rounded-xl border-white/[0.08] bg-[rgba(8,16,32,0.97)] p-1.5 text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
                     {languages.map(item => (
                       <DropdownMenuItem
                         key={item.code}
                         onClick={() => setLanguage(item.code)}
                         className={cn(
-                          "rounded-2xl px-3 py-2.5",
-                          language === item.code ? "bg-cyan-400/12 text-cyan-100" : "text-slate-300",
+                          "rounded-lg px-3 py-2.5 text-[13px] transition-all",
+                          language === item.code
+                            ? "bg-cyan-400/[0.1] text-cyan-200 font-medium"
+                            : "text-slate-400 hover:text-white",
                         )}
                       >
                         {item.label}
@@ -231,7 +272,8 @@ export function PlatformShell({
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+          {/* Page content */}
+          <main className="flex-1 px-3 py-5 md:px-6 md:py-6">
             <div className="tech-surface mx-auto max-w-[1580px] animate-fade-up px-4 py-5 md:px-6 md:py-6 xl:px-7">
               {children}
             </div>

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { History, ScanSearch, ShieldCheck, Sparkles, UserRoundCog } from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function AuditPage() {
   const { data: logs } = trpc.platform.auditLogs.useQuery();
@@ -148,21 +149,21 @@ export default function AuditPage() {
         title={copy.sectionTitle}
         description={copy.sectionDesc}
         aside={
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="data-chip text-sm">{copy.traceSignalA}</div>
-            <div className="data-chip text-sm">{copy.traceSignalB}</div>
-            <div className="data-chip text-sm">{copy.traceSignalC}</div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="data-chip text-[12px]">{copy.traceSignalA}</div>
+            <div className="data-chip text-[12px]">{copy.traceSignalB}</div>
+            <div className="data-chip text-[12px]">{copy.traceSignalC}</div>
           </div>
         }
       />
 
       <GlassPanel className="mb-6 overflow-visible">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
-            <h3 className="mt-2 text-2xl font-semibold text-white">{copy.latestBoard}</h3>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
+            <h3 className="mt-2 text-xl font-bold tracking-tight text-white">{copy.latestBoard}</h3>
           </div>
-          <div className="data-chip text-sm">{copy.compliance}</div>
+          <Badge className="rounded-lg border-emerald-400/15 bg-emerald-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-emerald-200/80">{copy.compliance}</Badge>
         </div>
       </GlassPanel>
 
@@ -172,13 +173,18 @@ export default function AuditPage() {
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100"><ShieldCheck className="h-5 w-5" /></div>
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.governance}</p>
-                <h3 className="mt-2 text-xl font-semibold text-white">{copy.humanAiTitle}</h3>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.governance}</p>
+                <h3 className="mt-2 text-lg font-bold tracking-tight text-white">{copy.humanAiTitle}</h3>
               </div>
             </div>
             <div className="mt-5 space-y-4">
               {snapshot?.roleProfiles.map((role, index) => (
-                <div key={role.code} className="rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015)),linear-gradient(180deg,rgba(8,14,24,0.92),rgba(7,12,22,0.9))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <motion.div
+                  key={role.code}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.06 * index, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  className="rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015)),linear-gradient(180deg,rgba(8,14,24,0.92),rgba(7,12,22,0.9))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 hover:shadow-[0_8px_30px_rgba(56,152,255,0.04)]">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-[16px] border border-cyan-400/15 bg-cyan-400/8 text-cyan-200">
@@ -194,9 +200,9 @@ export default function AuditPage() {
                       <Badge className="rounded-full border-white/10 bg-white/[0.04] text-slate-200">{copy.compliance}</Badge>
                     </div>
                   </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-400">{role.decisionLimit}</p>
-                  <p className="mt-2 text-xs leading-5 text-cyan-100/80">{role.approvalRule}</p>
-                </div>
+                  <p className="mt-4 text-[13px] leading-[1.7] text-slate-400">{role.decisionLimit}</p>
+                  <p className="mt-2 text-[11px] leading-5 text-cyan-100/80">{role.approvalRule}</p>
+                </motion.div>
               ))}
             </div>
           </GlassPanel>
@@ -221,8 +227,8 @@ export default function AuditPage() {
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100"><History className="h-5 w-5" /></div>
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.auditTrail}</p>
-              <h3 className="mt-2 text-xl font-semibold text-white">{copy.latestLogs}</h3>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.auditTrail}</p>
+              <h3 className="mt-2 text-lg font-bold tracking-tight text-white">{copy.latestLogs}</h3>
             </div>
             <div className="ml-auto flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04] text-slate-300"><Sparkles className="h-4.5 w-4.5" /></div>
           </div>
@@ -232,8 +238,13 @@ export default function AuditPage() {
               <span>{copy.action}</span><span>{copy.entity}</span><span>{copy.role}</span><span>{copy.status}</span>
             </div>
             <div className="divide-y divide-white/8">
-              {logs?.map(log => (
-                <div key={log.id} className="grid grid-cols-[1.15fr_1fr_0.85fr_0.8fr] gap-4 px-5 py-4 text-sm transition-colors hover:bg-white/[0.02]">
+              {logs?.map((log, index) => (
+                <motion.div
+                  key={log.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.04 * index, duration: 0.35 }}
+                  className="grid grid-cols-[1.15fr_1fr_0.85fr_0.8fr] gap-4 px-5 py-4 text-sm transition-colors hover:bg-white/[0.02]">
                   <div>
                     <p className="font-medium text-white">{log.actionType}</p>
                     <p className="mt-2 leading-6 text-slate-400">{log.decision}</p>
@@ -258,7 +269,7 @@ export default function AuditPage() {
                   <div className="flex items-start">
                     <Badge className={log.status === "待审批" ? "rounded-full border-amber-400/20 bg-amber-400/10 text-amber-100" : log.status === "已执行" ? "rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-100" : "rounded-full border-cyan-400/20 bg-cyan-400/10 text-cyan-100"}>{statusMap[log.status]?.[language] ?? log.status}</Badge>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </div>

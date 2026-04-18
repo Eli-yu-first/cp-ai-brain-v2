@@ -196,110 +196,151 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white">
-      <div className="pointer-events-none absolute left-[10%] top-24 h-72 w-72 rounded-full bg-cyan-400/18 blur-[110px] animate-glow-drift" />
-      <div className="pointer-events-none absolute right-[8%] top-20 h-64 w-64 rounded-full bg-indigo-500/18 blur-[120px] animate-glow-drift" />
-      <div className="relative container flex min-h-screen flex-col justify-between py-8 md:py-10">
-        <header className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm uppercase tracking-[0.34em] text-cyan-200/75">{t("common.platformName")}</p>
-            <h1 className="mt-3 text-lg font-medium text-slate-300">{t("common.platformTagline")}</h1>
-          </div>
-          <Badge className="rounded-full border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.12)]">{copy.style}</Badge>
-        </header>
+      {/* Ambient orbs */}
+      <div className="pointer-events-none absolute left-[8%] top-20 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(56,152,255,0.15),transparent_60%)] blur-[100px] animate-glow-drift" />
+      <div className="pointer-events-none absolute right-[6%] top-16 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(40,80,200,0.12),transparent_60%)] blur-[110px] animate-glow-drift delay-300" />
+      <div className="pointer-events-none absolute left-[40%] bottom-20 h-60 w-60 rounded-full bg-[radial-gradient(circle,rgba(56,180,255,0.08),transparent_60%)] blur-[90px]" />
 
-        <main className="grid gap-10 py-10 xl:grid-cols-[1.15fr_0.85fr] xl:items-center xl:py-14">
+      <div className="relative container flex min-h-screen flex-col justify-between py-8 md:py-10">
+        {/* Header */}
+        <motion.header
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex flex-wrap items-center justify-between gap-4"
+        >
           <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.4em] text-cyan-300/60">{t("common.platformName")}</p>
+            <h1 className="mt-2 text-base font-semibold text-slate-300/80">{t("common.platformTagline")}</h1>
+          </div>
+          <Badge className="rounded-lg border-cyan-400/15 bg-cyan-400/[0.06] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-cyan-200/80 shadow-[0_0_20px_rgba(56,180,255,0.08)]">
+            {copy.style}
+          </Badge>
+        </motion.header>
+
+        {/* Hero */}
+        <main className="grid gap-10 py-10 xl:grid-cols-[1.15fr_0.85fr] xl:items-center xl:py-14">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+          >
             <div className="eyebrow-chip">{copy.heroLabel}</div>
-            <h2 className="mt-8 max-w-5xl text-5xl font-semibold leading-[0.96] text-white md:text-7xl xl:text-[5.25rem]">
+            <h2 className="mt-7 max-w-5xl text-4xl font-bold leading-[1.05] tracking-tight text-white md:text-6xl xl:text-[5rem]">
               {copy.subtitle}
             </h2>
-            <p className="mt-8 max-w-3xl text-lg leading-8 text-slate-300 md:text-xl">{copy.description}</p>
+            <p className="mt-7 max-w-3xl text-base leading-8 text-slate-400/90 md:text-lg">{copy.description}</p>
 
-            <div className="mt-10 flex flex-wrap gap-4">
+            <div className="mt-9 flex flex-wrap gap-3">
               <Button
                 onClick={() => setLocation("/tenants")}
                 size="lg"
-                className="rounded-2xl bg-[linear-gradient(135deg,#84ebff,#4ed8ff_38%,#86a8ff)] px-7 text-slate-950 shadow-[0_18px_40px_rgba(94,199,255,0.24)] hover:opacity-95"
+                className="group rounded-xl bg-[linear-gradient(135deg,rgba(56,180,255,0.9),rgba(56,130,255,0.9))] px-7 text-white shadow-[0_16px_40px_rgba(56,152,255,0.2),inset_0_1px_0_rgba(255,255,255,0.2)] transition-all hover:shadow-[0_20px_50px_rgba(56,152,255,0.3)] hover:brightness-110"
               >
                 {copy.enter}
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Button>
               <Button
                 onClick={() => setLocation("/overview")}
                 size="lg"
                 variant="outline"
-                className="rounded-2xl border-white/10 bg-white/[0.04] px-7 text-slate-100 hover:bg-white/[0.08]"
+                className="rounded-xl border-white/[0.08] bg-white/[0.03] px-7 text-slate-200 backdrop-blur-sm hover:border-white/[0.12] hover:bg-white/[0.06]"
               >
                 {copy.preview}
               </Button>
             </div>
 
-            <div className="mt-10 flex flex-wrap gap-3">
+            <div className="mt-8 flex flex-wrap gap-2.5">
               {dashboardStats.map(item => (
-                <div key={item} className="data-chip text-sm">{item}</div>
+                <div key={item} className="data-chip text-[13px]">{item}</div>
               ))}
             </div>
-          </div>
+          </motion.div>
 
+          {/* Dashboard preview card */}
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={{ opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="glass-line rounded-[38px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018)),linear-gradient(180deg,rgba(8,14,25,0.94),rgba(7,12,22,0.92))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_30px_110px_rgba(1,6,18,0.58)] md:p-6"
+            transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="holo-card p-5"
           >
-            <div className="flex items-center justify-between gap-3 rounded-[24px] border border-white/8 bg-white/[0.04] px-4 py-3">
+            {/* Live signal bar */}
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">{copy.label1}</p>
-                <p className="mt-1 text-sm font-medium text-white">{copy.liveSignal}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.label1}</p>
+                <p className="mt-1 text-[13px] font-semibold text-white">{copy.liveSignal}</p>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-xs text-emerald-100">
-                <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.9)]" />
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-400/15 bg-emerald-400/[0.06] px-3 py-1.5 text-[11px] font-medium text-emerald-300">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                </span>
                 {copy.liveSignalDesc}
               </div>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {/* Feature cards */}
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
               {[
                 { title: copy.cardA, desc: copy.cardADesc, icon: ChartNoAxesCombined },
                 { title: copy.cardB, desc: copy.cardBDesc, icon: Bot },
                 { title: copy.cardC, desc: copy.cardCDesc, icon: Boxes },
-              ].map(item => (
-                <div key={item.title} className="metric-orb rounded-[28px] p-5">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
-                    <item.icon className="h-5 w-5" />
+              ].map((item, i) => (
+                <motion.div
+                  key={item.title}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.3 + i * 0.1 }}
+                  className="group rounded-xl border border-white/[0.05] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.008)),rgba(6,14,28,0.9)] p-4 transition-all hover:border-cyan-400/15 hover:bg-[rgba(56,152,255,0.03)]"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/[0.06] text-cyan-300 transition-all group-hover:bg-cyan-400/[0.1] group-hover:shadow-[0_0_16px_rgba(56,180,255,0.12)]">
+                    <item.icon className="h-4.5 w-4.5" />
                   </div>
-                  <h3 className="mt-5 text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-slate-400">{item.desc}</p>
-                </div>
+                  <h3 className="mt-4 text-[14px] font-bold text-white">{item.title}</h3>
+                  <p className="mt-2 text-[12px] leading-[1.7] text-slate-400/80">{item.desc}</p>
+                </motion.div>
               ))}
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-[28px] border border-white/8 bg-white/[0.04] p-5">
+            {/* Data preview */}
+            <div className="mt-4 grid gap-3 md:grid-cols-[1.15fr_0.85fr]">
+              <div className="rounded-xl border border-white/[0.05] bg-white/[0.025] p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.26em] text-slate-500">{copy.label2}</p>
-                    <p className="mt-2 text-2xl font-semibold text-white">{copy.actionHold}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-slate-500">{copy.label2}</p>
+                    <p className="mt-2 num-display text-xl font-bold text-white">{copy.actionHold}</p>
                   </div>
-                  <Badge className="rounded-full border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-emerald-100">+2.38/kg</Badge>
+                  <Badge className="rounded-lg border-emerald-400/15 bg-emerald-400/[0.06] px-2.5 py-1.5 num-display text-[11px] font-semibold text-emerald-300">+2.38/kg</Badge>
                 </div>
-                <div className="mt-6 h-24 rounded-[20px] bg-[linear-gradient(180deg,rgba(52,211,153,0.18),rgba(52,211,153,0.02))] p-4">
-                  <div className="flex h-full items-end gap-2">
+                <div className="mt-5 h-20 rounded-xl bg-[linear-gradient(180deg,rgba(52,211,153,0.1),rgba(52,211,153,0.02))] p-3">
+                  <div className="flex h-full items-end gap-1.5">
                     {[42, 38, 51, 46, 60, 64, 72, 69, 78].map((value, index) => (
-                      <div key={index} className="flex-1 rounded-full bg-[linear-gradient(180deg,rgba(125,255,210,0.85),rgba(52,211,153,0.18))]" style={{ height: `${value}%` }} />
+                      <motion.div
+                        key={index}
+                        initial={{ height: 0 }}
+                        animate={{ height: `${value}%` }}
+                        transition={{ duration: 0.6, delay: 0.4 + index * 0.05, ease: [0.16, 1, 0.3, 1] }}
+                        className="flex-1 rounded-sm bg-[linear-gradient(180deg,rgba(52,211,153,0.7),rgba(52,211,153,0.15))]"
+                      />
                     ))}
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-[28px] border border-white/8 bg-white/[0.04] p-5">
-                <p className="text-xs uppercase tracking-[0.26em] text-slate-500">{copy.label3}</p>
-                <div className="mt-4 space-y-3">
+              <div className="rounded-xl border border-white/[0.05] bg-white/[0.025] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-slate-500">{copy.label3}</p>
+                <div className="mt-3 space-y-2">
                   {[copy.actionPending, copy.actionSell, copy.actionHold].map((item, index) => (
-                    <div key={item} className="flex items-center justify-between rounded-[18px] border border-white/8 bg-slate-950/50 px-4 py-3">
-                      <span className="text-sm text-slate-300">0{index + 1}</span>
-                      <span className="text-sm font-medium text-white">{item}</span>
-                    </div>
+                    <motion.div
+                      key={item}
+                      initial={{ opacity: 0, x: 12 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.4, delay: 0.5 + index * 0.1 }}
+                      className="flex items-center justify-between rounded-lg border border-white/[0.04] bg-[rgba(6,14,28,0.6)] px-3.5 py-2.5"
+                    >
+                      <span className="num-display text-[12px] text-slate-500">0{index + 1}</span>
+                      <span className="text-[13px] font-semibold text-white">{item}</span>
+                    </motion.div>
                   ))}
                 </div>
               </div>
@@ -307,24 +348,37 @@ export default function Home() {
           </motion.div>
         </main>
 
-        <section className="grid gap-5 border-t border-white/8 py-8 md:grid-cols-2 xl:grid-cols-4 xl:gap-6">
+        {/* Features section */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="grid gap-4 border-t border-white/[0.06] py-8 md:grid-cols-2 xl:grid-cols-4 xl:gap-5"
+        >
           <div className="md:col-span-2 xl:col-span-1">
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/70">{copy.style}</p>
-            <h3 className="mt-4 text-2xl font-semibold text-white">{copy.sectionTitle}</h3>
-            <p className="mt-3 max-w-md text-sm leading-6 text-slate-400">{copy.sectionDesc}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/60">{copy.style}</p>
+            <h3 className="mt-3 text-xl font-bold tracking-tight text-white">{copy.sectionTitle}</h3>
+            <p className="mt-3 max-w-md text-[13px] leading-[1.7] text-slate-400/80">{copy.sectionDesc}</p>
           </div>
-          {features.map(item => (
-            <div key={item.title} className="glass-line rounded-[28px] border border-white/8 bg-white/[0.035] p-5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
-                <item.icon className="h-5 w-5" />
+          {features.map((item, i) => (
+            <motion.div
+              key={item.title}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 + i * 0.1 }}
+              className="holo-card glow-border p-5"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/[0.06] text-cyan-300">
+                <item.icon className="h-4.5 w-4.5" />
               </div>
-              <h4 className="mt-5 text-lg font-semibold text-white">{item.title}</h4>
-              <p className="mt-3 text-sm leading-6 text-slate-400">{item.desc}</p>
-            </div>
+              <h4 className="mt-4 text-[15px] font-bold text-white">{item.title}</h4>
+              <p className="mt-2.5 text-[12.5px] leading-[1.7] text-slate-400/80">{item.desc}</p>
+            </motion.div>
           ))}
-        </section>
+        </motion.section>
 
-        <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-white/8 pt-6 text-sm text-slate-500">
+        {/* Footer */}
+        <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-white/[0.06] pt-6 text-[12px] text-slate-500/80">
           <span>{copy.footerLeft}</span>
           <span>{copy.footerRight}</span>
         </footer>

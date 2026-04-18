@@ -5,6 +5,7 @@ import { GlassPanel, SectionHeader } from "@/components/platform/PlatformPrimiti
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, Building2, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 
 export default function TenantsPage() {
@@ -111,25 +112,28 @@ export default function TenantsPage() {
         eyebrow={copy.sectionEyebrow}
         title={copy.sectionTitle}
         description={copy.sectionDesc}
-        aside={<div className="data-chip text-sm">{copy.tenantStackDesc}</div>}
+        aside={<div className="data-chip text-[12px]">{copy.tenantStackDesc}</div>}
       />
 
       <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
         <GlassPanel>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.tenantStack}</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">{copy.enterWorkspace}</h3>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.tenantStack}</p>
+              <h3 className="mt-2 text-xl font-bold tracking-tight text-white">{copy.enterWorkspace}</h3>
             </div>
-            <Badge className="rounded-full border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-cyan-100">{copy.auditable}</Badge>
+            <Badge className="rounded-lg border-cyan-400/15 bg-cyan-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-cyan-200/80">{copy.auditable}</Badge>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {data?.tenantOptions.map((tenant, index) => (
-              <button
+              <motion.button
                 key={tenant.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08 * index, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                 onClick={() => setLocation("/overview")}
-                className="group metric-orb rounded-[30px] p-5 text-left transition-all duration-300 hover:translate-y-[-2px] hover:border-cyan-300/20"
+                className="group metric-orb rounded-[30px] p-5 text-left transition-all duration-300 hover:translate-y-[-2px] hover:border-cyan-300/20 hover:shadow-[0_12px_40px_rgba(56,189,248,0.06)]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex h-13 w-13 items-center justify-center rounded-[20px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-200">
@@ -159,7 +163,7 @@ export default function TenantsPage() {
                   {copy.enterWorkspace}
                   <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </div>
-              </button>
+              </motion.button>
             ))}
           </div>
         </GlassPanel>
@@ -167,18 +171,23 @@ export default function TenantsPage() {
         <GlassPanel>
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">{copy.roleMatrix}</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">{copy.governanceTitle}</h3>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.roleMatrix}</p>
+              <h3 className="mt-2 text-xl font-bold tracking-tight text-white">{copy.governanceTitle}</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
               <Sparkles className="h-5 w-5" />
             </div>
           </div>
-          <p className="mt-4 text-sm leading-6 text-slate-400">{copy.governanceDesc}</p>
+          <p className="mt-4 text-[13px] leading-[1.7] text-slate-400/80">{copy.governanceDesc}</p>
 
           <div className="mt-6 space-y-4">
-            {data?.roleProfiles.map(role => (
-              <div key={role.code} className="rounded-[24px] border border-white/8 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            {data?.roleProfiles.map((role, index) => (
+              <motion.div
+                key={role.code}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.06 * index, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                className="rounded-[24px] border border-white/8 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 hover:shadow-[0_8px_30px_rgba(56,152,255,0.04)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-[16px] border border-emerald-400/20 bg-emerald-400/10 text-emerald-200">
@@ -201,13 +210,13 @@ export default function TenantsPage() {
                     <p className="mt-2 leading-6 text-cyan-100/80">{role.approvalRule}</p>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
 
           <Button
             onClick={() => setLocation("/overview")}
-            className="mt-6 w-full rounded-2xl bg-[linear-gradient(135deg,#84ebff,#4ed8ff_38%,#86a8ff)] text-slate-950 shadow-[0_18px_40px_rgba(94,199,255,0.24)] hover:opacity-95"
+            className="mt-6 w-full rounded-xl bg-[linear-gradient(135deg,rgba(56,189,248,0.15),rgba(56,152,255,0.1))] border border-cyan-400/20 text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.2),rgba(56,152,255,0.15))] hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(56,189,248,0.1)] transition-all duration-300"
           >
             {copy.unifiedOverview}
             <ArrowRight className="h-4 w-4" />

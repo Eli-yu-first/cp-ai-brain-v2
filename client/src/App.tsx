@@ -3,37 +3,40 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import AuditPage from "./pages/Audit";
 import Home from "./pages/Home";
+import OverviewPage from "./pages/Overview";
+import PorkPage from "./pages/Pork";
+import QuantPage from "./pages/Quant";
+import TenantsPage from "./pages/Tenants";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
+      <Route path="/" component={Home} />
+      <Route path="/tenants" component={TenantsPage} />
+      <Route path="/overview" component={OverviewPage} />
+      <Route path="/pork" component={PorkPage} />
+      <Route path="/quant" component={QuantPage} />
+      <Route path="/audit" component={AuditPage} />
+      <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+      <ThemeProvider defaultTheme="dark">
+        <LanguageProvider>
+          <TooltipProvider>
+            <Toaster richColors position="top-right" />
+            <Router />
+          </TooltipProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

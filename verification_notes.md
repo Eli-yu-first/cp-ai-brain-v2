@@ -72,3 +72,15 @@
 已继续验证执行回执更新链路：在 AI 决策页点击厂长角色的“超时升级”后，页面出现“回执状态已更新。”提示，角色状态标签切换为“超时升级”，ETA 显示同步延长为 90 分钟，说明回执更新动作已被前端接收并反映到执行追踪区域，当前页面仍保持稳定渲染。
 
 已使用本地验证脚本直接检查数据库中的持久化结果：批次 `CP-PK-240418-A1` 当前已存在 3 条工单记录与对应回执，分别覆盖厂长、司机与仓储管理员角色；其中厂长与仓储管理员工单状态为“超时升级”，司机状态为“待确认”。同时数据库中已存在与该批次相关的持久化审计记录，包括 `AI派单升级` 与 `工单超时升级` 两类事件，说明派单结果、回执状态、时间戳和审计留痕已形成真实闭环。
+
+## 2026-04-19 移动端角色视图补充验证
+
+已完成本轮移动端角色视图代码接入，涉及 `client/src/pages/AiDecision.tsx`、`client/src/pages/aiDecisionMobileRoles.ts`、`client/src/pages/aiDecisionMobileRoles.test.ts` 与 `server/dispatch.workflow.test.ts`。当前 AI 决策页移动端 `md:hidden` 区域已从单一 KPI 速览升级为**厂长 / 司机 / 仓储管理员**三种角色切换视图，角色卡片复用现有 `persistedFeedback` 数据与 `updateRoleReceipt` mutation，桌面端主工作台布局未发生改动。
+
+已使用无头 Chromium 以 `390x7200` 移动端视口抓取 `/ai` 页面长截图，输出文件包括 `/home/ubuntu/validation-artifacts/mobile-role-view/mobile-ai-role-view-full.png`、`/home/ubuntu/validation-artifacts/mobile-role-view/slice_05_4800_6000.png` 与 `/home/ubuntu/validation-artifacts/mobile-role-view/slice_06_6000_7200.png`。截图核验结果显示，`/home/ubuntu/validation-artifacts/mobile-role-view/slice_05_4800_6000.png` 中已出现 **Mobile War-Room / 移动端角色视图** 区块，`/home/ubuntu/validation-artifacts/mobile-role-view/slice_06_6000_7200.png` 中可见**厂长、司机、仓储**角色切换标签、默认厂长模式卡片、状态徽标以及“确认工单 / 升级处置”按钮，说明窄屏布局下角色化执行入口已实际渲染。
+
+同时已再次通过浏览器访问 `https://3000-iydaz1t7ykqfozguuje6i-85eb0ddb.sg1.manus.computer/ai`，页面能够正常打开，未出现类型报错或白屏。测试方面，重新执行 `pnpm test` 后，当前结果为 **10 个测试文件、35 项测试全部通过**。
+
+新增前端测试 `client/src/pages/aiDecisionMobileRoles.test.ts` 已覆盖厂长模式的“确认工单 / 升级处置”动作、司机模式的“签收完成”动作与 ETA 文案、仓储模式的“回执完成”动作与回执说明指标，以及状态徽标颜色映射。新增服务端流程测试 `server/dispatch.workflow.test.ts` 已直接验证：司机签收完成时会调用 `updateAiDispatchReceipt` 并写入“工单回执更新”审计，通知链路维持 `skipped`；仓储管理员超时升级时会写入“工单超时升级”审计，并触发企业微信 / 短信 / owner 通知链路返回 `sent`。
+
+补充说明：移动端截图默认展示为厂长模式；司机与仓储模式的按钮文案与动作状态由统一角色映射模块 `buildMobileRoleView()` 生成，并已由新增 Vitest 用例覆盖对应输出。

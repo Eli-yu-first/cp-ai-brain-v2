@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
+import { buildMobileRoleView, getRoleStatusBadgeClass, type MobileRole, type MobileRoleFeedback } from "./aiDecisionMobileRoles";
 import {
   BrainCircuit,
   Calculator,
@@ -435,6 +436,16 @@ function getAlertColors(status: AlertCard["status"]) {
   };
 }
 
+function getActionButtonClass(tone: "neutral" | "success" | "danger") {
+  if (tone === "success") {
+    return "rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-50 hover:bg-emerald-400/20";
+  }
+  if (tone === "danger") {
+    return "rounded-full border-rose-400/20 bg-rose-400/10 text-rose-50 hover:bg-rose-400/20";
+  }
+  return "rounded-full border-white/[0.12] bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]";
+}
+
 export default function AiDecisionPage() {
   const { language } = useLanguage();
   const current = copy[language];
@@ -449,6 +460,7 @@ export default function AiDecisionPage() {
   const [capacityAdjustmentInput, setCapacityAdjustmentInput] = useState("12");
   const [demandAdjustmentInput, setDemandAdjustmentInput] = useState("8");
   const [activeAlert, setActiveAlert] = useState<AlertCard | null>(null);
+  const [mobileRole, setMobileRole] = useState<MobileRole>("厂长");
 
   const selectedMonthNumber = useMemo(() => Number(selectedMonth), [selectedMonth]);
   const scenarioMonthNumber = useMemo(() => Number(scenarioMonth), [scenarioMonth]);
@@ -635,10 +647,63 @@ export default function AiDecisionPage() {
           priority: order.priority,
         };
       })
-      .filter((item): item is { orderId: string; role: "厂长" | "司机" | "仓储管理员"; status: "待确认" | "已接单" | "执行中" | "已完成" | "超时升级"; etaMinutes: number; note: string; priority: string } => Boolean(item));
+      .filter((item): item is MobileRoleFeedback => Boolean(item));
   }, [dispatchHistory, effectiveDispatchData]);
 
   const notificationStatus = persistDispatch.data?.notifications;
+  const mobileRoleTabs = useMemo(
+    () => [
+      { role: "厂长" as const, label: language === "en" ? "Plant" : "厂长" },
+      { role: "司机" as const, label: language === "en" ? "Driver" : "司机" },
+      { role: "仓储管理员" as const, label: language === "en" ? "Warehouse" : "仓储" },
+    ],
+    [language],
+  );
+  const mobileRoleFeedbackMap = useMemo<Record<MobileRole, MobileRoleFeedback>>(() => {
+    const factoryFeedback = persistedFeedback.find(item => item.role === "厂长");
+    const driverFeedback = persistedFeedback.find(item => item.role === "司机");
+    const warehouseFeedback = persistedFeedback.find(item => item.role === "仓储管理员");
+
+    return {
+      厂长: factoryFeedback ?? {
+        orderId: "preview-厂长",
+        role: "厂长",
+        status: "待确认",
+        etaMinutes: 25,
+        note: "等待厂长确认派单与预警联动。",
+        priority: "P1",
+      },
+      司机: driverFeedback ?? {
+        orderId: "preview-司机",
+        role: "司机",
+        status: "待确认",
+        etaMinutes: 45,
+        note: "等待司机确认装车与配送路线。",
+        priority: "P2",
+      },
+      仓储管理员: warehouseFeedback ?? {
+        orderId: "preview-仓储",
+        role: "仓储管理员",
+        status: "待确认",
+        etaMinutes: 35,
+        note: "等待仓储管理员确认入库回执。",
+        priority: "P2",
+      },
+    };
+  }, [persistedFeedback]);
+  const activeMobileRoleFeedback = mobileRoleFeedbackMap[mobileRole];
+  const mobileRoleView = useMemo(
+    () => buildMobileRoleView({
+      language,
+      role: mobileRole,
+      feedback: activeMobileRoleFeedback,
+      alertsCount: alertsData?.items.length ?? 0,
+      projectedPrice: data?.summary.projectedPrice ?? 0,
+      incrementalProfit: whatIfData?.summary.incrementalProfit ?? 0,
+      workOrderCount: effectiveDispatchData?.workOrders.length ?? 0,
+    }),
+    [activeMobileRoleFeedback, alertsData?.items.length, data?.summary.projectedPrice, effectiveDispatchData?.workOrders.length, language, mobileRole, whatIfData?.summary.incrementalProfit],
+  );
 
   const runAiAgents = () => {
     aiAgents.mutate(queryInput);
@@ -923,26 +988,75 @@ export default function AiDecisionPage() {
           ))}
           {current.modules.map(module => { const Icon = module.icon; return <GlassPanel key={module.title} className="h-full"><div className="flex h-full flex-col gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200"><Icon className="h-5 w-5" /></div><div><h4 className="text-lg font-semibold text-white">{module.title}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{module.desc}</p></div></div></GlassPanel>; })}
         </div>
-      </div>      <div className="mt-6 grid gap-3 md:hidden">
+      </div>
+      <div className="mt-6 grid gap-3 md:hidden">
         <GlassPanel className="p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-300/70">Mobile War-Room</p>
-          <h4 className="mt-3 text-lg font-semibold text-white">移动端战房速览</h4>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-              <p className="text-[11px] text-slate-400">预测单价</p>
-              <p className="mt-2 text-lg font-semibold text-white">¥{data ? data.summary.projectedPrice.toFixed(2) : "--"}</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-300/70">Mobile War-Room</p>
+              <h4 className="mt-3 text-lg font-semibold text-white">{language === "en" ? "Mobile role views" : "移动端角色视图"}</h4>
+              <p className="mt-2 text-[12px] leading-5 text-slate-400">{language === "en" ? "Switch between plant, driver, and warehouse roles to execute work orders on site." : "在厂长、司机与仓储管理员之间切换，直接完成现场工单执行。"}</p>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-              <p className="text-[11px] text-slate-400">利润偏差</p>
-              <p className="mt-2 text-lg font-semibold text-white">¥{whatIfData ? whatIfData.summary.incrementalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "--"}</p>
+            <Badge className={`rounded-full border px-3 py-1 text-[10px] ${getRoleStatusBadgeClass(activeMobileRoleFeedback.status)}`}>{activeMobileRoleFeedback.status}</Badge>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2 rounded-[22px] border border-white/[0.06] bg-slate-950/55 p-2">
+            {mobileRoleTabs.map(tab => (
+              <button
+                key={tab.role}
+                type="button"
+                onClick={() => setMobileRole(tab.role)}
+                className={`rounded-2xl px-3 py-2 text-[11px] font-semibold transition-colors ${mobileRole === tab.role ? "bg-cyan-400/15 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" : "bg-white/[0.03] text-slate-400"}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 rounded-[24px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015)),rgba(6,14,30,0.92)] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-300/70">{mobileRoleView.modeEyebrow}</p>
+                <h5 className="mt-3 text-lg font-semibold text-white">{mobileRoleView.modeTitle}</h5>
+              </div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-100">
+                {mobileRole === "厂长" ? <Factory className="h-5 w-5" /> : mobileRole === "司机" ? <Truck className="h-5 w-5" /> : <Warehouse className="h-5 w-5" />}
+              </div>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-              <p className="text-[11px] text-slate-400">预警数量</p>
-              <p className="mt-2 text-lg font-semibold text-white">{alertsData?.items.length ?? 0}</p>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
+                <p className="text-[11px] text-slate-400">{mobileRoleView.primaryMetricLabel}</p>
+                <p className="mt-2 text-sm font-semibold leading-5 text-white">{mobileRoleView.primaryMetricValue}</p>
+              </div>
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
+                <p className="text-[11px] text-slate-400">{mobileRoleView.secondaryMetricLabel}</p>
+                <p className="mt-2 text-sm font-semibold leading-5 text-white">{mobileRoleView.secondaryMetricValue}</p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-              <p className="text-[11px] text-slate-400">派单状态</p>
-              <p className="mt-2 text-lg font-semibold text-white">{dispatchData?.escalation ? "升级中" : "稳定"}</p>
+
+            <div className="mt-4 rounded-2xl border border-white/[0.08] bg-slate-950/45 p-3 text-[12px] leading-6 text-slate-300">
+              <p><span className="font-semibold text-slate-100">{mobileRoleView.summaryLabel}：</span>{mobileRoleView.summaryValue}</p>
+              <p className="mt-2"><span className="font-semibold text-slate-100">ETA：</span>{language === "en" ? `${activeMobileRoleFeedback.etaMinutes} min` : `${activeMobileRoleFeedback.etaMinutes} 分钟`}</p>
+              <p className="mt-2"><span className="font-semibold text-slate-100">{language === "en" ? "Note" : "说明"}：</span>{activeMobileRoleFeedback.note}</p>
+              <p className="mt-2"><span className="font-semibold text-slate-100">{language === "en" ? "Order" : "工单"}：</span>{activeMobileRoleFeedback.orderId}</p>
+            </div>
+
+            <p className="mt-4 text-[12px] leading-5 text-slate-400">{mobileRoleView.helperText}</p>
+
+            <div className="mt-4 grid gap-2">
+              {mobileRoleView.actions.map(action => (
+                <Button
+                  key={`${mobileRole}-${action.status}`}
+                  type="button"
+                  variant="outline"
+                  className={getActionButtonClass(action.tone)}
+                  onClick={() => updateRoleReceipt(mobileRole, action.status, activeMobileRoleFeedback.orderId)}
+                  disabled={updateDispatchReceiptMutation.isPending}
+                >
+                  {action.label}
+                </Button>
+              ))}
             </div>
           </div>
         </GlassPanel>
@@ -1062,7 +1176,7 @@ export default function AiDecisionPage() {
                       <p className="text-base font-semibold text-white">{item.role}</p>
                       <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-slate-500">{item.priority}</p>
                     </div>
-                    <Badge className={`rounded-full px-2 py-1 text-[10px] ${item.status === "超时升级" ? "border border-rose-400/20 bg-rose-400/10 text-rose-100" : item.status === "执行中" ? "border border-amber-400/20 bg-amber-400/10 text-amber-100" : "border border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>{item.status}</Badge>
+                    <Badge className={`rounded-full px-2 py-1 text-[10px] ${getRoleStatusBadgeClass(item.status)}`}>{item.status}</Badge>
                   </div>
                   <div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400">
                     <p><span className="font-semibold text-slate-200">ETA：</span>{item.etaMinutes} 分钟</p>

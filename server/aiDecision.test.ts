@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAiForecast, buildWhatIfSimulation } from "./aiDecision";
+import { buildAgentDecisionDraft, buildAiForecast, buildWhatIfSimulation } from "./aiDecision";
 
 describe("buildAiForecast", () => {
   it("returns eight forecast points and clamps selected month into range", () => {
@@ -56,5 +56,22 @@ describe("buildWhatIfSimulation", () => {
       expect(resource.warehousePallets).toBeGreaterThan(0);
       expect(resource.coldChainTrips).toBeGreaterThan(0);
     });
+  });
+});
+
+describe("buildAgentDecisionDraft", () => {
+  it("returns three layered agents with overview and dispatch summary", () => {
+    const result = buildAgentDecisionDraft("CP-PK-240418-A1", 2, 15.5, 12, 8);
+
+    expect(result.agents).toHaveLength(3);
+    expect(result.overview).toContain("CP-PK-240418-A1");
+    expect(result.dispatchSummary.length).toBeGreaterThan(10);
+    expect(result.agents.map(agent => agent.agentId)).toEqual(["global", "business", "field"]);
+  });
+
+  it("escalates risk when utilization is too high or profit delta is strongly negative", () => {
+    const result = buildAgentDecisionDraft("CP-PK-240418-A1", 3, 12.5, 80, -20);
+
+    expect(["中", "高"]).toContain(result.agents[0]?.riskLevel);
   });
 });

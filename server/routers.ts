@@ -12,7 +12,12 @@ import {
   listAuditEntries,
 } from "./platformData";
 import { buildLiveDecisionScenarios, buildPorkMarketSnapshot } from "./marketData";
-import { buildAiForecast, buildWhatIfSimulation } from "./aiDecision";
+import {
+  buildAgentDecisionContext,
+  buildAgentDecisionDraft,
+  buildAiForecast,
+  buildWhatIfSimulation,
+} from "./aiDecision";
 
 const timeframeSchema = z.enum(["day", "week", "month", "quarter", "halfYear", "year"]);
 const roleSchema = z.enum(["admin", "strategist", "executor"]);
@@ -98,6 +103,102 @@ export const appRouter = router({
           input.capacityAdjustment,
           input.demandAdjustment,
         );
+      }),
+    aiAgents: protectedProcedure
+      .input(
+        z.object({
+          batchCode: z.string(),
+          selectedMonth: z.number().int().min(1).max(3),
+          targetPrice: z.number().min(1).max(40),
+          capacityAdjustment: z.number().min(-60).max(120),
+          demandAdjustment: z.number().min(-60).max(120),
+        }),
+      )
+      .mutation(async ({ input }) => {
+        const context = buildAgentDecisionContext(
+          input.batchCode,
+          input.selectedMonth,
+          input.targetPrice,
+          input.capacityAdjustment,
+          input.demandAdjustment,
+        );
+        const fallback = buildAgentDecisionDraft(
+          input.batchCode,
+          input.selectedMonth,
+          input.targetPrice,
+          input.capacityAdjustment,
+          input.demandAdjustment,
+        );
+
+        try {
+          const llmResult = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "你是 CP-AI Brain 的多 Agent 协同决策引擎。请基于给定业务数据，输出总部经营 Agent、业务调度 Agent、现场执行 Agent 的分层推理结果。结果必须专业、明确、可执行，并严格输出 JSON。",
+              },
+              {
+                role: "user",
+                content: JSON.stringify(context),
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "ai_agent_decision",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    overview: { type: "string" },
+                    coordinationSignal: { type: "string" },
+                    dispatchSummary: { type: "string" },
+                    agents: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          agentId: { type: "string", enum: ["global", "business", "field"] },
+                          agentName: { type: "string" },
+                          objective: { type: "string" },
+                          recommendation: { type: "string" },
+                          rationale: { type: "string" },
+                          riskLevel: { type: "string", enum: ["低", "中", "高"] },
+                          nextAction: { type: "string" },
+                        },
+                        required: [
+                          "agentId",
+                          "agentName",
+                          "objective",
+                          "recommendation",
+                          "rationale",
+                          "riskLevel",
+                          "nextAction",
+                        ],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                  required: ["overview", "coordinationSignal", "dispatchSummary", "agents"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const rawContent = llmResult.choices?.[0]?.message?.content;
+          if (typeof rawContent !== "string") {
+            return fallback;
+          }
+          const parsed = JSON.parse(rawContent);
+          if (!parsed || !Array.isArray(parsed.agents)) {
+            return fallback;
+          }
+          return parsed;
+        } catch {
+          return fallback;
+        }
       }),
     auditLogs: protectedProcedure.query(() => {
       return listAuditEntries();

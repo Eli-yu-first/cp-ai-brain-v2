@@ -35,9 +35,9 @@ const copy = {
     eyebrow: "AI Decision OS",
     title: "AI 决策指挥中枢",
     sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "先输入月份与预估价格，再生成价格波动曲线与 What-If 情景收益测算",
+    sectionTitle: "先输入月份与预估价格，再生成价格波动曲线、What-If 沙盘与多 Agent 推理",
     sectionDesc:
-      "本页已升级为独立 AI 决策工作台。上半区负责 1 到 8 个月价格预测与利润联动，下半区负责多变量 What-If 沙盘推演，并自动估算未来 1 到 3 个月所需的屠宰与仓储资源。",
+      "本页已升级为独立 AI 决策工作台。上半区负责 1 到 8 个月价格预测与利润联动，中部负责多变量 What-If 沙盘推演，下半区接入 Manus LLM 驱动的多 Agent 决策输出。",
     workbench: "预测工作台",
     selectBatch: "库存批次",
     selectMonth: "预测月份",
@@ -76,27 +76,38 @@ const copy = {
     storageTons: "仓储吨位",
     warehousePallets: "托盘需求",
     coldChainTrips: "冷链车次",
-    strategyTitle: "多 Agent 模块预留区",
-    strategyDesc: "完成 What-If 情景模拟后，下一阶段将在本页继续接入多 Agent 推理、预警与派单反馈。",
-    modules: [
-      { icon: BrainCircuit, title: "多 Agent 推理", desc: "下一阶段输出总部、业务与现场三级决策建议。" },
-      { icon: ShieldAlert, title: "红黄绿预警", desc: "基于阈值变化显示九宫格状态与异常重点。" },
-      { icon: Truck, title: "派单与执行反馈", desc: "把 AI 决策转成标准工单并回收执行状态。" },
-      { icon: Warehouse, title: "现场资源编排", desc: "把屠宰、速冻、仓储和冷链资源联成闭环。" },
-    ],
+    agentEyebrow: "Multi-Agent Reasoning",
+    agentTitle: "多 Agent 分层决策输出",
+    agentDesc: "调用 Manus 内置模型，将总部经营、业务调度和现场执行三层 Agent 的判断汇总为统一行动方案。",
+    generateAgents: "生成多 Agent 协同推理",
+    generatingAgents: "正在生成多 Agent 推理...",
+    overview: "总览判断",
+    coordinationSignal: "协同信号",
+    dispatchSummary: "执行摘要",
+    objective: "目标",
+    recommendation: "建议",
+    rationale: "依据",
+    nextAction: "下一步",
+    riskLevel: "风险等级",
     navReady: "预测工作台已联通",
     chartReady: "曲线已生成",
     whatIfReady: "What-If 沙盘已联通",
-    nextPending: "等待接入多 Agent 与预警联动",
+    agentsReady: "多 Agent 已接入",
+    nextPending: "等待接入预警与派单联动",
     monthShort: "月",
+    modules: [
+      { icon: ShieldAlert, title: "红黄绿预警", desc: "下一阶段接入九宫格告警、阈值变化和风险升级判断。" },
+      { icon: Truck, title: "派单与执行反馈", desc: "把多 Agent 结论转换成工单、回传和闭环追踪。" },
+      { icon: Warehouse, title: "现场资源编排", desc: "继续强化屠宰、仓储、冷链和现场班次之间的联动。" },
+    ],
   },
   en: {
     eyebrow: "AI Decision OS",
     title: "AI Decision Command Center",
     sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "Forecast price curves and What-If results from month and target inputs",
+    sectionTitle: "Generate forecast curves, What-If simulations, and multi-agent reasoning from the same workspace",
     sectionDesc:
-      "This page is now an independent AI decision workspace. The top area handles 1-8 month forecast curves and profit linkage, while the lower area runs multi-variable What-If simulations and automatically estimates slaughter and storage resources for the next 1-3 months.",
+      "This page is now an independent AI decision workspace. The top area handles 1-8 month forecast curves, the middle area runs multi-variable What-If simulations, and the lower area calls Manus LLM for multi-agent decision outputs.",
     workbench: "Forecast Workbench",
     selectBatch: "Inventory Batch",
     selectMonth: "Forecast Month",
@@ -135,27 +146,38 @@ const copy = {
     storageTons: "Storage Tons",
     warehousePallets: "Pallet Demand",
     coldChainTrips: "Cold-chain Trips",
-    strategyTitle: "Reserved Multi-Agent Modules",
-    strategyDesc: "After What-If simulation, the next phase will attach multi-agent reasoning, warnings, and dispatch feedback here.",
-    modules: [
-      { icon: BrainCircuit, title: "Multi-Agent Reasoning", desc: "Next phase will output strategic, orchestration, and field recommendations." },
-      { icon: ShieldAlert, title: "Traffic-light Warnings", desc: "Threshold changes will drive nine-grid state visibility and anomaly focus." },
-      { icon: Truck, title: "Dispatch & Feedback", desc: "AI decisions will become standardized jobs with execution status feedback." },
-      { icon: Warehouse, title: "Resource Orchestration", desc: "Slaughter, freezing, storage, and cold-chain plans will be connected in one loop." },
-    ],
+    agentEyebrow: "Multi-Agent Reasoning",
+    agentTitle: "Layered Multi-Agent Decision Output",
+    agentDesc: "Calls the built-in Manus model to summarize headquarters, business orchestration, and field execution agents into one action plan.",
+    generateAgents: "Generate Multi-Agent Reasoning",
+    generatingAgents: "Generating multi-agent reasoning...",
+    overview: "Overview",
+    coordinationSignal: "Coordination Signal",
+    dispatchSummary: "Dispatch Summary",
+    objective: "Objective",
+    recommendation: "Recommendation",
+    rationale: "Rationale",
+    nextAction: "Next Action",
+    riskLevel: "Risk Level",
     navReady: "Forecast workspace connected",
     chartReady: "Curve generated",
     whatIfReady: "What-If sandbox connected",
-    nextPending: "Waiting for multi-agent and warning linkage",
+    agentsReady: "Multi-agent connected",
+    nextPending: "Waiting for alerts and dispatch linkage",
     monthShort: "M",
+    modules: [
+      { icon: ShieldAlert, title: "Traffic-light Warnings", desc: "Next phase adds nine-grid alerts, threshold changes, and escalation logic." },
+      { icon: Truck, title: "Dispatch & Feedback", desc: "Convert multi-agent outputs into jobs, feedback loops, and closed-loop tracking." },
+      { icon: Warehouse, title: "Field Resource Orchestration", desc: "Further connect slaughter, storage, cold-chain, and field shifts." },
+    ],
   },
   ja: {
     eyebrow: "AI Decision OS",
     title: "AI意思決定コマンドセンター",
     sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "月数と価格入力から予測曲線と What-If 結果を生成",
+    sectionTitle: "同一ワークスペースで予測曲線、What-If、マルチエージェント推論を生成",
     sectionDesc:
-      "このページは独立したAI意思決定ワークスペースに拡張されました。上段は1〜8か月の価格予測、下段は価格・能力・需要を同時に変える What-If 推演と 1〜3 か月の資源見積りを担います。",
+      "このページは独立したAI意思決定ワークスペースです。上段は1〜8か月の価格予測、中段は多変量 What-If、下段は Manus LLM によるマルチエージェント出力を担います。",
     workbench: "予測ワークベンチ",
     selectBatch: "在庫バッチ",
     selectMonth: "予測月数",
@@ -179,7 +201,7 @@ const copy = {
     tonnage: "kg",
     whatIfEyebrow: "What-If Sandbox",
     whatIfTitle: "多変量 What-If シミュレーション",
-    whatIfDesc: "価格、能力、需要を同時に調整し、利益差分と 1〜3 か月の屠殺・凍結・保管・冷鏈資源を自動算出します。",
+    whatIfDesc: "価格、能力、需要を同時に調整し、利益差分と1〜3か月の屠殺・凍結・保管・冷鏈資源を自動算出します。",
     scenarioMonth: "シナリオ月",
     capacityAdjustment: "能力調整（%）",
     demandAdjustment: "需要調整（%）",
@@ -194,27 +216,38 @@ const copy = {
     storageTons: "保管トン数",
     warehousePallets: "パレット需要",
     coldChainTrips: "冷鏈便数",
-    strategyTitle: "多エージェント予備領域",
-    strategyDesc: "What-If 完了後、次段階で多エージェント推論、警報、配車フィードバックを接続します。",
-    modules: [
-      { icon: BrainCircuit, title: "多エージェント推論", desc: "次段階で本部・業務・現場の提案を出力します。" },
-      { icon: ShieldAlert, title: "赤黄緑警報", desc: "閾値変化に応じて九宮格状態と異常重点を表示します。" },
-      { icon: Truck, title: "配車と実行反馈", desc: "AI判断を標準工単へ変換し、実行状態を回収します。" },
-      { icon: Warehouse, title: "現場資源編成", desc: "屠殺、凍結、保管、冷鏈を一つの循環に連結します。" },
-    ],
+    agentEyebrow: "Multi-Agent Reasoning",
+    agentTitle: "多層エージェント意思決定出力",
+    agentDesc: "Manus 内蔵モデルを呼び出し、本部・業務調整・現場実行エージェントの判断を統合します。",
+    generateAgents: "多エージェント推論を生成",
+    generatingAgents: "多エージェント推論を生成中...",
+    overview: "全体判断",
+    coordinationSignal: "協調シグナル",
+    dispatchSummary: "実行概要",
+    objective: "目標",
+    recommendation: "提案",
+    rationale: "根拠",
+    nextAction: "次アクション",
+    riskLevel: "リスク",
     navReady: "予測ワークベンチ接続済み",
     chartReady: "曲線生成済み",
     whatIfReady: "What-If 接続済み",
-    nextPending: "多エージェントと警報連携待ち",
+    agentsReady: "多エージェント接続済み",
+    nextPending: "警報と配車連携待ち",
     monthShort: "月",
+    modules: [
+      { icon: ShieldAlert, title: "赤黄緑警報", desc: "次段階で九宮格警報、閾値変化、エスカレーション判断を追加します。" },
+      { icon: Truck, title: "配車と実行反馈", desc: "多エージェント出力を工単と進捗回収へ接続します。" },
+      { icon: Warehouse, title: "現場資源編成", desc: "屠殺、保管、冷鏈、班次の連動をさらに強化します。" },
+    ],
   },
   th: {
     eyebrow: "AI Decision OS",
     title: "ศูนย์บัญชาการการตัดสินใจ AI",
     sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "สร้างกราฟคาดการณ์และผล What-If จากเดือนและราคาเป้าหมาย",
+    sectionTitle: "สร้างกราฟคาดการณ์ What-If และตรรกะหลายเอเจนต์จากพื้นที่ทำงานเดียว",
     sectionDesc:
-      "หน้านี้ถูกขยายเป็นพื้นที่ทำงานการตัดสินใจ AI แบบแยกอิสระ ส่วนบนดูแลการคาดการณ์ราคา 1-8 เดือน ส่วนล่างรองรับการจำลอง What-If หลายตัวแปรและประมาณทรัพยากรเชือด แช่แข็ง และคลังสำหรับ 1-3 เดือนถัดไป",
+      "หน้านี้เป็นพื้นที่ทำงานการตัดสินใจ AI แบบอิสระ ส่วนบนคือการคาดการณ์ 1-8 เดือน ส่วนกลางคือ What-If หลายตัวแปร และส่วนล่างเรียก Manus LLM เพื่อสร้างผลลัพธ์หลายเอเจนต์",
     workbench: "โต๊ะคาดการณ์",
     selectBatch: "ล็อตคงคลัง",
     selectMonth: "เดือนที่คาดการณ์",
@@ -253,19 +286,30 @@ const copy = {
     storageTons: "ตันจัดเก็บ",
     warehousePallets: "ความต้องการพาเลต",
     coldChainTrips: "เที่ยวรถห้องเย็น",
-    strategyTitle: "พื้นที่โมดูลหลายเอเจนต์",
-    strategyDesc: "หลังจาก What-If ขั้นถัดไปจะเชื่อมตรรกะหลายเอเจนต์ คำเตือน และฟีดแบ็กการสั่งงานที่หน้านี้",
-    modules: [
-      { icon: BrainCircuit, title: "การให้เหตุผลหลายเอเจนต์", desc: "ขั้นถัดไปจะแสดงข้อเสนอระดับกลยุทธ์ ธุรกิจ และหน้างาน" },
-      { icon: ShieldAlert, title: "คำเตือนสามสี", desc: "การเปลี่ยนแปลงค่าเกณฑ์จะขับการมองเห็นสถานะและความผิดปกติในเก้าช่อง" },
-      { icon: Truck, title: "การสั่งงานและฟีดแบ็ก", desc: "การตัดสินใจ AI จะกลายเป็นงานมาตรฐานพร้อมสถานะการปฏิบัติ" },
-      { icon: Warehouse, title: "การจัดทรัพยากรหน้างาน", desc: "เชื่อมการเชือด แช่แข็ง จัดเก็บ และห้องเย็นในลูปเดียว" },
-    ],
+    agentEyebrow: "Multi-Agent Reasoning",
+    agentTitle: "ผลลัพธ์การตัดสินใจหลายเอเจนต์",
+    agentDesc: "เรียกโมเดลในตัวของ Manus เพื่อสรุปการตัดสินใจของผู้บริหาร การจัดคิวธุรกิจ และการปฏิบัติหน้างานเป็นแผนเดียวกัน",
+    generateAgents: "สร้างตรรกะหลายเอเจนต์",
+    generatingAgents: "กำลังสร้างตรรกะหลายเอเจนต์...",
+    overview: "ภาพรวม",
+    coordinationSignal: "สัญญาณการประสาน",
+    dispatchSummary: "สรุปการปฏิบัติ",
+    objective: "เป้าหมาย",
+    recommendation: "ข้อเสนอ",
+    rationale: "เหตุผล",
+    nextAction: "ขั้นถัดไป",
+    riskLevel: "ระดับความเสี่ยง",
     navReady: "เชื่อมโต๊ะคาดการณ์แล้ว",
     chartReady: "สร้างกราฟแล้ว",
     whatIfReady: "เชื่อม What-If แล้ว",
-    nextPending: "รอหลายเอเจนต์และการเตือน",
+    agentsReady: "เชื่อมหลายเอเจนต์แล้ว",
+    nextPending: "รอการเตือนและการเชื่อมงาน",
     monthShort: "ด.",
+    modules: [
+      { icon: ShieldAlert, title: "คำเตือนสามสี", desc: "ระยะถัดไปจะเพิ่มเก้าช่องเตือน การเปลี่ยนค่าเกณฑ์ และตรรกะยกระดับ" },
+      { icon: Truck, title: "การสั่งงานและฟีดแบ็ก", desc: "แปลงผลลัพธ์หลายเอเจนต์เป็นงานและการติดตามแบบปิดลูป" },
+      { icon: Warehouse, title: "การจัดทรัพยากรหน้างาน", desc: "เชื่อมการเชือด คลัง ห้องเย็น และกะทำงานให้แน่นขึ้น" },
+    ],
   },
 } as const;
 
@@ -340,6 +384,17 @@ export default function AiDecisionPage() {
     },
     { enabled: Boolean(batchCode) },
   );
+  const aiAgents = trpc.platform.aiAgents.useMutation();
+
+  const runAiAgents = () => {
+    aiAgents.mutate({
+      batchCode,
+      selectedMonth: Math.max(1, Math.min(3, scenarioMonthNumber)),
+      targetPrice: targetPrice ?? 15,
+      capacityAdjustment,
+      demandAdjustment,
+    });
+  };
 
   return (
     <PlatformShell eyebrow={current.eyebrow} title={current.title} pageId="ai">
@@ -352,6 +407,7 @@ export default function AiDecisionPage() {
             <Badge className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-200">{current.navReady}</Badge>
             <Badge className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">{current.chartReady}</Badge>
             <Badge className="rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-3 py-1 text-[11px] font-semibold text-fuchsia-200">{current.whatIfReady}</Badge>
+            <Badge className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1 text-[11px] font-semibold text-violet-200">{current.agentsReady}</Badge>
             <Badge className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold text-amber-200">{current.nextPending}</Badge>
           </div>
         }
@@ -401,11 +457,7 @@ export default function AiDecisionPage() {
 
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p>
-                <Input
-                  value={targetPriceInput}
-                  onChange={event => setTargetPriceInput(event.target.value)}
-                  className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"
-                />
+                <Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
               </div>
             </div>
 
@@ -441,14 +493,7 @@ export default function AiDecisionPage() {
                       <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
                       <XAxis dataKey="label" stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
                       <YAxis stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} domain={["dataMin - 0.6", "dataMax + 0.6"]} />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#0a1628",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          borderRadius: 16,
-                          fontSize: 11,
-                        }}
-                      />
+                      <Tooltip contentStyle={{ background: "#0a1628", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, fontSize: 11 }} />
                       <ReferenceLine y={data?.summary.breakEvenPrice} stroke="rgba(251,191,36,0.5)" strokeDasharray="5 5" />
                       <Line type="monotone" dataKey="projectedPrice" name={current.chartPrice} stroke="#38bdf8" strokeWidth={2.5} dot={false} />
                       <Line type="monotone" dataKey="breakEvenPrice" name={current.chartBreakEven} stroke="#f59e0b" strokeWidth={1.6} dot={false} strokeDasharray="6 3" />
@@ -560,14 +605,7 @@ export default function AiDecisionPage() {
                     <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
                     <XAxis dataKey="month" tickFormatter={value => `${value}${current.monthShort}`} stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
                     <YAxis stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "#0a1628",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        borderRadius: 16,
-                        fontSize: 11,
-                      }}
-                    />
+                    <Tooltip contentStyle={{ background: "#0a1628", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, fontSize: 11 }} />
                     <Bar dataKey="slaughterHeads" fill="#38bdf8" radius={[8, 8, 0, 0]} />
                     <Bar dataKey="warehousePallets" fill="#c084fc" radius={[8, 8, 0, 0]} />
                   </BarChart>
@@ -595,34 +633,88 @@ export default function AiDecisionPage() {
         </GlassPanel>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-4">
-        <GlassPanel className="xl:col-span-4">
-          <div className="flex items-start justify-between gap-4">
+      <div className="mt-6 grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
+        <GlassPanel>
+          <div className="flex h-full flex-col gap-5">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/60">{current.strategyTitle}</p>
-              <h4 className="mt-3 text-xl font-bold tracking-tight text-white">{current.strategyTitle}</h4>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-violet-300/60">{current.agentEyebrow}</p>
+              <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.agentTitle}</h4>
+              <p className="mt-3 text-[13px] leading-6 text-slate-400">{current.agentDesc}</p>
             </div>
-            <Button variant="outline" className="rounded-xl border-white/10 bg-white/[0.02] text-slate-200 hover:bg-white/[0.06] hover:text-white">{current.nextPending}</Button>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.overview}</p>
+                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.overview ?? current.agentDesc}</p>
+              </div>
+              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.coordinationSignal}</p>
+                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.coordinationSignal ?? current.nextPending}</p>
+              </div>
+              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.dispatchSummary}</p>
+                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.dispatchSummary ?? current.generateAgents}</p>
+              </div>
+            </div>
+
+            <Button
+              onClick={runAiAgents}
+              disabled={aiAgents.isPending}
+              className="h-12 rounded-2xl bg-violet-500/90 text-white hover:bg-violet-400"
+            >
+              {aiAgents.isPending ? current.generatingAgents : current.generateAgents}
+            </Button>
           </div>
-          <p className="mt-3 text-[13px] leading-6 text-slate-400">{current.strategyDesc}</p>
         </GlassPanel>
 
-        {current.modules.map(module => {
-          const Icon = module.icon;
-          return (
-            <GlassPanel key={module.title} className="h-full">
+        <div className="grid gap-6 xl:grid-cols-3">
+          {(aiAgents.data?.agents ?? []).map((agent: {
+            agentId: "global" | "business" | "field";
+            agentName: string;
+            objective: string;
+            recommendation: string;
+            rationale: string;
+            riskLevel: "低" | "中" | "高";
+            nextAction: string;
+          }) => (
+            <GlassPanel key={agent.agentId} className="h-full">
               <div className="flex h-full flex-col gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200">
-                  <Icon className="h-5 w-5" />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/[0.08] text-violet-200">
+                    {agent.agentId === "global" ? <BrainCircuit className="h-5 w-5" /> : agent.agentId === "business" ? <Factory className="h-5 w-5" /> : <Truck className="h-5 w-5" />}
+                  </div>
+                  <Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-slate-200">{current.riskLevel} {agent.riskLevel}</Badge>
                 </div>
                 <div>
-                  <h4 className="text-lg font-semibold text-white">{module.title}</h4>
-                  <p className="mt-3 text-[13px] leading-6 text-slate-400">{module.desc}</p>
+                  <h4 className="text-lg font-semibold text-white">{agent.agentName}</h4>
+                  <div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400">
+                    <p><span className="font-semibold text-slate-200">{current.objective}：</span>{agent.objective}</p>
+                    <p><span className="font-semibold text-slate-200">{current.recommendation}：</span>{agent.recommendation}</p>
+                    <p><span className="font-semibold text-slate-200">{current.rationale}：</span>{agent.rationale}</p>
+                    <p><span className="font-semibold text-slate-200">{current.nextAction}：</span>{agent.nextAction}</p>
+                  </div>
                 </div>
               </div>
             </GlassPanel>
-          );
-        })}
+          ))}
+
+          {current.modules.map(module => {
+            const Icon = module.icon;
+            return (
+              <GlassPanel key={module.title} className="h-full">
+                <div className="flex h-full flex-col gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-white">{module.title}</h4>
+                    <p className="mt-3 text-[13px] leading-6 text-slate-400">{module.desc}</p>
+                  </div>
+                </div>
+              </GlassPanel>
+            );
+          })}
+        </div>
       </div>
     </PlatformShell>
   );

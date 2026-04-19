@@ -1,38 +1,67 @@
-# Project TODO
+# CP AI Brain - Migration TODO
 
-- [x] 审查原仓库的目录结构、技术栈、前后端入口以及需要迁移的全部文件范围
-- [x] 对比原仓库与 web-db-user 脚手架，明确保持不变的路径、模块命名与运行方式
-- [x] 迁移 drizzle/schema.ts，确保数据库表结构与原仓库完全一致
-- [x] 迁移并适配数据库相关代码，包括 drizzle 迁移文件、server/db.ts 与相关查询逻辑
-- [x] 迁移 server/routers.ts，确保全部 tRPC 接口与原仓库能力一致
-- [x] 迁移 server/platformData.ts，保持平台数据逻辑与原项目一致并联通数据库
-- [x] 迁移 server/marketData.ts，保持市场数据逻辑与原项目一致并联通数据库
-- [x] 迁移 server/storage.ts，保持文件存储相关逻辑与原项目一致
-- [x] 迁移并保留 client/index.html 与全部前端组件，确保前端 UI 设计与交互完全不变
-- [x] 迁移前端页面路由、状态管理与数据调用方式，确保前端通过 trpc.*.useQuery / useMutation 正常工作
-- [x] 将原有 AI 调用替换为 Manus 内置 LLM invokeLLM，确保 AI 功能结果正确
-- [x] 接入 Manus OAuth，对需要登录的页面和接口实施保护且不改变原有前端体验
-- [x] 保持原有业务逻辑、文件路径与模块命名，不删减、不随意重构、不变更视觉设计
-- [x] 运行并修复全部 server/*.test.ts 与相关 Vitest 测试，确保全部通过
-- [x] 进行端到端验证，确认数据库、鉴权、AI、marketData、platformData、tRPC 与前端展示均无功能回归
-- [x] 保存最终检查点并整理交付说明
-- [x] 梳理新增 AI 决策系统需求，重构现有实施顺序，并在完成需求核对与结构设计验证后提交到 GitHub
-- [x] 新增左侧菜单中的 AI 决策标签与独立 AI 决策页面，在完成页面路由、导航联通与界面验证后提交到 GitHub
-- [x] 实现预测交互区、月份与预估价格输入、价格波动曲线、利润成本平均售价联动计算，并在完成前后端联调验证后提交到 GitHub
-- [x] 实现 What-If 多变量情景模拟，支持价格、产能、需求调整及 1 到 3 个月屠宰和仓储资源自动测算，并在完成结果验证后提交到 GitHub
-- [x] 实现多 Agent 决策架构展示与推理输出，包括全局决策层、业务调度层、现场执行层，并在完成数据流与界面验证后提交到 GitHub
-- [x] 实现红黄绿动态预警与九宫格展示布局，并在完成阈值联动与状态展示验证后提交到 GitHub
-- [x] 实现异常根因分析弹窗，展示问题类型、影响范围、预计损失、AI 建议与问题根因，并在完成交互验证后提交到 GitHub
-- [x] 实现自动派单调度模块，生成标准化 JSON 工单并展示工厂、数量、时间、验收标准等字段，并在完成数据验证后提交到 GitHub
-- [x] 实现执行反馈与状态追踪界面，覆盖厂长、司机、仓储管理员等角色及超时升级预警逻辑，并在完成状态流转验证后提交到 GitHub
-- [x] 优化移动端战房 APP 与工业平板适配视图，并为企业微信/短信提醒预留清晰的集成入口展示，在完成响应式验证后提交到 GitHub
-- [x] 补充并运行 AI 决策系统相关 Vitest 测试与端到端验证，在全部通过后提交到 GitHub
-- [x] 将 AI 决策页中的“预测工作台”和“价格波动曲线”合并为一个交互块，增加更多输入与选择项，并在同一趋势图中同时展示真实价格、预测价格、分界竖线以及预测区段的虚线或差异化样式，完成验证后提交到 GitHub
-- [x] 将猪事业部页面中的“毛猪、白条、冻品与原料今日基准”和“生猪、玉米、豆粕实时输入面板”融合为单行可滚动行情块，支持自动滚动与手动左右滑动，并在完成验证后提交到 GitHub
-- [x] 在猪事业部页面的 AI Recommendation 面板增加跳转入口，能够直接进入“AI 决策建议面板”，完成联通验证后提交到 GitHub
-- [x] 在左侧菜单新增“猪事业地图”并开发对应页面，使用中国地图展示更多动态业务数据与交互操作，并接入 AI 空间套利分析，完成验证后提交到 GitHub
-- [x] 将企业微信和短信提醒以环境变量预留和代码链路形式接入红色预警与超时工单的告警升级链路，当前不填写具体值，并在降级链路验证后提交到 GitHub
-- [x] 将派单结果持久化到数据库，补齐真实签收、回执、时间戳和审计留痕能力，完成数据库与界面验证后提交到 GitHub
-- [x] 为移动端增加厂长模式、司机模式和仓储模式等明确角色视图，优化现场执行体验，完成响应式与流程验证后提交到 GitHub
-- [x] 将企业微信和短信通知保持为仅预留环境变量名与代码链路、暂不填写具体密钥值，并在降级状态验证通过后提交到 GitHub
-- [x] 将 `manus-ai-os-dev` 分支安全合并到 `main` 分支并推送远端，完成结果复核后反馈给用户
+## Phase 1: Dependencies & Schema
+- [x] Install extra dependencies: react-simple-maps, streamdown
+- [x] Migrate shared/const.ts, shared/types.ts, shared/_core/errors.ts
+- [x] Migrate drizzle/schema.ts (audit_logs, dispatch_orders, dispatch_receipts, notification_deliveries)
+- [x] Execute database migration SQL (6 tables created)
+- [x] Add resolveJsonModule to tsconfig.json for china-geo.json import
+
+## Phase 2: Backend Migration
+- [x] Migrate server/db.ts (all DB helpers: persistDispatchPlan, updateDispatchReceipt, createAuditLog, etc.)
+- [x] Migrate server/platformData.ts
+- [x] Migrate server/marketData.ts
+- [x] Migrate server/aiDecision.ts (buildAiForecast, buildWhatIfSimulation, buildAgentDecisionDraft, buildAlertBoard, buildDispatchBoard)
+- [x] Migrate server/porkMap.ts
+- [x] Migrate server/escalationNotifier.ts
+- [x] Migrate server/routers.ts (all tRPC routes: platform.*, auth.*)
+
+## Phase 3: Frontend Migration
+- [x] Migrate client/src/index.css (global styles & dark theme)
+- [x] Migrate client/src/main.tsx
+- [x] Migrate client/src/App.tsx (PlatformRouter + TabProvider)
+- [x] Migrate client/src/const.ts
+- [x] Migrate contexts: LanguageContext, TabContext, ThemeContext
+- [x] Migrate hooks: useComposition, useMobile, usePersistFn
+- [x] Migrate all UI components (shadcn/ui + custom platform components)
+- [x] Migrate pages: Tenants, Overview, Pork, PorkMap, Quant, AiDecision, Audit (7 pages)
+- [x] Migrate data/china-geo.json (582KB topojson)
+- [x] Migrate types/react-simple-maps.d.ts
+- [x] Migrate client/src/lib/trpc.ts
+- [x] Migrate client/src/lib/utils.ts
+- [x] Migrate ErrorBoundary component
+- [x] Migrate _core hooks (useAuth)
+
+## Phase 4: Verification
+- [x] Verify all tRPC routes respond correctly (401 for protected, 200 for public)
+- [x] Verify database read/write: audit_logs, dispatch_orders, dispatch_receipts (e2e tests pass)
+- [x] Verify AI (gemini-2.5-flash) via Manus Forge API - invokeLLM tested with structured JSON
+- [x] Verify dispatch persistence and audit logs (platform.decision.test.ts passes)
+- [x] Run vitest tests: 29/29 passed (8 test files)
+- [x] Verify all 7 pages render correctly in browser (Tenants, Overview, Pork, PorkMap, Quant, AiDecision, Audit)
+- [x] TypeScript compilation: 0 errors
+
+## 时间套利页面升级
+
+- [x] 后端：扩展 timeArbitrage.ts 计算逻辑，支持社会养殖成本、收储量、收储时长参数
+- [x] 后端：更新 routers.ts arbitrageSimulate 路由接受新参数
+- [x] 前端：套利参数设置面板新增社会养殖成本、收储量滑块和收储时长选择器（1-9月）
+- [x] 前端：价格曲线展示多条线（持有成本线、预期售价线、社会养殖成本线、利润空间柱）
+- [x] 前端：释放利润预测卡片展示在图表中（利润空间柱状图叠加）
+- [x] 前端：所有趋势线根据参数实时更新
+
+## 综合升级 v1 / v2（已在 v3 子阶段中完成，归档）
+
+> v1 中的记录持久化、Audit 展示、地图本地化、React.memo 优化，v2 中的后端重写、
+> 收储背景高亮、每月价差、多方案保存/对比、真实物流调度、车型选择等需求，已合并进入
+> v3 的阶段 2“9 并完成，下方 v3 段中为最新权威状态。
+
+## 综合升级 v3（按步骤推进 + 每步 GitHub 同步）
+
+**工作流规则（每步必执行）**：完成代码变更 → `pnpm check` 0 错误 → `pnpm test` 通过 → 同步到 `/home/ubuntu/cp-ai-brain-v2` → `git add -A && git commit -m "..." && git push origin main` → 再进入下一步
+
+- [x] 阶段 2-5：时间套利综合升级（后端重构+前端重写+记录持久化+Audit 展示）→ 已提交 GitHub (c3f17fe)
+- [x] 阶段 6：空间套利真实物流调度算法（后端 + 前端）→ 已提交 GitHub（后端 17423ba，前端 e7ab158）
+- [x] 阶段 7：空间套利记录持久化 + Audit 展示 → 已实现（前端保存方案按钮 + Audit 页面设计上已覆盖 spatial，随阶段 6 前端提交 e7ab158）
+- [x] 阶段 8：地图本地化缓存 → 已提交 GitHub (5316ec8)
+- [x] 阶段 9：综合测试（49/49 vitest）+ 保存检查点 (89525345) → GitHub 完整提交链 c3f17fe → 17423ba → e7ab158 → 5316ec8

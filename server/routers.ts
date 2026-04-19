@@ -26,6 +26,10 @@ import {
   calculateArbitrage,
 } from "./timeArbitrage";
 import {
+  calculateSpatialArbitrage,
+  generateRoleTasksDraft,
+} from "./spatialArbitrage";
+import {
   createAuditLog,
   getDispatchOrderByOrderId,
   listDispatchReceiptsByBatch,
@@ -218,6 +222,81 @@ export const appRouter = router({
           }
           const parsed = JSON.parse(rawContent);
           if (!parsed || typeof parsed.marketAnalysis !== 'string') {
+            return fallback;
+          }
+          return parsed as typeof fallback;
+        } catch {
+          return fallback;
+        }
+      }),
+    spatialArbitrageSimulate: protectedProcedure
+      .input(
+        z.object({
+          transportCostPerKmPerTon: z.number().min(0.1).max(5.0),
+          minProfitThreshold: z.number().min(0.0).max(10.0),
+          batchSizeTon: z.number().min(50).max(5000),
+          originFilter: z.string()
+        })
+      )
+      .query(({ input }) => {
+        return calculateSpatialArbitrage(
+          input.transportCostPerKmPerTon,
+          input.minProfitThreshold,
+          input.batchSizeTon,
+          input.originFilter
+        );
+      }),
+    spatialAiDispatch: protectedProcedure
+      .input(
+        z.object({
+          routes: z.array(z.any()) // simplifying validation check here manually
+        })
+      )
+      .mutation(async ({ input }) => {
+        const routes = input.routes as any[];
+        const fallback = generateRoleTasksDraft(routes);
+
+        try {
+          // You could run Manus LLM to dynamically generate tasks.
+          // For simplicity in UI update, we are making a direct LLM call logic here similar to aiDecision
+          const llmResult = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "你是生猪供应链专家。请根据传入的最优套利路线指引生成4个关键岗位的详细落地执行任务单，给出 3 到 4 句话简明扼要的执行步骤即可。",
+              },
+              {
+                role: "user",
+                content: "最优路线数据为：\n" + JSON.stringify(routes.slice(0, 3)),
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "ai_bussiness_roles_tasks",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    purchasing: { type: "array", items: { type: "string" } },
+                    logistics: { type: "array", items: { type: "string" } },
+                    sales: { type: "array", items: { type: "string" } },
+                    risk: { type: "array", items: { type: "string" } },
+                  },
+                  required: ["purchasing", "logistics", "sales", "risk"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const rawContent = llmResult.choices?.[0]?.message?.content;
+          if (typeof rawContent !== "string") {
+            return fallback;
+          }
+          const parsed = JSON.parse(rawContent);
+          if (!parsed || !Array.isArray(parsed.purchasing)) {
             return fallback;
           }
           return parsed as typeof fallback;

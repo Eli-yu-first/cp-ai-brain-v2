@@ -144,6 +144,12 @@ const translations: TranslationBranch = {
       ja: "時間裁定",
       th: "การทำอาร์บิทราจข้ามเวลา",
     },
+    spatialArbitrage: {
+      zh: "空间套利",
+      en: "Spatial Arbitrage",
+      ja: "空間裁定",
+      th: "การทำอาร์บิทราจเชิงพื้นที่",
+    },
   },
   timeArbitrage: {
     pageTitle: {
@@ -229,6 +235,86 @@ const translations: TranslationBranch = {
       en: "Risk Warning:",
       ja: "リスク警告:",
       th: "คำเตือนความเสี่ยง:",
+    },
+  },
+  spatialArbitrage: {
+    pageTitle: {
+      zh: "全域立体空间套利引擎",
+      en: "Spatial Arbitrage Engine",
+      ja: "空間裁定エンジン",
+      th: "เครื่องมืออาร์บิทราจเชิงพื้นที่",
+    },
+    pageDesc: {
+      zh: "打破全国均价思维。利用区域供应能力、路网物流效率与消费价差建立动态套利路由网版。",
+      en: "Break the national average pricing model. Generate dynamic routing leveraging regional supply, logistics and consumer price spread.",
+      ja: "全国平均価格からの脱却。地域供給力、物流効率、消費価格差を利用した動的な裁定ルート網を構築します。",
+      th: "สร้างเส้นทางแบบไดนามิกโดยใช้ความสามารถในการจัดหาในระดับภูมิภาค โลจิสติกส์ และส่วนต่างราคา",
+    },
+    statTotal: {
+      zh: "套利机会",
+      en: "Opportunities",
+      ja: "裁定機会",
+      th: "โอกาสอาร์บิทราจ",
+    },
+    statBest: {
+      zh: "最优路由利润",
+      en: "Best Route Profit",
+      ja: "最適ルート利益",
+      th: "กำไรเส้นทางที่ดีที่สุด",
+    },
+    statTop5: {
+      zh: "Top5路群总利润",
+      en: "Top5 Total Profit",
+      ja: "上位5ルート総利益",
+      th: "กำไรรวม 5 อันดับแรก",
+    },
+    statAvg: {
+      zh: "平均有效价差",
+      en: "Avg Spread",
+      ja: "平均有効スプレッド",
+      th: "ส่วนต่างราคาเฉลี่ย",
+    },
+    paramsGroup: {
+      zh: "参数调控",
+      en: "Parameters",
+      ja: "パラメータ設定",
+      th: "การตั้งค่าพารามิเตอร์",
+    },
+    tfTransport: {
+      zh: "运费基准 (元/km/吨)",
+      en: "Transport Cost Base",
+      ja: "輸送コスト基準",
+      th: "ฐานต้นทุนค่าขนส่ง",
+    },
+    tfMinProfit: {
+      zh: "最低套利阈值 (元/kg)",
+      en: "Min Threshold",
+      ja: "最小裁定閾値",
+      th: "เกณฑ์กำไรขั้นต่ำ",
+    },
+    tfBatchSize: {
+      zh: "批次规模 (吨)",
+      en: "Batch Size (T)",
+      ja: "バッチサイズ (トン)",
+      th: "ขนาดชุดสินค้า (ตัน)",
+    },
+    mapTitle: {
+      zh: "全国猪价与供需热力网",
+      en: "National Heatmap",
+      ja: "全国豚価格ヒートマップ",
+      th: "แผนที่ความร้อนราคา",
+    },
+    routeTitle: {
+      zh: "AI推荐套利路由 — 净利降序",
+      en: "AI Rated Routes",
+      ja: "AI推奨ルート",
+      th: "เส้นทางแนะนำโดย AI",
+    },
+    tasksTitle: {
+      zh: "AI 部门协同工单 — 实时拆解",
+      en: "AI Department Tasks",
+      ja: "AI 部門協調タスク",
+      th: "งานประสานงานแผนก AI",
     },
   },
   dashboard: {

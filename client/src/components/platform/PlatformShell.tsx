@@ -19,6 +19,7 @@ import {
   UsersRound,
   Workflow,
   BrainCircuit,
+  Map,
   Timer,
   X,
 } from "lucide-react";
@@ -35,7 +36,7 @@ const languages: Array<{ code: LanguageCode; label: string }> = [
   { code: "th", label: "\u0e44\u0e17\u0e22" },
 ];
 
-const navIcons = [LayoutGrid, Workflow, Sparkles, MapPinned, BrainCircuit, Timer, ShieldCheck, UsersRound] as const;
+const navIcons = [LayoutGrid, Workflow, Sparkles, MapPinned, BrainCircuit, Timer, Map, ShieldCheck, UsersRound] as const;
 
 interface NavDef {
   id: string;
@@ -69,6 +70,7 @@ export function PlatformShell({
     { id: "quant", label: t("nav.quant"), href: "/quant", shortLabel: "Q" },
     { id: "ai", label: t("nav.ai"), href: "/ai", shortLabel: "AI" },
     { id: "time-arbitrage", label: t("nav.timeArbitrage"), href: "/time-arbitrage", shortLabel: "TA" },
+    { id: "spatial-arbitrage", label: t("nav.spatialArbitrage"), href: "/spatial-arbitrage", shortLabel: "SA" },
     { id: "audit", label: t("nav.audit"), href: "/audit", shortLabel: "A" },
   ];
 

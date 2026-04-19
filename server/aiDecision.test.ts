@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentDecisionDraft, buildAiForecast, buildWhatIfSimulation } from "./aiDecision";
+import { buildAgentDecisionDraft, buildAiForecast, buildAlertBoard, buildWhatIfSimulation } from "./aiDecision";
 
 describe("buildAiForecast", () => {
   it("returns eight forecast points and clamps selected month into range", () => {
@@ -73,5 +73,35 @@ describe("buildAgentDecisionDraft", () => {
     const result = buildAgentDecisionDraft("CP-PK-240418-A1", 3, 12.5, 80, -20);
 
     expect(["中", "高"]).toContain(result.agents[0]?.riskLevel);
+  });
+});
+
+describe("buildAlertBoard", () => {
+  it("returns six dynamic alerts with detail fields for root-cause dialogs", () => {
+    const result = buildAlertBoard("CP-PK-240418-A1", 2, 15.5, 12, 8);
+
+    expect(result.items).toHaveLength(6);
+    expect(result.overview).toContain("6");
+    expect(result.items[0]).toMatchObject({
+      alertId: expect.any(String),
+      title: expect.any(String),
+      status: expect.any(String),
+      summary: expect.any(String),
+      impactScope: expect.any(String),
+      estimatedLoss: expect.any(Number),
+      aiRecommendation: expect.any(String),
+      rootCause: expect.any(String),
+      actionOwner: expect.any(String),
+    });
+  });
+
+  it("raises more severe warning levels under stressed assumptions", () => {
+    const stable = buildAlertBoard("CP-PK-240418-A1", 1, 16.5, 0, 5);
+    const stressed = buildAlertBoard("CP-PK-240418-A1", 3, 12.5, 80, -20);
+
+    const stableRedCount = stable.items.filter(item => item.status === "red").length;
+    const stressedRedCount = stressed.items.filter(item => item.status === "red").length;
+
+    expect(stressedRedCount).toBeGreaterThanOrEqual(stableRedCount);
   });
 });

@@ -2,6 +2,13 @@ import { PlatformShell } from "@/components/platform/PlatformShell";
 import { GlassPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -13,6 +20,7 @@ import {
   LineChart as LineChartIcon,
   Radar,
   ShieldAlert,
+  Siren,
   Truck,
   Warehouse,
 } from "lucide-react";
@@ -30,14 +38,36 @@ import {
   YAxis,
 } from "recharts";
 
+type AgentCard = {
+  agentId: "global" | "business" | "field";
+  agentName: string;
+  objective: string;
+  recommendation: string;
+  rationale: string;
+  riskLevel: "低" | "中" | "高";
+  nextAction: string;
+};
+
+type AlertCard = {
+  alertId: string;
+  title: string;
+  status: "red" | "yellow" | "green";
+  summary: string;
+  impactScope: string;
+  estimatedLoss: number;
+  aiRecommendation: string;
+  rootCause: string;
+  actionOwner: string;
+};
+
 const copy = {
   zh: {
     eyebrow: "AI Decision OS",
     title: "AI 决策指挥中枢",
     sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "先输入月份与预估价格，再生成价格波动曲线、What-If 沙盘与多 Agent 推理",
+    sectionTitle: "先输入月份与预估价格，再生成价格波动曲线、What-If 沙盘、多 Agent 推理与动态预警",
     sectionDesc:
-      "本页已升级为独立 AI 决策工作台。上半区负责 1 到 8 个月价格预测与利润联动，中部负责多变量 What-If 沙盘推演，下半区接入 Manus LLM 驱动的多 Agent 决策输出。",
+      "本页已升级为独立 AI 决策工作台。上半区负责 1 到 8 个月价格预测，中部负责多变量 What-If 与资源测算，下半区接入 Manus LLM 多 Agent 输出、红黄绿预警和根因分析弹窗。",
     workbench: "预测工作台",
     selectBatch: "库存批次",
     selectMonth: "预测月份",
@@ -89,15 +119,28 @@ const copy = {
     rationale: "依据",
     nextAction: "下一步",
     riskLevel: "风险等级",
+    alertEyebrow: "Traffic-Light Alerts",
+    alertTitle: "红黄绿动态预警",
+    alertDesc: "系统会根据利润、产能、仓储、冷链、需求与执行节奏生成动态告警。点击任意卡片可查看根因分析。",
+    alertOverview: "预警概览",
+    impactScope: "影响范围",
+    estimatedLoss: "预计损失",
+    aiRecommendation: "AI 建议",
+    rootCause: "问题根因",
+    actionOwner: "责任 Agent",
+    closeHint: "点击任意卡片查看详情",
+    alertStatusRed: "红色预警",
+    alertStatusYellow: "黄色预警",
+    alertStatusGreen: "绿色正常",
     navReady: "预测工作台已联通",
     chartReady: "曲线已生成",
     whatIfReady: "What-If 沙盘已联通",
     agentsReady: "多 Agent 已接入",
-    nextPending: "等待接入预警与派单联动",
+    alertsReady: "动态预警已接入",
+    nextPending: "等待接入派单与执行反馈联动",
     monthShort: "月",
     modules: [
-      { icon: ShieldAlert, title: "红黄绿预警", desc: "下一阶段接入九宫格告警、阈值变化和风险升级判断。" },
-      { icon: Truck, title: "派单与执行反馈", desc: "把多 Agent 结论转换成工单、回传和闭环追踪。" },
+      { icon: Truck, title: "派单与执行反馈", desc: "下一阶段把多 Agent 与预警结论转成工单、回传与超时升级。" },
       { icon: Warehouse, title: "现场资源编排", desc: "继续强化屠宰、仓储、冷链和现场班次之间的联动。" },
     ],
   },
@@ -105,9 +148,9 @@ const copy = {
     eyebrow: "AI Decision OS",
     title: "AI Decision Command Center",
     sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "Generate forecast curves, What-If simulations, and multi-agent reasoning from the same workspace",
+    sectionTitle: "Forecast, simulate, reason, and monitor alerts in one AI decision workspace",
     sectionDesc:
-      "This page is now an independent AI decision workspace. The top area handles 1-8 month forecast curves, the middle area runs multi-variable What-If simulations, and the lower area calls Manus LLM for multi-agent decision outputs.",
+      "This page now combines 1-8 month forecasting, What-If resource simulation, Manus LLM multi-agent reasoning, and traffic-light alerts with root-cause dialogs.",
     workbench: "Forecast Workbench",
     selectBatch: "Inventory Batch",
     selectMonth: "Forecast Month",
@@ -159,15 +202,28 @@ const copy = {
     rationale: "Rationale",
     nextAction: "Next Action",
     riskLevel: "Risk Level",
+    alertEyebrow: "Traffic-Light Alerts",
+    alertTitle: "Dynamic Warning Board",
+    alertDesc: "The system generates dynamic warnings for profit, capacity, storage, cold-chain, demand, and execution rhythm. Click any card for root cause analysis.",
+    alertOverview: "Alert Overview",
+    impactScope: "Impact Scope",
+    estimatedLoss: "Estimated Loss",
+    aiRecommendation: "AI Recommendation",
+    rootCause: "Root Cause",
+    actionOwner: "Owner Agent",
+    closeHint: "Click any card to open details",
+    alertStatusRed: "Red Alert",
+    alertStatusYellow: "Yellow Alert",
+    alertStatusGreen: "Green / Normal",
     navReady: "Forecast workspace connected",
     chartReady: "Curve generated",
     whatIfReady: "What-If sandbox connected",
     agentsReady: "Multi-agent connected",
-    nextPending: "Waiting for alerts and dispatch linkage",
+    alertsReady: "Dynamic alerts connected",
+    nextPending: "Waiting for dispatch and execution feedback linkage",
     monthShort: "M",
     modules: [
-      { icon: ShieldAlert, title: "Traffic-light Warnings", desc: "Next phase adds nine-grid alerts, threshold changes, and escalation logic." },
-      { icon: Truck, title: "Dispatch & Feedback", desc: "Convert multi-agent outputs into jobs, feedback loops, and closed-loop tracking." },
+      { icon: Truck, title: "Dispatch & Feedback", desc: "Next phase converts reasoning and alerts into jobs, feedback loops, and escalation handling." },
       { icon: Warehouse, title: "Field Resource Orchestration", desc: "Further connect slaughter, storage, cold-chain, and field shifts." },
     ],
   },
@@ -175,9 +231,9 @@ const copy = {
     eyebrow: "AI Decision OS",
     title: "AI意思決定コマンドセンター",
     sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "同一ワークスペースで予測曲線、What-If、マルチエージェント推論を生成",
+    sectionTitle: "予測、What-If、マルチエージェント、警報を一つの画面で実行",
     sectionDesc:
-      "このページは独立したAI意思決定ワークスペースです。上段は1〜8か月の価格予測、中段は多変量 What-If、下段は Manus LLM によるマルチエージェント出力を担います。",
+      "このページは1〜8か月予測、資源シミュレーション、Manus LLM 多エージェント推論、赤黄緑警報と根因分析ダイアログを統合しています。",
     workbench: "予測ワークベンチ",
     selectBatch: "在庫バッチ",
     selectMonth: "予測月数",
@@ -229,15 +285,28 @@ const copy = {
     rationale: "根拠",
     nextAction: "次アクション",
     riskLevel: "リスク",
+    alertEyebrow: "Traffic-Light Alerts",
+    alertTitle: "動的警報ボード",
+    alertDesc: "利益、能力、保管、冷鏈、需要、実行リズムに対する動的警報を生成します。カードを押すと根因分析を表示します。",
+    alertOverview: "警報概要",
+    impactScope: "影響範囲",
+    estimatedLoss: "想定損失",
+    aiRecommendation: "AI 提案",
+    rootCause: "根因",
+    actionOwner: "責任 Agent",
+    closeHint: "カードを押すと詳細を表示",
+    alertStatusRed: "赤警報",
+    alertStatusYellow: "黄警報",
+    alertStatusGreen: "緑 / 正常",
     navReady: "予測ワークベンチ接続済み",
     chartReady: "曲線生成済み",
     whatIfReady: "What-If 接続済み",
     agentsReady: "多エージェント接続済み",
-    nextPending: "警報と配車連携待ち",
+    alertsReady: "動的警報接続済み",
+    nextPending: "配車と実行反馈連携待ち",
     monthShort: "月",
     modules: [
-      { icon: ShieldAlert, title: "赤黄緑警報", desc: "次段階で九宮格警報、閾値変化、エスカレーション判断を追加します。" },
-      { icon: Truck, title: "配車と実行反馈", desc: "多エージェント出力を工単と進捗回収へ接続します。" },
+      { icon: Truck, title: "配車と実行反馈", desc: "次段階で推論と警報を工単、反馈、エスカレーションへ接続します。" },
       { icon: Warehouse, title: "現場資源編成", desc: "屠殺、保管、冷鏈、班次の連動をさらに強化します。" },
     ],
   },
@@ -245,9 +314,9 @@ const copy = {
     eyebrow: "AI Decision OS",
     title: "ศูนย์บัญชาการการตัดสินใจ AI",
     sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "สร้างกราฟคาดการณ์ What-If และตรรกะหลายเอเจนต์จากพื้นที่ทำงานเดียว",
+    sectionTitle: "คาดการณ์ จำลอง ตรรกะหลายเอเจนต์ และคำเตือนในหน้าจอเดียว",
     sectionDesc:
-      "หน้านี้เป็นพื้นที่ทำงานการตัดสินใจ AI แบบอิสระ ส่วนบนคือการคาดการณ์ 1-8 เดือน ส่วนกลางคือ What-If หลายตัวแปร และส่วนล่างเรียก Manus LLM เพื่อสร้างผลลัพธ์หลายเอเจนต์",
+      "หน้านี้รวมการคาดการณ์ 1-8 เดือน การจำลองทรัพยากร What-If การให้เหตุผลหลายเอเจนต์ของ Manus LLM และคำเตือนสามสีพร้อมหน้าต่างวิเคราะห์สาเหตุรากไว้ด้วยกัน",
     workbench: "โต๊ะคาดการณ์",
     selectBatch: "ล็อตคงคลัง",
     selectMonth: "เดือนที่คาดการณ์",
@@ -299,31 +368,34 @@ const copy = {
     rationale: "เหตุผล",
     nextAction: "ขั้นถัดไป",
     riskLevel: "ระดับความเสี่ยง",
+    alertEyebrow: "Traffic-Light Alerts",
+    alertTitle: "กระดานคำเตือนแบบไดนามิก",
+    alertDesc: "ระบบจะสร้างคำเตือนสำหรับกำไร กำลังผลิต คลัง ห้องเย็น อุปสงค์ และจังหวะการปฏิบัติ คลิกการ์ดเพื่อดูสาเหตุราก",
+    alertOverview: "ภาพรวมคำเตือน",
+    impactScope: "ขอบเขตผลกระทบ",
+    estimatedLoss: "ความเสียหายคาดการณ์",
+    aiRecommendation: "คำแนะนำ AI",
+    rootCause: "สาเหตุราก",
+    actionOwner: "เอเจนต์รับผิดชอบ",
+    closeHint: "คลิกการ์ดเพื่อเปิดรายละเอียด",
+    alertStatusRed: "คำเตือนสีแดง",
+    alertStatusYellow: "คำเตือนสีเหลือง",
+    alertStatusGreen: "สีเขียว / ปกติ",
     navReady: "เชื่อมโต๊ะคาดการณ์แล้ว",
     chartReady: "สร้างกราฟแล้ว",
     whatIfReady: "เชื่อม What-If แล้ว",
     agentsReady: "เชื่อมหลายเอเจนต์แล้ว",
-    nextPending: "รอการเตือนและการเชื่อมงาน",
+    alertsReady: "เชื่อมคำเตือนแล้ว",
+    nextPending: "รอเชื่อมการสั่งงานและฟีดแบ็ก",
     monthShort: "ด.",
     modules: [
-      { icon: ShieldAlert, title: "คำเตือนสามสี", desc: "ระยะถัดไปจะเพิ่มเก้าช่องเตือน การเปลี่ยนค่าเกณฑ์ และตรรกะยกระดับ" },
-      { icon: Truck, title: "การสั่งงานและฟีดแบ็ก", desc: "แปลงผลลัพธ์หลายเอเจนต์เป็นงานและการติดตามแบบปิดลูป" },
+      { icon: Truck, title: "การสั่งงานและฟีดแบ็ก", desc: "ขั้นถัดไปจะแปลงผลลัพธ์การตัดสินใจและคำเตือนเป็นงานและการยกระดับ" },
       { icon: Warehouse, title: "การจัดทรัพยากรหน้างาน", desc: "เชื่อมการเชือด คลัง ห้องเย็น และกะทำงานให้แน่นขึ้น" },
     ],
   },
 } as const;
 
-function MetricCard({
-  label,
-  value,
-  suffix,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  suffix?: string;
-  icon: typeof Calculator;
-}) {
+function MetricCard({ label, value, suffix, icon: Icon }: { label: string; value: string; suffix?: string; icon: typeof Calculator }) {
   return (
     <div className="rounded-[22px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015)),rgba(6,14,30,0.92)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_40px_rgba(0,0,0,0.24)]">
       <div className="flex items-center gap-3">
@@ -340,6 +412,25 @@ function MetricCard({
   );
 }
 
+function getAlertColors(status: AlertCard["status"]) {
+  if (status === "red") {
+    return {
+      badge: "border-rose-400/20 bg-rose-400/10 text-rose-200",
+      panel: "border-rose-400/20 bg-rose-400/[0.06]",
+    };
+  }
+  if (status === "yellow") {
+    return {
+      badge: "border-amber-400/20 bg-amber-400/10 text-amber-100",
+      panel: "border-amber-400/20 bg-amber-400/[0.06]",
+    };
+  }
+  return {
+    badge: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100",
+    panel: "border-emerald-400/20 bg-emerald-400/[0.06]",
+  };
+}
+
 export default function AiDecisionPage() {
   const { language } = useLanguage();
   const current = copy[language];
@@ -349,6 +440,7 @@ export default function AiDecisionPage() {
   const [scenarioMonth, setScenarioMonth] = useState("2");
   const [capacityAdjustmentInput, setCapacityAdjustmentInput] = useState("12");
   const [demandAdjustmentInput, setDemandAdjustmentInput] = useState("8");
+  const [activeAlert, setActiveAlert] = useState<AlertCard | null>(null);
 
   const selectedMonthNumber = useMemo(() => Number(selectedMonth), [selectedMonth]);
   const scenarioMonthNumber = useMemo(() => Number(scenarioMonth), [scenarioMonth]);
@@ -365,35 +457,25 @@ export default function AiDecisionPage() {
     return Number.isFinite(parsed) ? parsed : 0;
   }, [demandAdjustmentInput]);
 
+  const queryInput = {
+    batchCode,
+    selectedMonth: Math.max(1, Math.min(3, scenarioMonthNumber)),
+    targetPrice: targetPrice ?? 15,
+    capacityAdjustment,
+    demandAdjustment,
+  };
+
   const { data: snapshot } = trpc.platform.snapshot.useQuery({ timeframe: "month" });
   const { data, isLoading } = trpc.platform.aiForecast.useQuery(
-    {
-      batchCode,
-      selectedMonth: selectedMonthNumber,
-      targetPrice,
-    },
+    { batchCode, selectedMonth: selectedMonthNumber, targetPrice },
     { enabled: Boolean(batchCode) },
   );
-  const { data: whatIfData, isLoading: whatIfLoading } = trpc.platform.aiWhatIf.useQuery(
-    {
-      batchCode,
-      selectedMonth: Math.max(1, Math.min(3, scenarioMonthNumber)),
-      targetPrice: targetPrice ?? 15,
-      capacityAdjustment,
-      demandAdjustment,
-    },
-    { enabled: Boolean(batchCode) },
-  );
+  const { data: whatIfData, isLoading: whatIfLoading } = trpc.platform.aiWhatIf.useQuery(queryInput, { enabled: Boolean(batchCode) });
+  const { data: alertsData } = trpc.platform.aiAlerts.useQuery(queryInput, { enabled: Boolean(batchCode) });
   const aiAgents = trpc.platform.aiAgents.useMutation();
 
   const runAiAgents = () => {
-    aiAgents.mutate({
-      batchCode,
-      selectedMonth: Math.max(1, Math.min(3, scenarioMonthNumber)),
-      targetPrice: targetPrice ?? 15,
-      capacityAdjustment,
-      demandAdjustment,
-    });
+    aiAgents.mutate(queryInput);
   };
 
   return (
@@ -408,6 +490,7 @@ export default function AiDecisionPage() {
             <Badge className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">{current.chartReady}</Badge>
             <Badge className="rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-3 py-1 text-[11px] font-semibold text-fuchsia-200">{current.whatIfReady}</Badge>
             <Badge className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1 text-[11px] font-semibold text-violet-200">{current.agentsReady}</Badge>
+            <Badge className="rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-1 text-[11px] font-semibold text-rose-100">{current.alertsReady}</Badge>
             <Badge className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold text-amber-200">{current.nextPending}</Badge>
           </div>
         }
@@ -426,35 +509,21 @@ export default function AiDecisionPage() {
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold text-slate-300">{current.selectBatch}</p>
                 <Select value={batchCode} onValueChange={setBatchCode}>
-                  <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100">
-                    <SelectValue placeholder={current.selectBatch} />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.selectBatch} /></SelectTrigger>
                   <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
-                    {(snapshot?.inventoryBatches ?? []).map(batch => (
-                      <SelectItem key={batch.batchCode} value={batch.batchCode}>
-                        {batch.batchCode}
-                      </SelectItem>
-                    ))}
+                    {(snapshot?.inventoryBatches ?? []).map(batch => <SelectItem key={batch.batchCode} value={batch.batchCode}>{batch.batchCode}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold text-slate-300">{current.selectMonth}</p>
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100">
-                    <SelectValue placeholder={current.selectMonth} />
-                  </SelectTrigger>
+                  <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.selectMonth} /></SelectTrigger>
                   <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
-                    {Array.from({ length: 8 }, (_, index) => (
-                      <SelectItem key={index + 1} value={String(index + 1)}>
-                        {index + 1} {current.monthUnit}
-                      </SelectItem>
-                    ))}
+                    {Array.from({ length: 8 }, (_, index) => <SelectItem key={index + 1} value={String(index + 1)}>{index + 1} {current.monthUnit}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p>
                 <Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
@@ -501,7 +570,6 @@ export default function AiDecisionPage() {
                   </ResponsiveContainer>
                 </div>
               </div>
-
               <div className="space-y-4">
                 <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.batchInfo}</p>
@@ -512,26 +580,17 @@ export default function AiDecisionPage() {
                     <div className="flex items-center justify-between gap-3"><span>{current.targetPrice}</span><span className="font-medium text-slate-200">¥{data?.targetPrice.toFixed(2) ?? "--"}</span></div>
                   </div>
                 </div>
-
                 {(data?.curve ?? []).map(point => (
-                  <button
-                    key={point.month}
-                    onClick={() => setSelectedMonth(String(point.month))}
-                    className={`w-full rounded-[20px] border p-3 text-left transition-all ${point.month === selectedMonthNumber ? "border-cyan-400/30 bg-cyan-400/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"}`}
-                  >
+                  <button key={point.month} onClick={() => setSelectedMonth(String(point.month))} className={`w-full rounded-[20px] border p-3 text-left transition-all ${point.month === selectedMonthNumber ? "border-cyan-400/30 bg-cyan-400/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"}`}>
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{point.label}</p>
                       <p className={`text-sm font-semibold ${point.profitPerKg >= 0 ? "text-emerald-300" : "text-rose-300"}`}>¥{point.profitPerKg.toFixed(2)}/kg</p>
                     </div>
-                    <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-slate-400">
-                      <span>{current.chartPrice}</span>
-                      <span className="text-slate-200">¥{point.projectedPrice.toFixed(2)}</span>
-                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-slate-400"><span>{current.chartPrice}</span><span className="text-slate-200">¥{point.projectedPrice.toFixed(2)}</span></div>
                   </button>
                 ))}
               </div>
             </div>
-
             {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
           </div>
         </GlassPanel>
@@ -545,37 +604,12 @@ export default function AiDecisionPage() {
               <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.whatIfTitle}</h4>
               <p className="mt-3 text-[13px] leading-6 text-slate-400">{current.whatIfDesc}</p>
             </div>
-
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-slate-300">{current.scenarioMonth}</p>
-                <Select value={scenarioMonth} onValueChange={setScenarioMonth}>
-                  <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100">
-                    <SelectValue placeholder={current.scenarioMonth} />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
-                    {[1, 2, 3].map(month => (
-                      <SelectItem key={month} value={String(month)}>
-                        {month} {current.monthUnit}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p>
-                <Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-slate-300">{current.capacityAdjustment}</p>
-                <Input value={capacityAdjustmentInput} onChange={event => setCapacityAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
-              </div>
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-slate-300">{current.demandAdjustment}</p>
-                <Input value={demandAdjustmentInput} onChange={event => setDemandAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
-              </div>
+              <div className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.scenarioMonth}</p><Select value={scenarioMonth} onValueChange={setScenarioMonth}><SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.scenarioMonth} /></SelectTrigger><SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">{[1, 2, 3].map(month => <SelectItem key={month} value={String(month)}>{month} {current.monthUnit}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p><Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></div>
+              <div className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.capacityAdjustment}</p><Input value={capacityAdjustmentInput} onChange={event => setCapacityAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></div>
+              <div className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.demandAdjustment}</p><Input value={demandAdjustmentInput} onChange={event => setDemandAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></div>
             </div>
-
             <div className="grid gap-4 md:grid-cols-2">
               <MetricCard label={current.baselineProfit} value={`¥${whatIfData?.summary.baselineProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={Calculator} />
               <MetricCard label={current.simulatedProfit} value={`¥${whatIfData?.summary.simulatedProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={LineChartIcon} />
@@ -588,16 +622,9 @@ export default function AiDecisionPage() {
         <GlassPanel>
           <div className="flex h-full flex-col gap-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-fuchsia-300/60">{current.resourcesTitle}</p>
-                <h4 className="mt-3 text-xl font-bold tracking-tight text-white">{current.resourcesTitle}</h4>
-              </div>
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.utilizationRate}</p>
-                <p className="mt-2 text-lg font-semibold text-white">{whatIfData?.summary.utilizationRate.toFixed(2) ?? "--"}%</p>
-              </div>
+              <div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-fuchsia-300/60">{current.resourcesTitle}</p><h4 className="mt-3 text-xl font-bold tracking-tight text-white">{current.resourcesTitle}</h4></div>
+              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-right"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.utilizationRate}</p><p className="mt-2 text-lg font-semibold text-white">{whatIfData?.summary.utilizationRate.toFixed(2) ?? "--"}%</p></div>
             </div>
-
             <div className="rounded-[24px] border border-white/[0.06] bg-slate-950/50 p-4">
               <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -612,22 +639,9 @@ export default function AiDecisionPage() {
                 </ResponsiveContainer>
               </div>
             </div>
-
             <div className="grid gap-4 md:grid-cols-3">
-              {(whatIfData?.resources ?? []).map(resource => (
-                <div key={resource.month} className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{resource.month}{current.monthShort}</p>
-                  <div className="mt-4 space-y-3 text-[13px] text-slate-400">
-                    <div className="flex items-center justify-between gap-3"><span>{current.slaughterHeads}</span><span className="font-medium text-slate-100">{resource.slaughterHeads.toLocaleString()}</span></div>
-                    <div className="flex items-center justify-between gap-3"><span>{current.freezingTons}</span><span className="font-medium text-slate-100">{resource.freezingTons.toFixed(2)} t</span></div>
-                    <div className="flex items-center justify-between gap-3"><span>{current.storageTons}</span><span className="font-medium text-slate-100">{resource.storageTons.toFixed(2)} t</span></div>
-                    <div className="flex items-center justify-between gap-3"><span>{current.warehousePallets}</span><span className="font-medium text-slate-100">{resource.warehousePallets}</span></div>
-                    <div className="flex items-center justify-between gap-3"><span>{current.coldChainTrips}</span><span className="font-medium text-slate-100">{resource.coldChainTrips}</span></div>
-                  </div>
-                </div>
-              ))}
+              {(whatIfData?.resources ?? []).map(resource => <div key={resource.month} className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{resource.month}{current.monthShort}</p><div className="mt-4 space-y-3 text-[13px] text-slate-400"><div className="flex items-center justify-between gap-3"><span>{current.slaughterHeads}</span><span className="font-medium text-slate-100">{resource.slaughterHeads.toLocaleString()}</span></div><div className="flex items-center justify-between gap-3"><span>{current.freezingTons}</span><span className="font-medium text-slate-100">{resource.freezingTons.toFixed(2)} t</span></div><div className="flex items-center justify-between gap-3"><span>{current.storageTons}</span><span className="font-medium text-slate-100">{resource.storageTons.toFixed(2)} t</span></div><div className="flex items-center justify-between gap-3"><span>{current.warehousePallets}</span><span className="font-medium text-slate-100">{resource.warehousePallets}</span></div><div className="flex items-center justify-between gap-3"><span>{current.coldChainTrips}</span><span className="font-medium text-slate-100">{resource.coldChainTrips}</span></div></div></div>)}
             </div>
-
             {whatIfLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
           </div>
         </GlassPanel>
@@ -636,86 +650,68 @@ export default function AiDecisionPage() {
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
         <GlassPanel>
           <div className="flex h-full flex-col gap-5">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-violet-300/60">{current.agentEyebrow}</p>
-              <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.agentTitle}</h4>
-              <p className="mt-3 text-[13px] leading-6 text-slate-400">{current.agentDesc}</p>
-            </div>
-
+            <div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-violet-300/60">{current.agentEyebrow}</p><h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.agentTitle}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{current.agentDesc}</p></div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.overview}</p>
-                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.overview ?? current.agentDesc}</p>
-              </div>
-              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.coordinationSignal}</p>
-                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.coordinationSignal ?? current.nextPending}</p>
-              </div>
-              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.dispatchSummary}</p>
-                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.dispatchSummary ?? current.generateAgents}</p>
-              </div>
+              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.overview}</p><p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.overview ?? current.agentDesc}</p></div>
+              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.coordinationSignal}</p><p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.coordinationSignal ?? current.nextPending}</p></div>
+              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.dispatchSummary}</p><p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.dispatchSummary ?? current.generateAgents}</p></div>
             </div>
-
-            <Button
-              onClick={runAiAgents}
-              disabled={aiAgents.isPending}
-              className="h-12 rounded-2xl bg-violet-500/90 text-white hover:bg-violet-400"
-            >
-              {aiAgents.isPending ? current.generatingAgents : current.generateAgents}
-            </Button>
+            <Button onClick={runAiAgents} disabled={aiAgents.isPending} className="h-12 rounded-2xl bg-violet-500/90 text-white hover:bg-violet-400">{aiAgents.isPending ? current.generatingAgents : current.generateAgents}</Button>
           </div>
         </GlassPanel>
 
         <div className="grid gap-6 xl:grid-cols-3">
-          {(aiAgents.data?.agents ?? []).map((agent: {
-            agentId: "global" | "business" | "field";
-            agentName: string;
-            objective: string;
-            recommendation: string;
-            rationale: string;
-            riskLevel: "低" | "中" | "高";
-            nextAction: string;
-          }) => (
+          {(aiAgents.data?.agents ?? []).map((agent: AgentCard) => (
             <GlassPanel key={agent.agentId} className="h-full">
               <div className="flex h-full flex-col gap-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/[0.08] text-violet-200">
-                    {agent.agentId === "global" ? <BrainCircuit className="h-5 w-5" /> : agent.agentId === "business" ? <Factory className="h-5 w-5" /> : <Truck className="h-5 w-5" />}
-                  </div>
-                  <Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-slate-200">{current.riskLevel} {agent.riskLevel}</Badge>
-                </div>
-                <div>
-                  <h4 className="text-lg font-semibold text-white">{agent.agentName}</h4>
-                  <div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400">
-                    <p><span className="font-semibold text-slate-200">{current.objective}：</span>{agent.objective}</p>
-                    <p><span className="font-semibold text-slate-200">{current.recommendation}：</span>{agent.recommendation}</p>
-                    <p><span className="font-semibold text-slate-200">{current.rationale}：</span>{agent.rationale}</p>
-                    <p><span className="font-semibold text-slate-200">{current.nextAction}：</span>{agent.nextAction}</p>
-                  </div>
-                </div>
+                <div className="flex items-center justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/[0.08] text-violet-200">{agent.agentId === "global" ? <BrainCircuit className="h-5 w-5" /> : agent.agentId === "business" ? <Factory className="h-5 w-5" /> : <Truck className="h-5 w-5" />}</div><Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-slate-200">{current.riskLevel} {agent.riskLevel}</Badge></div>
+                <div><h4 className="text-lg font-semibold text-white">{agent.agentName}</h4><div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400"><p><span className="font-semibold text-slate-200">{current.objective}：</span>{agent.objective}</p><p><span className="font-semibold text-slate-200">{current.recommendation}：</span>{agent.recommendation}</p><p><span className="font-semibold text-slate-200">{current.rationale}：</span>{agent.rationale}</p><p><span className="font-semibold text-slate-200">{current.nextAction}：</span>{agent.nextAction}</p></div></div>
               </div>
             </GlassPanel>
           ))}
-
-          {current.modules.map(module => {
-            const Icon = module.icon;
-            return (
-              <GlassPanel key={module.title} className="h-full">
-                <div className="flex h-full flex-col gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-semibold text-white">{module.title}</h4>
-                    <p className="mt-3 text-[13px] leading-6 text-slate-400">{module.desc}</p>
-                  </div>
-                </div>
-              </GlassPanel>
-            );
-          })}
+          {current.modules.map(module => { const Icon = module.icon; return <GlassPanel key={module.title} className="h-full"><div className="flex h-full flex-col gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200"><Icon className="h-5 w-5" /></div><div><h4 className="text-lg font-semibold text-white">{module.title}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{module.desc}</p></div></div></GlassPanel>; })}
         </div>
       </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+        <GlassPanel>
+          <div className="flex h-full flex-col gap-5">
+            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-rose-300/60">{current.alertEyebrow}</p><h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.alertTitle}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{current.alertDesc}</p></div><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] text-rose-200"><Siren className="h-5 w-5" /></div></div>
+            <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.alertOverview}</p><p className="mt-3 text-sm leading-7 text-slate-300">{alertsData?.overview ?? current.closeHint}</p></div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {(alertsData?.items ?? []).slice(0, 3).map((alert: AlertCard) => {
+                const colors = getAlertColors(alert.status);
+                return <button key={alert.alertId} onClick={() => setActiveAlert(alert)} className={`rounded-[22px] border p-4 text-left transition-all hover:translate-y-[-2px] ${colors.panel}`}><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-white">{alert.title}</p><Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge></div><p className="mt-4 text-[12px] leading-6 text-slate-300">{alert.summary}</p></button>;
+              })}
+            </div>
+          </div>
+        </GlassPanel>
+
+        <GlassPanel>
+          <div className="grid gap-4 md:grid-cols-3">
+            {(alertsData?.items ?? []).map((alert: AlertCard) => {
+              const colors = getAlertColors(alert.status);
+              return <button key={alert.alertId} onClick={() => setActiveAlert(alert)} className={`rounded-[22px] border p-4 text-left transition-all hover:translate-y-[-2px] ${colors.panel}`}><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-white">{alert.title}</p><Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge></div><p className="mt-3 text-[12px] leading-6 text-slate-300">{alert.summary}</p><p className="mt-3 text-[12px] text-slate-400">{current.impactScope}：{alert.impactScope}</p><p className="mt-1 text-[12px] text-slate-400">{current.estimatedLoss}：¥{alert.estimatedLoss.toLocaleString()}</p></button>;
+            })}
+          </div>
+        </GlassPanel>
+      </div>
+
+      <Dialog open={Boolean(activeAlert)} onOpenChange={open => !open && setActiveAlert(null)}>
+        <DialogContent className="max-w-2xl rounded-[28px] border-white/10 bg-[#081122] text-white">
+          <DialogHeader>
+            <DialogTitle>{activeAlert?.title ?? current.alertTitle}</DialogTitle>
+            <DialogDescription className="text-slate-400">{current.closeHint}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.impactScope}</p><p className="mt-3 text-sm leading-7 text-slate-200">{activeAlert?.impactScope}</p></div>
+            <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.estimatedLoss}</p><p className="mt-3 text-sm leading-7 text-slate-200">¥{activeAlert?.estimatedLoss.toLocaleString() ?? "--"}</p></div>
+            <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.aiRecommendation}</p><p className="mt-3 text-sm leading-7 text-slate-200">{activeAlert?.aiRecommendation}</p></div>
+            <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.actionOwner}</p><p className="mt-3 text-sm leading-7 text-slate-200">{activeAlert?.actionOwner}</p></div>
+          </div>
+          <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.rootCause}</p><p className="mt-3 text-sm leading-7 text-slate-200">{activeAlert?.rootCause}</p></div>
+        </DialogContent>
+      </Dialog>
     </PlatformShell>
   );
 }

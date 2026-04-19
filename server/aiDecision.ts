@@ -70,6 +70,25 @@ export type AiAgentDecisionResult = {
   agents: AgentDecisionCard[];
 };
 
+export type AlertLevel = "red" | "yellow" | "green";
+
+export type AiAlertItem = {
+  alertId: string;
+  title: string;
+  status: AlertLevel;
+  summary: string;
+  impactScope: string;
+  estimatedLoss: number;
+  aiRecommendation: string;
+  rootCause: string;
+  actionOwner: string;
+};
+
+export type AiAlertBoardResult = {
+  overview: string;
+  items: AiAlertItem[];
+};
+
 function clampMonth(month: number) {
   return Math.max(1, Math.min(8, Math.round(month)));
 }
@@ -298,5 +317,107 @@ export function buildAgentDecisionContext(
       capacityAdjustment,
       demandAdjustment,
     ),
+  };
+}
+
+export function buildAlertBoard(
+  batchCode: string,
+  selectedMonth: number,
+  targetPrice: number,
+  capacityAdjustment: number,
+  demandAdjustment: number,
+): AiAlertBoardResult {
+  const forecast = buildAiForecast(batchCode, selectedMonth, targetPrice);
+  const simulation = buildWhatIfSimulation(
+    batchCode,
+    Math.max(1, Math.min(3, selectedMonth)),
+    targetPrice,
+    capacityAdjustment,
+    demandAdjustment,
+  );
+  const draft = buildAgentDecisionDraft(
+    batchCode,
+    selectedMonth,
+    targetPrice,
+    capacityAdjustment,
+    demandAdjustment,
+  );
+
+  const maxStorage = Math.max(...simulation.resources.map(item => item.storageTons));
+  const maxTrips = Math.max(...simulation.resources.map(item => item.coldChainTrips));
+  const incrementalLoss = Math.max(0, -simulation.summary.incrementalProfit);
+
+  const items: AiAlertItem[] = [
+    {
+      alertId: "profit-gap",
+      title: "利润偏差",
+      status: simulation.summary.incrementalProfit < -20000 ? "red" : simulation.summary.incrementalProfit < 10000 ? "yellow" : "green",
+      summary: `相对基线收益变化 ${simulation.summary.incrementalProfit.toLocaleString()} 元。`,
+      impactScope: "总部利润池 / 批次经营计划",
+      estimatedLoss: round(incrementalLoss),
+      aiRecommendation: draft.agents[0]?.recommendation ?? "重新校准利润目标。",
+      rootCause: simulation.summary.incrementalProfit < 0 ? "目标价格与需求变化不足以覆盖持有与执行成本。" : "价格与需求改善已覆盖持有成本。",
+      actionOwner: "CEO经营 Agent",
+    },
+    {
+      alertId: "utilization",
+      title: "产能利用率",
+      status: simulation.summary.utilizationRate > 114 ? "red" : simulation.summary.utilizationRate > 105 ? "yellow" : "green",
+      summary: `当前资源利用率 ${simulation.summary.utilizationRate.toFixed(2)}%。`,
+      impactScope: "工厂班次 / 产线节拍",
+      estimatedLoss: round(Math.max(0, simulation.summary.utilizationRate - 100) * 1600),
+      aiRecommendation: draft.agents[1]?.recommendation ?? "优化排产并平衡班次。",
+      rootCause: simulation.summary.utilizationRate > 110 ? "产能调整幅度过大，导致生产峰值集中。" : "当前产能处于安全区间。",
+      actionOwner: "生产编排 Agent",
+    },
+    {
+      alertId: "storage-pressure",
+      title: "仓储压力",
+      status: maxStorage > 0.44 ? "red" : maxStorage > 0.34 ? "yellow" : "green",
+      summary: `峰值仓储吨位 ${maxStorage.toFixed(2)} 吨。`,
+      impactScope: "冷库库容 / 托盘位",
+      estimatedLoss: round(maxStorage * 3800),
+      aiRecommendation: "锁定跨库调拨和托盘位，避免单库拥堵。",
+      rootCause: maxStorage > 0.4 ? "需求提升叠加库存持有期拉长，仓储堆压上升。" : "库容压力仍可被当前计划吸收。",
+      actionOwner: "仓储调度 Agent",
+    },
+    {
+      alertId: "cold-chain",
+      title: "冷链时效",
+      status: maxTrips > 2 ? "red" : maxTrips > 1 ? "yellow" : "green",
+      summary: `当前冷链车次峰值 ${maxTrips} 趟。`,
+      impactScope: "运输时效 / 在途温控",
+      estimatedLoss: round(maxTrips * 2200),
+      aiRecommendation: "提前锁定司机和车辆窗口，优先保障高峰月份。",
+      rootCause: maxTrips > 1 ? "峰值月份运输需求上升，需要额外车辆协调。" : "运输需求处在标准能力内。",
+      actionOwner: "物流调度 Agent",
+    },
+    {
+      alertId: "demand-volatility",
+      title: "需求波动",
+      status: demandAdjustment < -10 ? "red" : demandAdjustment < 0 || demandAdjustment > 20 ? "yellow" : "green",
+      summary: `当前需求调整 ${demandAdjustment.toFixed(2)}%。`,
+      impactScope: "销售兑现 / 区域去化节奏",
+      estimatedLoss: round(Math.abs(demandAdjustment) * 900),
+      aiRecommendation: "按区域节奏调整投放顺序，优先保障高周转渠道。",
+      rootCause: demandAdjustment < 0 ? "终端去化偏弱，回款与库存消化速度下降。" : "需求拉升需同步校准供给节奏。",
+      actionOwner: "事业部利润 Agent",
+    },
+    {
+      alertId: "execution-rhythm",
+      title: "执行节奏",
+      status: forecast.summary.profitPerKg < -8 ? "red" : forecast.summary.profitPerKg < -3 ? "yellow" : "green",
+      summary: `当前预测窗口每公斤利润 ${forecast.summary.profitPerKg.toFixed(2)} 元。`,
+      impactScope: "现场执行 / 经营兑现",
+      estimatedLoss: round(Math.max(0, -forecast.summary.profitPerKg) * 1200),
+      aiRecommendation: draft.agents[2]?.nextAction ?? "强化班前会和异常回传。",
+      rootCause: forecast.summary.profitPerKg < 0 ? "价格恢复速度慢于持有成本累积速度。" : "执行节奏与利润目标基本一致。",
+      actionOwner: "现场执行 Agent",
+    },
+  ];
+
+  return {
+    overview: `已生成 ${items.length} 个动态预警点，覆盖利润、产能、仓储、冷链、需求和执行节奏。`,
+    items,
   };
 }

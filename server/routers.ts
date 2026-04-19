@@ -12,7 +12,7 @@ import {
   listAuditEntries,
 } from "./platformData";
 import { buildLiveDecisionScenarios, buildPorkMarketSnapshot } from "./marketData";
-import { buildAiForecast } from "./aiDecision";
+import { buildAiForecast, buildWhatIfSimulation } from "./aiDecision";
 
 const timeframeSchema = z.enum(["day", "week", "month", "quarter", "halfYear", "year"]);
 const roleSchema = z.enum(["admin", "strategist", "executor"]);
@@ -79,6 +79,25 @@ export const appRouter = router({
       )
       .query(({ input }) => {
         return buildAiForecast(input.batchCode, input.selectedMonth, input.targetPrice);
+      }),
+    aiWhatIf: protectedProcedure
+      .input(
+        z.object({
+          batchCode: z.string(),
+          selectedMonth: z.number().int().min(1).max(3),
+          targetPrice: z.number().min(1).max(40),
+          capacityAdjustment: z.number().min(-60).max(120),
+          demandAdjustment: z.number().min(-60).max(120),
+        }),
+      )
+      .query(({ input }) => {
+        return buildWhatIfSimulation(
+          input.batchCode,
+          input.selectedMonth,
+          input.targetPrice,
+          input.capacityAdjustment,
+          input.demandAdjustment,
+        );
       }),
     auditLogs: protectedProcedure.query(() => {
       return listAuditEntries();

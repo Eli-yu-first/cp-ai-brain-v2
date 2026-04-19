@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAiForecast } from "./aiDecision";
+import { buildAiForecast, buildWhatIfSimulation } from "./aiDecision";
 
 describe("buildAiForecast", () => {
   it("returns eight forecast points and clamps selected month into range", () => {
@@ -26,5 +26,35 @@ describe("buildAiForecast", () => {
 
     expect(optimistic.summary.projectedPrice).toBeGreaterThan(base.summary.projectedPrice);
     expect(optimistic.summary.totalProfit).toBeGreaterThan(base.summary.totalProfit);
+  });
+});
+
+describe("buildWhatIfSimulation", () => {
+  it("returns three resource windows and clamps scenario month", () => {
+    const result = buildWhatIfSimulation("CP-PK-240418-A1", 9, 15, 12, 8);
+
+    expect(result.selectedMonth).toBe(3);
+    expect(result.resources).toHaveLength(3);
+    expect(result.resources[0]?.month).toBe(1);
+    expect(result.resources[2]?.month).toBe(3);
+  });
+
+  it("increases simulated profit when price and demand assumptions become more optimistic", () => {
+    const conservative = buildWhatIfSimulation("CP-PK-240418-A1", 2, 14.4, 0, -5);
+    const optimistic = buildWhatIfSimulation("CP-PK-240418-A1", 2, 16.2, 15, 12);
+
+    expect(optimistic.summary.simulatedProfit).toBeGreaterThan(conservative.summary.simulatedProfit);
+    expect(optimistic.summary.incrementalProfit).toBeGreaterThan(conservative.summary.incrementalProfit);
+  });
+
+  it("keeps resource plan outputs positive for all execution windows", () => {
+    const result = buildWhatIfSimulation("CP-PK-240418-A1", 1, 15.8, 10, 10);
+
+    result.resources.forEach(resource => {
+      expect(resource.slaughterHeads).toBeGreaterThan(0);
+      expect(resource.storageTons).toBeGreaterThan(0);
+      expect(resource.warehousePallets).toBeGreaterThan(0);
+      expect(resource.coldChainTrips).toBeGreaterThan(0);
+    });
   });
 });

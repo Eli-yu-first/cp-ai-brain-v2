@@ -253,17 +253,21 @@ export const appRouter = router({
           minProfitThreshold: z.number().min(0.0).max(10.0),
           batchSizeTon: z.number().min(50).max(5000),
           originFilter: z.string(),
-          partCode: z.string().optional()
+          partCode: z.string().optional(),
+          vehiclePreference: z.enum(["auto", "small", "medium", "large"]).optional().default("auto"),
+          targetShipmentTon: z.number().min(0).max(200000).optional(),
         })
       )
       .query(({ input }) => {
-        return calculateSpatialArbitrage(
-          input.transportCostPerKmPerTon,
-          input.minProfitThreshold,
-          input.batchSizeTon,
-          input.originFilter,
-          input.partCode
-        );
+        return calculateSpatialArbitrage({
+          transportCostPerKmPerTon: input.transportCostPerKmPerTon,
+          minProfitThreshold: input.minProfitThreshold,
+          batchSizeTon: input.batchSizeTon,
+          originFilter: input.originFilter,
+          partCode: input.partCode ?? "all",
+          vehiclePreference: input.vehiclePreference,
+          targetShipmentTon: input.targetShipmentTon,
+        });
       }),
     spatialAiDispatch: protectedProcedure
       .input(

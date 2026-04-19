@@ -114,6 +114,12 @@ const translations: TranslationBranch = {
       ja: "豚事業部",
       th: "หน่วยธุรกิจสุกร",
     },
+    porkMap: {
+      zh: "猪事业地图",
+      en: "Pork Geo Map",
+      ja: "豚事業マップ",
+      th: "แผนที่ธุรกิจสุกร",
+    },
     quant: {
       zh: "量化决策",
       en: "Quant Engine",

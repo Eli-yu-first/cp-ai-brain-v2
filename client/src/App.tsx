@@ -12,6 +12,7 @@ import AiDecisionPage from "./pages/AiDecision";
 import Home from "./pages/Home";
 import OverviewPage from "./pages/Overview";
 import PorkPage from "./pages/Pork";
+import PorkMapPage from "./pages/PorkMap";
 import QuantPage from "./pages/Quant";
 import TenantsPage from "./pages/Tenants";
 
@@ -28,6 +29,7 @@ function PlatformRouter() {
     { id: "tenants", href: "/tenants", Component: TenantsPage },
     { id: "overview", href: "/overview", Component: OverviewPage },
     { id: "pork", href: "/pork", Component: PorkPage },
+    { id: "pork-map", href: "/pork-map", Component: PorkMapPage },
     { id: "quant", href: "/quant", Component: QuantPage },
     { id: "ai", href: "/ai", Component: AiDecisionPage },
     { id: "audit", href: "/audit", Component: AuditPage },

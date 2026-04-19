@@ -82,10 +82,18 @@ export const appRouter = router({
           batchCode: z.string(),
           selectedMonth: z.number().int().min(1).max(8),
           targetPrice: z.number().min(1).max(40).optional(),
+          strategy: z.enum(["steady", "balanced", "aggressive"]).optional(),
+          basisAdjustment: z.number().min(-4).max(4).optional(),
         }),
       )
       .query(({ input }) => {
-        return buildAiForecast(input.batchCode, input.selectedMonth, input.targetPrice);
+        return buildAiForecast(
+          input.batchCode,
+          input.selectedMonth,
+          input.targetPrice,
+          input.strategy ?? "balanced",
+          input.basisAdjustment ?? 0,
+        );
       }),
     aiWhatIf: protectedProcedure
       .input(

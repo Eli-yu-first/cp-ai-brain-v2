@@ -1,5 +1,7 @@
 import { calculateDecision, inventoryBatches, type InventoryBatch } from "./platformData";
 
+export type ForecastStrategy = "steady" | "balanced" | "aggressive";
+
 export type ForecastPoint = {
   month: number;
   label: string;
@@ -11,12 +13,26 @@ export type ForecastPoint = {
   totalProfit: number;
 };
 
+export type ForecastTimelinePoint = {
+  step: number;
+  label: string;
+  phase: "actual" | "forecast";
+  actualPrice: number | null;
+  projectedPrice: number | null;
+  breakEvenPrice: number | null;
+  averageSellPrice: number | null;
+  profitPerKg: number | null;
+};
+
 export type AiForecastResult = {
   batch: InventoryBatch;
   selectedMonth: number;
+  strategy: ForecastStrategy;
+  basisAdjustment: number;
   targetPrice: number;
   monthlyHoldingCost: number;
   summary: {
+    currentSpotPrice: number;
     projectedPrice: number;
     breakEvenPrice: number;
     averageSellPrice: number;
@@ -24,6 +40,7 @@ export type AiForecastResult = {
     totalProfit: number;
   };
   curve: ForecastPoint[];
+  timeline: ForecastTimelinePoint[];
 };
 
 export type WhatIfResourcePoint = {
@@ -129,26 +146,62 @@ function getBatch(batchCode: string) {
   return inventoryBatches.find(item => item.batchCode === batchCode) ?? inventoryBatches[0]!;
 }
 
+function getStrategyFactor(strategy: ForecastStrategy) {
+  if (strategy === "steady") return 0.84;
+  if (strategy === "aggressive") return 1.18;
+  return 1;
+}
+
+function buildActualTimeline(batch: InventoryBatch, basisAdjustment: number): ForecastTimelinePoint[] {
+  const historyDepth = 6;
+  return Array.from({ length: historyDepth }, (_, index) => {
+    const stepsFromCurrent = historyDepth - 1 - index;
+    const trend = stepsFromCurrent * (0.22 + batch.supplyAdjustment * 0.18);
+    const oscillation = Math.sin((index + 1) * 0.9) * 0.18 + Math.cos((index + 1) * 0.45) * 0.07;
+    const actualPrice = round(batch.currentSpotPrice - trend + oscillation - basisAdjustment * 0.08);
+
+    return {
+      step: index - historyDepth + 1,
+      label: stepsFromCurrent === 0 ? "当前" : `T-${stepsFromCurrent}`,
+      phase: "actual",
+      actualPrice,
+      projectedPrice: stepsFromCurrent === 0 ? actualPrice : null,
+      breakEvenPrice: null,
+      averageSellPrice: null,
+      profitPerKg: stepsFromCurrent === 0 ? round(actualPrice - batch.unitCost) : null,
+    } satisfies ForecastTimelinePoint;
+  });
+}
+
 function toRiskLevelByIncrement(incrementalProfit: number, utilizationRate: number): "低" | "中" | "高" {
   if (incrementalProfit < -50000 || utilizationRate > 118) return "高";
   if (incrementalProfit < 0 || utilizationRate > 108) return "中";
   return "低";
 }
 
-export function buildAiForecast(batchCode: string, selectedMonth: number, targetPrice?: number): AiForecastResult {
+export function buildAiForecast(
+  batchCode: string,
+  selectedMonth: number,
+  targetPrice?: number,
+  strategy: ForecastStrategy = "balanced",
+  basisAdjustment = 0,
+): AiForecastResult {
   const batch = getBatch(batchCode);
   const month = clampMonth(selectedMonth);
   const monthlyHoldingCost = round(
     batch.storageCostPerMonth + batch.capitalCostPerMonth + batch.lossCostPerMonth,
   );
+  const strategyFactor = getStrategyFactor(strategy);
   const anchoredTargetPrice = targetPrice ?? round(batch.currentSpotPrice + month * 0.38 + batch.seasonalAdjustment);
+  const effectiveTargetPrice = round(anchoredTargetPrice + basisAdjustment * 0.45 + (strategyFactor - 1) * 0.9);
 
   const curve = Array.from({ length: 8 }, (_, index) => {
     const horizon = index + 1;
     const ratio = horizon / month;
-    const seasonalDrift = Math.sin((horizon / 8) * Math.PI) * 0.22;
+    const controlledRatio = Math.min(1.45, ratio * (0.92 + strategyFactor * 0.08));
+    const seasonalDrift = Math.sin((horizon / 8) * Math.PI) * 0.22 + basisAdjustment * 0.04 * horizon;
     const projectedPrice = round(
-      batch.currentSpotPrice + (anchoredTargetPrice - batch.currentSpotPrice) * ratio + seasonalDrift,
+      batch.currentSpotPrice + (effectiveTargetPrice - batch.currentSpotPrice) * controlledRatio + seasonalDrift + (strategyFactor - 1) * horizon * 0.08,
     );
     const decisionBase = calculateDecision(batch, Math.min(horizon, 3) as 1 | 2 | 3);
     const totalCostPerKg = round(batch.unitCost + monthlyHoldingCost * horizon);
@@ -168,14 +221,29 @@ export function buildAiForecast(batchCode: string, selectedMonth: number, target
     } satisfies ForecastPoint;
   });
 
+  const actualTimeline = buildActualTimeline(batch, basisAdjustment);
+  const forecastTimeline = curve.map(point => ({
+    step: point.month,
+    label: point.label,
+    phase: "forecast",
+    actualPrice: null,
+    projectedPrice: point.projectedPrice,
+    breakEvenPrice: point.breakEvenPrice,
+    averageSellPrice: point.averageSellPrice,
+    profitPerKg: point.profitPerKg,
+  } satisfies ForecastTimelinePoint));
+
   const current = curve[month - 1]!;
 
   return {
     batch,
     selectedMonth: month,
-    targetPrice: anchoredTargetPrice,
+    strategy,
+    basisAdjustment: round(basisAdjustment),
+    targetPrice: effectiveTargetPrice,
     monthlyHoldingCost,
     summary: {
+      currentSpotPrice: batch.currentSpotPrice,
       projectedPrice: current.projectedPrice,
       breakEvenPrice: current.breakEvenPrice,
       averageSellPrice: current.averageSellPrice,
@@ -183,6 +251,7 @@ export function buildAiForecast(batchCode: string, selectedMonth: number, target
       totalProfit: current.totalProfit,
     },
     curve,
+    timeline: [...actualTimeline, ...forecastTimeline],
   };
 }
 

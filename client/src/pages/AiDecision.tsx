@@ -60,6 +60,9 @@ type AlertCard = {
   actionOwner: string;
 };
 
+type ForecastStrategy = "steady" | "balanced" | "aggressive";
+type ForecastDisplayMetric = "projected" | "average" | "profit";
+
 const copy = {
   zh: {
     eyebrow: "AI Decision OS",
@@ -437,6 +440,10 @@ export default function AiDecisionPage() {
   const [batchCode, setBatchCode] = useState("CP-PK-240418-A1");
   const [selectedMonth, setSelectedMonth] = useState("3");
   const [targetPriceInput, setTargetPriceInput] = useState("15");
+  const [forecastStrategy, setForecastStrategy] = useState<ForecastStrategy>("balanced");
+  const [basisAdjustmentInput, setBasisAdjustmentInput] = useState("0");
+  const [historyWindow, setHistoryWindow] = useState("6");
+  const [displayMetric, setDisplayMetric] = useState<ForecastDisplayMetric>("projected");
   const [scenarioMonth, setScenarioMonth] = useState("2");
   const [capacityAdjustmentInput, setCapacityAdjustmentInput] = useState("12");
   const [demandAdjustmentInput, setDemandAdjustmentInput] = useState("8");
@@ -448,6 +455,10 @@ export default function AiDecisionPage() {
     const parsed = Number(targetPriceInput);
     return Number.isFinite(parsed) ? parsed : undefined;
   }, [targetPriceInput]);
+  const basisAdjustment = useMemo(() => {
+    const parsed = Number(basisAdjustmentInput);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [basisAdjustmentInput]);
   const capacityAdjustment = useMemo(() => {
     const parsed = Number(capacityAdjustmentInput);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -456,6 +467,83 @@ export default function AiDecisionPage() {
     const parsed = Number(demandAdjustmentInput);
     return Number.isFinite(parsed) ? parsed : 0;
   }, [demandAdjustmentInput]);
+
+  const forecastUi = useMemo(() => {
+    if (language === "en") {
+      return {
+        strategy: "Forecast strategy",
+        basisAdjustment: "Basis adjustment (¥/kg)",
+        historyWindow: "Lookback window",
+        displayMetric: "Trend overlay",
+        strategyOptions: { steady: "Steady", balanced: "Balanced", aggressive: "Aggressive" },
+        displayOptions: { projected: "Break-even", average: "Average sell", profit: "Profit/kg" },
+        actualLine: "Actual price",
+        forecastLine: "Forecast price",
+        splitLine: "Forecast split",
+        view4: "4 points",
+        view6: "6 points",
+        batchSnapshot: "Decision snapshot",
+        livePrice: "Current spot",
+        effectiveTarget: "Effective target",
+        trendHint: "The actual series stays solid, while the forecast section turns into a dashed line after the split marker.",
+      };
+    }
+    if (language === "ja") {
+      return {
+        strategy: "予測戦略",
+        basisAdjustment: "基差補正（元/kg）",
+        historyWindow: "回看ウィンドウ",
+        displayMetric: "トレンド補助線",
+        strategyOptions: { steady: "慎重", balanced: "標準", aggressive: "積極" },
+        displayOptions: { projected: "損益分岐", average: "平均売価", profit: "kg当たり利益" },
+        actualLine: "実績価格",
+        forecastLine: "予測価格",
+        splitLine: "予測分界",
+        view4: "4点",
+        view6: "6点",
+        batchSnapshot: "意思決定スナップショット",
+        livePrice: "現在現物",
+        effectiveTarget: "有効目標",
+        trendHint: "実績区間は実線、分界点以降の予測区間は破線で表示します。",
+      };
+    }
+    if (language === "th") {
+      return {
+        strategy: "กลยุทธ์คาดการณ์",
+        basisAdjustment: "การปรับ Basis (หยวน/กก.)",
+        historyWindow: "ช่วงมองย้อนหลัง",
+        displayMetric: "เส้นช่วยวิเคราะห์",
+        strategyOptions: { steady: "ระมัดระวัง", balanced: "สมดุล", aggressive: "เชิงรุก" },
+        displayOptions: { projected: "จุดคุ้มทุน", average: "ราคาเฉลี่ยขาย", profit: "กำไรต่อกก." },
+        actualLine: "ราคาจริง",
+        forecastLine: "ราคาคาดการณ์",
+        splitLine: "จุดแบ่งคาดการณ์",
+        view4: "4 จุด",
+        view6: "6 จุด",
+        batchSnapshot: "สแน็ปช็อตการตัดสินใจ",
+        livePrice: "ราคาสปอตปัจจุบัน",
+        effectiveTarget: "เป้าหมายจริง",
+        trendHint: "ช่วงข้อมูลจริงใช้เส้นทึบ และหลังเส้นแบ่งจะใช้เส้นประสำหรับการคาดการณ์",
+      };
+    }
+    return {
+      strategy: "预测策略",
+      basisAdjustment: "基差修正（元/公斤）",
+      historyWindow: "回看窗口",
+      displayMetric: "趋势叠加",
+      strategyOptions: { steady: "稳健", balanced: "基准", aggressive: "进取" },
+      displayOptions: { projected: "保本线", average: "平均售价", profit: "公斤利润" },
+      actualLine: "真实价格",
+      forecastLine: "预测价格",
+      splitLine: "预测分界",
+      view4: "近 4 点",
+      view6: "近 6 点",
+      batchSnapshot: "决策快照",
+      livePrice: "当前现货",
+      effectiveTarget: "有效目标价",
+      trendHint: "真实价格使用实线，经过分界竖线后的预测区间使用虚线显示，并可切换不同叠加指标。",
+    };
+  }, [language]);
 
   const queryInput = {
     batchCode,
@@ -467,7 +555,7 @@ export default function AiDecisionPage() {
 
   const { data: snapshot } = trpc.platform.snapshot.useQuery({ timeframe: "month" });
   const { data, isLoading } = trpc.platform.aiForecast.useQuery(
-    { batchCode, selectedMonth: selectedMonthNumber, targetPrice },
+    { batchCode, selectedMonth: selectedMonthNumber, targetPrice, strategy: forecastStrategy, basisAdjustment },
     { enabled: Boolean(batchCode) },
   );
   const { data: whatIfData, isLoading: whatIfLoading } = trpc.platform.aiWhatIf.useQuery(queryInput, { enabled: Boolean(batchCode) });
@@ -476,6 +564,18 @@ export default function AiDecisionPage() {
   const aiAgents = trpc.platform.aiAgents.useMutation();
 
   const dispatchJson = useMemo(() => JSON.stringify(dispatchData?.workOrders ?? [], null, 2), [dispatchData]);
+  const chartWindowSize = useMemo(() => Math.max(2, Number(historyWindow)), [historyWindow]);
+  const chartData = useMemo(() => {
+    const timeline = data?.timeline ?? [];
+    const actualSeries = timeline.filter(point => point.phase === "actual");
+    const forecastSeries = timeline.filter(point => point.phase === "forecast");
+    return [...actualSeries.slice(Math.max(0, actualSeries.length - chartWindowSize)), ...forecastSeries];
+  }, [chartWindowSize, data?.timeline]);
+  const splitLabel = useMemo(() => chartData.find(point => point.phase === "actual" && point.step === 0)?.label ?? "当前", [chartData]);
+  const selectedForecastPoint = useMemo(
+    () => data?.curve.find(point => point.month === selectedMonthNumber) ?? data?.curve[data?.curve.length ? data.curve.length - 1 : 0],
+    [data?.curve, selectedMonthNumber],
+  );
 
   const runAiAgents = () => {
     aiAgents.mutate(queryInput);
@@ -499,105 +599,161 @@ export default function AiDecisionPage() {
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[0.86fr_1.14fr]">
-        <GlassPanel>
-          <div className="flex flex-col gap-6">
+      <GlassPanel>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/60">{current.workbench}</p>
-              <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.workbench}</h4>
-              <p className="mt-3 text-[13px] leading-6 text-slate-400">{current.formulaHint}</p>
+              <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.workbench} · {current.chartTitle}</h4>
+              <p className="mt-3 max-w-3xl text-[13px] leading-6 text-slate-400">{current.formulaHint}</p>
             </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-slate-300">{current.selectBatch}</p>
-                <Select value={batchCode} onValueChange={setBatchCode}>
-                  <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.selectBatch} /></SelectTrigger>
-                  <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
-                    {(snapshot?.inventoryBatches ?? []).map(batch => <SelectItem key={batch.batchCode} value={batch.batchCode}>{batch.batchCode}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+            <div className="grid min-w-[240px] gap-3 sm:grid-cols-2 xl:w-[360px]">
+              <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-400/[0.06] px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">{current.currentMonth}</p>
+                <p className="mt-2 text-xl font-semibold text-white">{data?.selectedMonth ?? selectedMonthNumber} {current.monthUnit}</p>
+                <p className="mt-1 text-[12px] text-cyan-50/75">{current.perKgProfit} ¥{selectedForecastPoint ? selectedForecastPoint.profitPerKg.toFixed(2) : "--"}</p>
               </div>
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-slate-300">{current.selectMonth}</p>
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.selectMonth} /></SelectTrigger>
-                  <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
-                    {Array.from({ length: 8 }, (_, index) => <SelectItem key={index + 1} value={String(index + 1)}>{index + 1} {current.monthUnit}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{forecastUi.batchSnapshot}</p>
+                <p className="mt-2 text-base font-semibold text-white">{data?.batch.partName ?? batchCode}</p>
+                <p className="mt-1 text-[12px] text-slate-400">{forecastUi.livePrice} ¥{data?.summary.currentSpotPrice.toFixed(2) ?? "--"}</p>
               </div>
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p>
-                <Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              <MetricCard label={current.projectedPrice} value={`¥${data?.summary.projectedPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={LineChartIcon} />
-              <MetricCard label={current.breakEven} value={`¥${data?.summary.breakEvenPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={Calculator} />
-              <MetricCard label={current.avgSell} value={`¥${data?.summary.averageSellPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={Radar} />
-              <MetricCard label={current.profit} value={`¥${data?.summary.totalProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={BrainCircuit} />
             </div>
           </div>
-        </GlassPanel>
 
-        <GlassPanel>
-          <div className="flex h-full flex-col gap-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/60">{current.chartTitle}</p>
-                <h4 className="mt-3 text-xl font-bold tracking-tight text-white">{current.chartTitle}</h4>
-                <p className="mt-3 max-w-2xl text-[13px] leading-6 text-slate-400">{current.chartDesc}</p>
-              </div>
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.currentMonth}</p>
-                <p className="mt-2 text-lg font-semibold text-white">{data?.selectedMonth ?? selectedMonthNumber} {current.monthUnit}</p>
-                <p className="mt-1 text-[12px] text-slate-400">{current.perKgProfit} ¥{data?.summary.profitPerKg.toFixed(2) ?? "--"}</p>
-              </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-300">{current.selectBatch}</p>
+              <Select value={batchCode} onValueChange={setBatchCode}>
+                <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.selectBatch} /></SelectTrigger>
+                <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
+                  {(snapshot?.inventoryBatches ?? []).map(batch => <SelectItem key={batch.batchCode} value={batch.batchCode}>{batch.batchCode}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-
-            <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-              <div className="rounded-[24px] border border-white/[0.06] bg-slate-950/50 p-4">
-                <div className="h-[320px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={data?.curve ?? []} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                      <XAxis dataKey="label" stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-                      <YAxis stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} domain={["dataMin - 0.6", "dataMax + 0.6"]} />
-                      <Tooltip contentStyle={{ background: "#0a1628", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, fontSize: 11 }} />
-                      <ReferenceLine y={data?.summary.breakEvenPrice} stroke="rgba(251,191,36,0.5)" strokeDasharray="5 5" />
-                      <Line type="monotone" dataKey="projectedPrice" name={current.chartPrice} stroke="#38bdf8" strokeWidth={2.5} dot={false} />
-                      <Line type="monotone" dataKey="breakEvenPrice" name={current.chartBreakEven} stroke="#f59e0b" strokeWidth={1.6} dot={false} strokeDasharray="6 3" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.batchInfo}</p>
-                  <p className="mt-3 text-base font-semibold text-white">{data?.batch.partName ?? batchCode}</p>
-                  <div className="mt-4 space-y-2 text-[13px] text-slate-400">
-                    <div className="flex items-center justify-between gap-3"><span>{current.weight}</span><span className="font-medium text-slate-200">{data?.batch.weightKg.toLocaleString() ?? "--"} {current.tonnage}</span></div>
-                    <div className="flex items-center justify-between gap-3"><span>{current.monthlyCost}</span><span className="font-medium text-slate-200">¥{data?.monthlyHoldingCost.toFixed(2) ?? "--"}/{current.monthUnit}</span></div>
-                    <div className="flex items-center justify-between gap-3"><span>{current.targetPrice}</span><span className="font-medium text-slate-200">¥{data?.targetPrice.toFixed(2) ?? "--"}</span></div>
-                  </div>
-                </div>
-                {(data?.curve ?? []).map(point => (
-                  <button key={point.month} onClick={() => setSelectedMonth(String(point.month))} className={`w-full rounded-[20px] border p-3 text-left transition-all ${point.month === selectedMonthNumber ? "border-cyan-400/30 bg-cyan-400/[0.08]" : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">{point.label}</p>
-                      <p className={`text-sm font-semibold ${point.profitPerKg >= 0 ? "text-emerald-300" : "text-rose-300"}`}>¥{point.profitPerKg.toFixed(2)}/kg</p>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-slate-400"><span>{current.chartPrice}</span><span className="text-slate-200">¥{point.projectedPrice.toFixed(2)}</span></div>
-                  </button>
-                ))}
-              </div>
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-300">{current.selectMonth}</p>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.selectMonth} /></SelectTrigger>
+                <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
+                  {Array.from({ length: 8 }, (_, index) => <SelectItem key={index + 1} value={String(index + 1)}>{index + 1} {current.monthUnit}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p>
+              <Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-300">{forecastUi.strategy}</p>
+              <Select value={forecastStrategy} onValueChange={value => setForecastStrategy(value as ForecastStrategy)}>
+                <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={forecastUi.strategy} /></SelectTrigger>
+                <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
+                  <SelectItem value="steady">{forecastUi.strategyOptions.steady}</SelectItem>
+                  <SelectItem value="balanced">{forecastUi.strategyOptions.balanced}</SelectItem>
+                  <SelectItem value="aggressive">{forecastUi.strategyOptions.aggressive}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-300">{forecastUi.basisAdjustment}</p>
+              <Input value={basisAdjustmentInput} onChange={event => setBasisAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-slate-300">{forecastUi.historyWindow}</p>
+              <Select value={historyWindow} onValueChange={setHistoryWindow}>
+                <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={forecastUi.historyWindow} /></SelectTrigger>
+                <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
+                  <SelectItem value="4">{forecastUi.view4}</SelectItem>
+                  <SelectItem value="6">{forecastUi.view6}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </GlassPanel>
-      </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard label={forecastUi.livePrice} value={`¥${data?.summary.currentSpotPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={Radar} />
+            <MetricCard label={current.projectedPrice} value={`¥${data?.summary.projectedPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={LineChartIcon} />
+            <MetricCard label={current.breakEven} value={`¥${data?.summary.breakEvenPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={Calculator} />
+            <MetricCard label={current.avgSell} value={`¥${data?.summary.averageSellPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={Factory} />
+            <MetricCard label={current.profit} value={`¥${data?.summary.totalProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={BrainCircuit} />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="rounded-[24px] border border-white/[0.06] bg-slate-950/50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-slate-500">{forecastUi.displayMetric}</p>
+                  <p className="mt-2 text-sm text-slate-400">{forecastUi.trendHint}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    ["projected", forecastUi.displayOptions.projected],
+                    ["average", forecastUi.displayOptions.average],
+                    ["profit", forecastUi.displayOptions.profit],
+                  ] as Array<[ForecastDisplayMetric, string]>).map(([metric, label]) => (
+                    <button
+                      key={metric}
+                      type="button"
+                      onClick={() => setDisplayMetric(metric)}
+                      className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition-all ${displayMetric === metric ? "border-cyan-400/30 bg-cyan-400/[0.1] text-cyan-100" : "border-white/[0.08] bg-white/[0.03] text-slate-400 hover:bg-white/[0.06] hover:text-slate-200"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-4 h-[360px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
+                    <XAxis dataKey="label" stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
+                    <YAxis yAxisId="price" stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} domain={["dataMin - 0.8", "dataMax + 0.8"]} />
+                    <YAxis yAxisId="profit" orientation="right" hide={displayMetric !== "profit"} stroke="rgba(148,163,184,0.55)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
+                    <Tooltip contentStyle={{ background: "#0a1628", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, fontSize: 11 }} />
+                    <ReferenceLine x={splitLabel} yAxisId="price" stroke="rgba(255,255,255,0.18)" strokeDasharray="4 4" label={{ value: forecastUi.splitLine, position: "insideTop", fill: "rgba(226,232,240,0.7)", fontSize: 10 }} />
+                    <Line yAxisId="price" type="monotone" dataKey="actualPrice" name={forecastUi.actualLine} stroke="#f8fafc" strokeWidth={2.2} dot={false} connectNulls={false} />
+                    <Line yAxisId="price" type="monotone" dataKey="projectedPrice" name={forecastUi.forecastLine} stroke="#38bdf8" strokeWidth={2.4} strokeDasharray="7 5" dot={false} connectNulls />
+                    {displayMetric === "projected" ? <Line yAxisId="price" type="monotone" dataKey="breakEvenPrice" name={current.chartBreakEven} stroke="#f59e0b" strokeWidth={1.6} dot={false} connectNulls strokeDasharray="5 3" /> : null}
+                    {displayMetric === "average" ? <Line yAxisId="price" type="monotone" dataKey="averageSellPrice" name={current.avgSell} stroke="#c084fc" strokeWidth={1.8} dot={false} connectNulls /> : null}
+                    {displayMetric === "profit" ? <Line yAxisId="profit" type="monotone" dataKey="profitPerKg" name={forecastUi.displayOptions.profit} stroke="#34d399" strokeWidth={1.8} dot={false} connectNulls /> : null}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.batchInfo}</p>
+                <p className="mt-3 text-base font-semibold text-white">{data?.batch.partName ?? batchCode}</p>
+                <div className="mt-4 space-y-2 text-[13px] text-slate-400">
+                  <div className="flex items-center justify-between gap-3"><span>{current.weight}</span><span className="font-medium text-slate-200">{data?.batch.weightKg.toLocaleString() ?? "--"} {current.tonnage}</span></div>
+                  <div className="flex items-center justify-between gap-3"><span>{current.monthlyCost}</span><span className="font-medium text-slate-200">¥{data?.monthlyHoldingCost.toFixed(2) ?? "--"}/{current.monthUnit}</span></div>
+                  <div className="flex items-center justify-between gap-3"><span>{forecastUi.effectiveTarget}</span><span className="font-medium text-slate-200">¥{data?.targetPrice.toFixed(2) ?? "--"}</span></div>
+                </div>
+              </div>
+              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.chartDesc}</p>
+                <div className="mt-4 space-y-3 text-[13px] text-slate-400">
+                  <div className="flex items-center gap-2"><span className="h-[2px] w-7 rounded-full bg-white" /><span>{forecastUi.actualLine}</span></div>
+                  <div className="flex items-center gap-2"><span className="h-[2px] w-7 rounded-full border-t-2 border-dashed border-cyan-300" /><span>{forecastUi.forecastLine}</span></div>
+                  <div className="flex items-center gap-2"><span className="h-[2px] w-7 rounded-full border-t-2 border-dashed border-white/40" /><span>{forecastUi.splitLine}</span></div>
+                </div>
+              </div>
+              <div className="rounded-[22px] border border-cyan-400/12 bg-cyan-400/[0.05] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-100/80">{current.currentMonth}</p>
+                <p className="mt-3 text-base font-semibold text-white">{selectedForecastPoint?.label ?? `${selectedMonthNumber}M`}</p>
+                <div className="mt-4 space-y-2 text-[13px] text-slate-300">
+                  <div className="flex items-center justify-between gap-3"><span>{current.chartPrice}</span><span className="font-medium text-white">¥{selectedForecastPoint?.projectedPrice.toFixed(2) ?? "--"}</span></div>
+                  <div className="flex items-center justify-between gap-3"><span>{current.avgSell}</span><span className="font-medium text-white">¥{selectedForecastPoint?.averageSellPrice.toFixed(2) ?? "--"}</span></div>
+                  <div className="flex items-center justify-between gap-3"><span>{current.perKgProfit}</span><span className={`font-medium ${selectedForecastPoint && selectedForecastPoint.profitPerKg >= 0 ? "text-emerald-300" : "text-rose-300"}`}>¥{selectedForecastPoint?.profitPerKg.toFixed(2) ?? "--"}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
+        </div>
+      </GlassPanel>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
         <GlassPanel>

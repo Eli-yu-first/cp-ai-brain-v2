@@ -138,6 +138,98 @@ const translations: TranslationBranch = {
       ja: "監査ログ",
       th: "บันทึกการตรวจสอบ",
     },
+    timeArbitrage: {
+      zh: "时间套利",
+      en: "Time Arbitrage",
+      ja: "時間裁定",
+      th: "การทำอาร์บิทราจข้ามเวลา",
+    },
+  },
+  timeArbitrage: {
+    pageTitle: {
+      zh: "冻品收储时间套利",
+      en: "Frozen Pork Time Arbitrage",
+      ja: "冷凍豚肉時間裁定",
+      th: "การทำอาร์บิทราจเวลาเนือหมูแช่แข็ง",
+    },
+    pageDesc: {
+      zh: "动态对比当前持有成本与未来抛售预测价的收储利润空间，辅助做出冷冻猪肉收储与出清动作。",
+      en: "Dynamically compare holding costs against future sale prices to assist freezing and selling decisions.",
+      ja: "現在の保有コストと将来の予想販売価格の裁定利益を動的に比較し、冷凍豚肉の保管と売却をサポートします。",
+      th: "เปรียบเทียบต้นทุนการถือครองเทียบกับราคาขายในอนาคตแบบไดนามิก เพื่อช่วยในการตัดสินใจแช่แข็งและขาย",
+    },
+    paramSetting: {
+      zh: "套利参数设置",
+      en: "Arbitrage Parameters",
+      ja: "裁定パラメータ設定",
+      th: "การตั้งค่าพารามิเตอร์อาร์บิทราจ",
+    },
+    spotPrice: {
+      zh: "当前毛猪价 (元/kg)",
+      en: "Current Spot Price",
+      ja: "現在の毛豚価格",
+      th: "ราคาสปอตปัจจุบัน",
+    },
+    futuresPrice: {
+      zh: "未来预期毛猪价 (元/kg)",
+      en: "Expected Future Price",
+      ja: "将来予想毛豚価格",
+      th: "ราคาคาดการณ์ในอนาคต",
+    },
+    holdingCost: {
+      zh: "起储及利息费 (元/kg/月)",
+      en: "Monthly Holding Cost",
+      ja: "保管および利息 (月額)",
+      th: "ต้นทุนการถือครองและดอกเบี้ย (รายเดือน)",
+    },
+    costLine: {
+      zh: "成本保本线 (持有成本)",
+      en: "Break-even Line (Holding Cost)",
+      ja: "損益分岐点 (保有コスト)",
+      th: "เส้นคุ้มทุน (ต้นทุนการถือครอง)",
+    },
+    profitLine: {
+      zh: "未来预测价",
+      en: "Predicted Future Price",
+      ja: "将来の予想価格",
+      th: "ราคาขายคาดการณ์ในอนาคต",
+    },
+    adviceTitle: {
+      zh: "释放利润预测 (元/kg)",
+      en: "Profit Release Forecast",
+      ja: "利益解放予測",
+      th: "การคาดการณ์การปล่อยผลกำไร",
+    },
+    aiReasoning: {
+      zh: "AI 决策推理",
+      en: "AI Reasoning",
+      ja: "AI 推論",
+      th: "การให้เหตุผล AI",
+    },
+    marketAnalysis: {
+      zh: "市场定价分析:",
+      en: "Market Analysis:",
+      ja: "市場分析:",
+      th: "การวิเคราะห์ตลาด:",
+    },
+    costRecommendation: {
+      zh: "收储成本推算:",
+      en: "Cost Recommendation:",
+      ja: "コスト推算:",
+      th: "คำแนะนำต้นทุน:",
+    },
+    decision: {
+      zh: "决 策 建 议:",
+      en: "Decision:",
+      ja: "策 定 提 案:",
+      th: "การติดสินใจ:",
+    },
+    riskWarning: {
+      zh: "风险提示:",
+      en: "Risk Warning:",
+      ja: "リスク警告:",
+      th: "คำเตือนความเสี่ยง:",
+    },
   },
   dashboard: {
     totalView: {

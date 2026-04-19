@@ -15,6 +15,7 @@ import PorkPage from "./pages/Pork";
 import PorkMapPage from "./pages/PorkMap";
 import QuantPage from "./pages/Quant";
 import TenantsPage from "./pages/Tenants";
+import TimeArbitragePage from "./pages/TimeArbitrage";
 
 /**
  * PlatformRouter: Renders all platform pages simultaneously but only shows the active one.
@@ -32,6 +33,7 @@ function PlatformRouter() {
     { id: "pork-map", href: "/pork-map", Component: PorkMapPage },
     { id: "quant", href: "/quant", Component: QuantPage },
     { id: "ai", href: "/ai", Component: AiDecisionPage },
+    { id: "time-arbitrage", href: "/time-arbitrage", Component: TimeArbitragePage },
     { id: "audit", href: "/audit", Component: AuditPage },
   ];
 

@@ -21,6 +21,11 @@ import {
   buildWhatIfSimulation,
 } from "./aiDecision";
 import {
+  buildArbitrageDecisionContext,
+  buildArbitrageAgentDraft,
+  calculateArbitrage,
+} from "./timeArbitrage";
+import {
   createAuditLog,
   getDispatchOrderByOrderId,
   listDispatchReceiptsByBatch,
@@ -135,6 +140,90 @@ export const appRouter = router({
           input.capacityAdjustment,
           input.demandAdjustment,
         );
+      }),
+    arbitrageSimulate: protectedProcedure
+      .input(
+        z.object({
+          spotPrice: z.number().min(1).max(40),
+          futuresPrice: z.number().min(1).max(40),
+          holdingCostPerMonth: z.number().min(0.01).max(2.0),
+        })
+      )
+      .query(({ input }) => {
+        return calculateArbitrage(
+          input.spotPrice,
+          input.futuresPrice,
+          input.holdingCostPerMonth
+        );
+      }),
+    arbitrageAiDecision: protectedProcedure
+      .input(
+        z.object({
+          spotPrice: z.number().min(1).max(40),
+          futuresPrice: z.number().min(1).max(40),
+          holdingCostPerMonth: z.number().min(0.01).max(2.0),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const context = buildArbitrageDecisionContext(
+          input.spotPrice,
+          input.futuresPrice,
+          input.holdingCostPerMonth
+        );
+        const fallback = buildArbitrageAgentDraft(
+          input.spotPrice,
+          input.futuresPrice,
+          input.holdingCostPerMonth
+        );
+
+        try {
+          const llmResult = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "你是 CP-AI Brain 的动态套利引擎。请基于给定的套利参数模拟结果，输出结构化的判断结果。如果能买入就给出买入建议，否则输出卖出和风险警示。请确保专业。",
+              },
+              {
+                role: "user",
+                content: JSON.stringify(context),
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "ai_arbitrage_decision",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    marketAnalysis: { type: "string" },
+                    costRecommendation: { type: "string" },
+                    decision: { 
+                      type: "array",
+                      items: { type: "string" }
+                    },
+                    riskWarning: { type: "string" },
+                  },
+                  required: ["marketAnalysis", "costRecommendation", "decision", "riskWarning"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const rawContent = llmResult.choices?.[0]?.message?.content;
+          if (typeof rawContent !== "string") {
+            return fallback;
+          }
+          const parsed = JSON.parse(rawContent);
+          if (!parsed || typeof parsed.marketAnalysis !== 'string') {
+            return fallback;
+          }
+          return parsed as typeof fallback;
+        } catch {
+          return fallback;
+        }
       }),
     aiAgents: protectedProcedure
       .input(

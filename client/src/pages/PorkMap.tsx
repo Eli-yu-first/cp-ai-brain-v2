@@ -1,6 +1,8 @@
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { GlassPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Lock, Unlock, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -180,11 +182,25 @@ function getMetricValue(node: {
   return node.liveHogPrice;
 }
 
+const cpAssets = [
+  { id: "p1", type: "pig", name: "内蒙古九原养猪场", coords: [109.84, 40.65] },
+  { id: "p2", type: "pig", name: "河南驻马店种猪场", coords: [114.02, 32.98] },
+  { id: "p3", type: "pig", name: "湖北襄阳正大猪场", coords: [112.14, 32.04] },
+  { id: "po1", type: "poultry", name: "吉林榆树肉鸡基地", coords: [126.55, 44.82] },
+  { id: "po2", type: "poultry", name: "北京平谷蛋鸡场", coords: [117.1, 40.1] },
+  { id: "f1", type: "feed", name: "广东湛江饲料加工厂", coords: [110.39, 21.26] },
+  { id: "f2", type: "feed", name: "四川成都饲料车间", coords: [104.06, 30.67] },
+  { id: "s1", type: "slaughter", name: "洛阳生猪屠宰中心", coords: [112.45, 34.61] },
+  { id: "s2", type: "slaughter", name: "山东青岛肉类加工厂", coords: [120.33, 36.07] },
+] as const;
+
 export default function PorkMapPage() {
   const { language } = useLanguage();
   const current = copy[language];
   const [metric, setMetric] = useState<MetricKey>("hogPrice");
   const [scenario, setScenario] = useState<ScenarioKey>("balanced");
+  const [isMapLocked, setIsMapLocked] = useState(false);
+  const [activeLayers, setActiveLayers] = useState(["pig"]);
   const { data, isLoading } = trpc.platform.porkMap.useQuery({ metric, scenario });
 
   const selectedNode = useMemo(() => {
@@ -212,10 +228,36 @@ export default function PorkMapPage() {
         }
       />
 
-      <GlassPanel className="mb-6">
+      <TechPanel className="mb-6">
         <div className="grid gap-4 xl:grid-cols-[1.4fr_0.9fr]">
           <div>
             <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-[180px]">
+                <p className="mb-2 text-[11px] uppercase tracking-[0.24em] text-slate-500">产业资产图层</p>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between rounded-2xl border-white/10 bg-white/[0.04] text-slate-100 hover:bg-white/[0.08]">
+                      <span className="flex items-center gap-2"><Layers className="h-4 w-4" /> 选择图层</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-48 rounded-xl border-white/10 bg-slate-950/95 text-slate-100">
+                    {[
+                      { id: "pig", label: "养猪场节点" },
+                      { id: "poultry", label: "家禽产业" },
+                      { id: "feed", label: "饲料加工" },
+                      { id: "slaughter", label: "屠宰中心" }
+                    ].map(layer => (
+                      <DropdownMenuCheckboxItem
+                        key={layer.id}
+                        checked={activeLayers.includes(layer.id)}
+                        onCheckedChange={(c) => setActiveLayers(prev => c ? [...prev, layer.id] : prev.filter(x => x !== layer.id))}
+                      >
+                        {layer.label}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
               <div className="min-w-[180px]">
                 <p className="mb-2 text-[11px] uppercase tracking-[0.24em] text-slate-500">{current.metric}</p>
                 <Select value={metric} onValueChange={value => setMetric(value as MetricKey)}>
@@ -255,6 +297,9 @@ export default function PorkMapPage() {
                     <MapPinned className="h-3.5 w-3.5 text-cyan-300" />
                     {current.marketNodes}
                   </span>
+                  <Button variant="ghost" size="icon" onClick={() => setIsMapLocked(!isMapLocked)} className="h-7 w-7 text-cyan-400 hover:bg-cyan-400/20">
+                    {isMapLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                  </Button>
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
                     <Warehouse className="h-3.5 w-3.5 text-white" />
                     {current.warehouseNodes}
@@ -263,8 +308,8 @@ export default function PorkMapPage() {
               </div>
               <div className="relative h-[420px]">
                 <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(65,224,255,0.12),transparent_44%)]" />
-                <ComposableMap projection="geoMercator" projectionConfig={{ center: [104, 36], scale: 720 }} className="h-full w-full">
-                  <ZoomableGroup center={[104, 36]} zoom={1}>
+                <ComposableMap projection="geoOrthographic" projectionConfig={{ scale: 660, rotate: [-104, -36, 0] }} className="h-full w-full">
+                  <ZoomableGroup center={[104, 36]} zoom={1} filterZoomEvent={() => !isMapLocked} filterPanEvent={() => !isMapLocked}>
                     <Geographies geography={chinaGeoUrl}>
                       {({ geographies }: { geographies: Array<{ rsmKey: string; properties?: { name?: string } }> }) =>
                         geographies.map(geo => {
@@ -310,6 +355,24 @@ export default function PorkMapPage() {
                         </Marker>
                       );
                     })}
+
+                    {/* CP Assets Nodes Overlay */}
+                    {cpAssets.filter(a => activeLayers.includes(a.type)).map((asset, i) => {
+                      const colorMap: Record<string, string> = { pig: "#fbbf24", poultry: "#e879f9", feed: "#34d399", slaughter: "#f87171" };
+                      const color = colorMap[asset.type] ?? "#ffffff";
+                      return (
+                        <Marker key={asset.id} coordinates={asset.coords as [number, number]}>
+                          <g>
+                            <circle r={3} fill={color} className="animate-pulse drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+                            <circle r={7} fill={color} fillOpacity={0.2} className="animate-ping" style={{ animationDuration: `${2 + (i % 3)}s` }} />
+                            <text y={-8} textAnchor="middle" fill={color} className="text-[7px] font-bold drop-shadow-md">
+                              {asset.name}
+                            </text>
+                          </g>
+                        </Marker>
+                      );
+                    })}
+
                     {(data?.warehouses ?? []).map(item => (
                       <Marker key={item.batchCode} coordinates={item.coordinates}>
                         <g>
@@ -418,9 +481,9 @@ export default function PorkMapPage() {
             </div>
           </div>
         </div>
-      </GlassPanel>
+      </TechPanel>
 
-      <GlassPanel>
+      <TechPanel>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">{current.warehousePanel}</p>
@@ -460,7 +523,7 @@ export default function PorkMapPage() {
             </div>
           ))}
         </div>
-      </GlassPanel>
+      </TechPanel>
     </PlatformShell>
   );
 }

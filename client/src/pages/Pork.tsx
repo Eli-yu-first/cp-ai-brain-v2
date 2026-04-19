@@ -1,5 +1,5 @@
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { GlassPanel, SectionHeader, TickerTape } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader, TickerTape } from "@/components/platform/PlatformPrimitives";
 import { TimeframeToggle } from "@/components/platform/TimeframeToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -799,12 +799,12 @@ export default function PorkPage() {
   if (isLoading && !data) {
     return (
       <PlatformShell eyebrow={copy.eyebrow} title={copy.title} pageId="pork">
-        <GlassPanel>
+        <TechPanel>
           <div className="flex items-center justify-center gap-3 py-16">
             <RefreshCw className="h-5 w-5 animate-spin text-cyan-400" />
             <span className="text-slate-300">{copy.loading}</span>
           </div>
-        </GlassPanel>
+        </TechPanel>
       </PlatformShell>
     );
   }
@@ -825,7 +825,7 @@ export default function PorkPage() {
       />
 
       {/* Control deck header */}
-      <GlassPanel className="mb-5 overflow-visible">
+      <TechPanel className="mb-5 overflow-visible">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
@@ -843,13 +843,13 @@ export default function PorkPage() {
             )}
           </div>
         </div>
-      </GlassPanel>
+      </TechPanel>
 
       <TickerTape items={tickerItems} />
 
       <div className="mt-5 space-y-5">
         {/* ═══ MERGED LIVE BENCHMARK TAPE ═══ */}
-        <GlassPanel>
+        <TechPanel>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.mergedMarketEyebrow}</p>
@@ -868,10 +868,10 @@ export default function PorkPage() {
               </div>
             ))}
           </div>
-        </GlassPanel>
+        </TechPanel>
 
         {/* ═══ STOCK-STYLE CHART ═══ */}
-        <GlassPanel>
+        <TechPanel>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.marketDynamics}</p>
@@ -1044,7 +1044,6 @@ export default function PorkPage() {
                   <span className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-2.5 py-1 text-[10px] text-slate-400">
                     {copy.zoomWindow} {viewport.startIndex + 1}-{viewport.endIndex + 1}
                   </span>
-                  <TimeframeToggle value={timeframe} onChange={setTimeframe} />
                 </div>
               </div>
 
@@ -1124,6 +1123,11 @@ export default function PorkPage() {
                   </ResponsiveContainer>
                 </div>
               </div>
+              
+               {/* Bottom Chart Actions */}
+               <div className="mt-4 flex items-center justify-end">
+                 <TimeframeToggle value={timeframe} onChange={setTimeframe} />
+               </div>
 
               {/* Legend */}
               <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -1144,11 +1148,11 @@ export default function PorkPage() {
               </div>
             </div>
           </div>
-        </GlassPanel>
+        </TechPanel>
 
         {/* ═══ REGION RANKING BAR CHART ═══ */}
         <div className="grid gap-5 xl:grid-cols-[1.3fr_0.9fr]">
-          <GlassPanel>
+          <TechPanel>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">{copy.regionRanking}</p>
@@ -1192,11 +1196,11 @@ export default function PorkPage() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </GlassPanel>
+          </TechPanel>
 
           <div className="grid gap-5">
             {/* Basis chart */}
-            <GlassPanel>
+            <TechPanel>
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">{copy.basis}</p>
@@ -1217,10 +1221,10 @@ export default function PorkPage() {
                   </ResponsiveContainer>
                 </div>
               </div>
-            </GlassPanel>
+            </TechPanel>
 
             {/* Spread chart */}
-            <GlassPanel>
+            <TechPanel>
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500">{copy.spread}</p>
@@ -1241,12 +1245,59 @@ export default function PorkPage() {
                   </ResponsiveContainer>
                 </div>
               </div>
-            </GlassPanel>
+            </TechPanel>
           </div>
         </div>
 
+        {/* ═══ RISK + MODULE ENTRY ═══ */}
+        <div className="grid gap-5 xl:grid-cols-2">
+          <TechPanel>
+            <div className="flex items-center gap-2 text-amber-200">
+              <TriangleAlert className="h-4 w-4" />
+              <h3 className="text-base font-semibold text-white">{copy.riskTitle}</h3>
+            </div>
+            <div className="mt-3 space-y-2">
+              {data?.inventoryBatches.map(batch => (
+                <div key={batch.batchCode} className="rounded-[14px] border border-white/[0.06] bg-white/[0.02] p-3 text-[12px] text-slate-300">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>{batch.warehouse}</span>
+                    <span className="text-cyan-200">{copy.concentration} {batch.concentration}%</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
+                    <span>{copy.spotPrice} ¥{batch.currentSpotPrice.toFixed(2)}</span>
+                    <span>{copy.mappedPrice} ¥{batch.futuresMappedPrice.toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TechPanel>
+
+          <TechPanel>
+            <div className="flex items-start gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-white">{copy.moduleEntry}</h3>
+                <p className="mt-0.5 text-[12px] text-slate-400">{copy.moduleDesc}</p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2">
+              {[
+                { title: language === "zh" ? "鸡事业部" : language === "en" ? "Poultry Division" : language === "ja" ? "鶏事業部" : "ธุรกิจไก่", metric: copy.poultryMetric },
+                { title: language === "zh" ? "饲料事业部" : language === "en" ? "Feed Division" : language === "ja" ? "飼料事業部" : "ธุรกิจอาหารสัตว์", metric: copy.feedMetric },
+              ].map(item => (
+                <div key={item.title} className="rounded-[14px] border border-white/[0.06] bg-white/[0.02] p-3">
+                  <p className="text-[13px] font-medium text-white">{item.title}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">{item.metric}</p>
+                </div>
+              ))}
+            </div>
+          </TechPanel>
+        </div>
+
         {/* ═══ AI RECOMMENDATION ═══ */}
-        <GlassPanel>
+        <TechPanel>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
@@ -1292,54 +1343,7 @@ export default function PorkPage() {
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
-        </GlassPanel>
-
-        {/* ═══ RISK + MODULE ENTRY ═══ */}
-        <div className="grid gap-5 xl:grid-cols-2">
-          <GlassPanel>
-            <div className="flex items-center gap-2 text-amber-200">
-              <TriangleAlert className="h-4 w-4" />
-              <h3 className="text-base font-semibold text-white">{copy.riskTitle}</h3>
-            </div>
-            <div className="mt-3 space-y-2">
-              {data?.inventoryBatches.map(batch => (
-                <div key={batch.batchCode} className="rounded-[14px] border border-white/[0.06] bg-white/[0.02] p-3 text-[12px] text-slate-300">
-                  <div className="flex items-center justify-between gap-2">
-                    <span>{batch.warehouse}</span>
-                    <span className="text-cyan-200">{copy.concentration} {batch.concentration}%</span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
-                    <span>{copy.spotPrice} ¥{batch.currentSpotPrice.toFixed(2)}</span>
-                    <span>{copy.mappedPrice} ¥{batch.futuresMappedPrice.toFixed(2)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </GlassPanel>
-
-          <GlassPanel>
-            <div className="flex items-start gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-[12px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
-                <Sparkles className="h-4 w-4" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">{copy.moduleEntry}</h3>
-                <p className="mt-0.5 text-[12px] text-slate-400">{copy.moduleDesc}</p>
-              </div>
-            </div>
-            <div className="mt-3 grid gap-2">
-              {[
-                { title: language === "zh" ? "鸡事业部" : language === "en" ? "Poultry Division" : language === "ja" ? "鶏事業部" : "ธุรกิจไก่", metric: copy.poultryMetric },
-                { title: language === "zh" ? "饲料事业部" : language === "en" ? "Feed Division" : language === "ja" ? "飼料事業部" : "ธุรกิจอาหารสัตว์", metric: copy.feedMetric },
-              ].map(item => (
-                <div key={item.title} className="rounded-[14px] border border-white/[0.06] bg-white/[0.02] p-3">
-                  <p className="text-[13px] font-medium text-white">{item.title}</p>
-                  <p className="mt-1 text-[11px] text-slate-400">{item.metric}</p>
-                </div>
-              ))}
-            </div>
-          </GlassPanel>
-        </div>
+        </TechPanel>
       </div>
     </PlatformShell>
   );

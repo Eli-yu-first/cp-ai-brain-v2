@@ -1,4 +1,4 @@
-import { GlassPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import { PlatformShell } from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
@@ -96,12 +96,12 @@ export default function SpatialArbitragePage() {
           { label: t("spatialArbitrage.statTop5"), value: `${simulation?.top5TotalProfit ?? 0} 万元`, desc: `基于 ${batchSize} 吨/批次` },
           { label: t("spatialArbitrage.statAvg"), value: `${simulation?.averageSpread.toFixed(2) ?? "0.00"} 元/kg`, desc: "有效路由价差均值" }
         ].map((stat, i) => (
-          <GlassPanel key={i} className="p-4 rounded-[20px] relative overflow-hidden group">
+          <TechPanel key={i} className="p-4 rounded-[20px] relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">{stat.label}</p>
             <p className="font-mono text-2xl font-bold text-white tracking-tight">{stat.value}</p>
             <p className="text-[12px] text-slate-400 mt-2">{stat.desc}</p>
-          </GlassPanel>
+          </TechPanel>
         ))}
       </div>
 
@@ -121,7 +121,7 @@ export default function SpatialArbitragePage() {
         
         {/* Left Control Panel */}
         <div className="lg:col-span-4 space-y-6">
-          <GlassPanel className="p-6 rounded-[24px]">
+          <TechPanel className="p-6 rounded-[24px]">
              <h4 className="text-sm font-semibold tracking-wide text-white mb-6 flex items-center gap-2">
                  <Settings2 className="h-4 w-4 text-cyan-400" />
                  {t("spatialArbitrage.paramsGroup")}
@@ -179,12 +179,12 @@ export default function SpatialArbitragePage() {
                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span> 高价目标</div>
                <div className="flex items-center gap-1.5 border-t-2 border-dashed border-amber-500/80 w-6"></div> <span>套利连线</span>
              </div>
-          </GlassPanel>
+          </TechPanel>
         </div>
 
         {/* Map Visualization */}
         <div className="lg:col-span-8 flex flex-col min-h-[460px]">
-          <GlassPanel className="flex-1 p-6 relative rounded-[24px] flex flex-col overflow-hidden">
+          <TechPanel className="flex-1 p-6 relative rounded-[24px] flex flex-col overflow-hidden">
             <h4 className="text-sm font-semibold tracking-wide text-white mb-2 z-10 flex items-center gap-2">
                  <MapIcon className="h-4 w-4 text-emerald-400" />
                  {t("spatialArbitrage.mapTitle")}
@@ -279,13 +279,13 @@ export default function SpatialArbitragePage() {
                  </ComposableMap>
                )}
              </div>
-          </GlassPanel>
+          </TechPanel>
         </div>
       </div>
 
       {/* Tables and Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-         <GlassPanel className="lg:col-span-7 rounded-[24px] p-6 overflow-hidden">
+         <TechPanel className="lg:col-span-7 rounded-[24px] p-6 overflow-hidden">
             <h4 className="text-sm font-semibold tracking-wide text-white mb-6 flex items-center gap-2">
                  <ListOrdered className="h-4 w-4 text-cyan-400" />
                  {t("spatialArbitrage.routeTitle")}
@@ -323,9 +323,9 @@ export default function SpatialArbitragePage() {
                   </tbody>
                </table>
             </div>
-         </GlassPanel>
+         </TechPanel>
          
-         <GlassPanel className="lg:col-span-5 rounded-[24px] p-6 flex flex-col min-h-[300px]">
+         <TechPanel className="lg:col-span-5 rounded-[24px] p-6 flex flex-col min-h-[300px]">
             <h4 className="text-sm font-semibold tracking-wide text-white mb-6">套利单线净利比较</h4>
             <div className="flex-1 w-full min-h-0 relative -ml-4">
                {simulation?.routes && simulation.routes.length > 0 ? (
@@ -357,7 +357,7 @@ export default function SpatialArbitragePage() {
                  <div className="flex items-center justify-center h-full text-slate-500 text-sm">暂无正收益数据</div>
                )}
             </div>
-         </GlassPanel>
+         </TechPanel>
       </div>
 
       {/* AI Role Tasks */}
@@ -368,7 +368,7 @@ export default function SpatialArbitragePage() {
          </h4>
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
              {/* Purchasing */}
-             <GlassPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,25,50,0.9))] border-t-cyan-500/30">
+             <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,25,50,0.9))] border-t-cyan-500/30">
                <div className="flex items-center gap-3 mb-4">
                  <div className="h-10 w-10 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 font-bold border border-cyan-500/20">采</div>
                  <div>
@@ -383,10 +383,10 @@ export default function SpatialArbitragePage() {
                    </p>
                  ))}
                </div>
-             </GlassPanel>
+             </TechPanel>
 
              {/* Logistics */}
-             <GlassPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,35,30,0.9))] border-t-emerald-500/30">
+             <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,35,30,0.9))] border-t-emerald-500/30">
                <div className="flex items-center gap-3 mb-4">
                  <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/20">调</div>
                  <div>
@@ -401,10 +401,10 @@ export default function SpatialArbitragePage() {
                    </p>
                  ))}
                </div>
-             </GlassPanel>
+             </TechPanel>
 
              {/* Sales */}
-             <GlassPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,25,10,0.9))] border-t-amber-500/30">
+             <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,25,10,0.9))] border-t-amber-500/30">
                <div className="flex items-center gap-3 mb-4">
                  <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 font-bold border border-amber-500/20">销</div>
                  <div>
@@ -419,10 +419,10 @@ export default function SpatialArbitragePage() {
                    </p>
                  ))}
                </div>
-             </GlassPanel>
+             </TechPanel>
 
              {/* Risk */}
-             <GlassPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,10,20,0.9))] border-t-rose-500/30">
+             <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,10,20,0.9))] border-t-rose-500/30">
                <div className="flex items-center gap-3 mb-4">
                  <div className="h-10 w-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 font-bold border border-rose-500/20">控</div>
                  <div>
@@ -437,7 +437,7 @@ export default function SpatialArbitragePage() {
                    </p>
                  ))}
                </div>
-             </GlassPanel>
+             </TechPanel>
          </div>
       </div>
     </PlatformShell>

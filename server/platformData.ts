@@ -212,6 +212,9 @@ export const businessCards: BusinessCard[] = [
 ];
 
 const partDefinitions = [
+  ["live_hog", "毛猪", "Live Hog", "A", 15.2, 15.8, 16.2, 16.8, 1.2, 2.1],
+  ["carcass", "白条", "Carcass", "A", 19.8, 20.3, 20.8, 21.6, 1.4, 2.5],
+  ["frozen_whole", "冷冻", "Frozen", "A", 17.5, 18.0, 18.6, 19.0, 1.0, 1.8],
   ["pork_belly", "五花", "Pork Belly", "A", 27.8, 28.9, 29.6, 30.4, 1.8, 2.6],
   ["spare_ribs", "排骨", "Spare Ribs", "A", 34.2, 35.1, 35.7, 36.8, 1.5, 1.9],
   ["loin", "里脊", "Loin", "A", 31.6, 32.2, 33.1, 34.1, 1.4, 2.2],

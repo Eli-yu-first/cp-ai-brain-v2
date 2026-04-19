@@ -1,4 +1,4 @@
-import { GlassPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import { PlatformShell } from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
@@ -114,7 +114,7 @@ export default function TimeArbitragePage() {
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Parameters Control */}
         <div className="lg:col-span-4 space-y-6">
-          <GlassPanel className="relative overflow-hidden p-6 rounded-[24px]">
+          <TechPanel className="relative overflow-hidden p-6 rounded-[24px]">
             <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-cyan-400 to-blue-600 rounded-l-[24px]" />
             <h4 className="mb-6 flex items-center gap-2 text-sm font-semibold tracking-wide text-white uppercase opacity-90">
               <SlidersHorizontal className="h-4 w-4 text-cyan-400" />
@@ -198,12 +198,12 @@ export default function TimeArbitragePage() {
                 </div>
               </div>
             </div>
-          </GlassPanel>
+          </TechPanel>
         </div>
 
         {/* Dynamic Chart */}
         <div className="lg:col-span-8 space-y-6">
-          <GlassPanel className="h-[460px] p-6 flex flex-col relative rounded-[24px]">
+          <TechPanel className="h-[460px] p-6 flex flex-col relative rounded-[24px]">
              {/* Chart Header */}
             <div className="mb-6 flex items-center justify-between">
               <div>
@@ -271,7 +271,7 @@ export default function TimeArbitragePage() {
                 </ResponsiveContainer>
               )}
             </div>
-          </GlassPanel>
+          </TechPanel>
         </div>
       </div>
 
@@ -279,7 +279,7 @@ export default function TimeArbitragePage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 mb-8">
         
         {/* Month grid cards */}
-        <GlassPanel className="lg:col-span-8 p-6 flex flex-col rounded-[24px]">
+        <TechPanel className="lg:col-span-8 p-6 flex flex-col rounded-[24px]">
           <h4 className="text-sm font-semibold tracking-wide text-white mb-6 flex items-center gap-2">
              <CalendarDays className="h-4 w-4 text-cyan-400" />
              {t("timeArbitrage.adviceTitle")}
@@ -305,10 +305,10 @@ export default function TimeArbitragePage() {
                </motion.div>
              ))}
           </div>
-        </GlassPanel>
+        </TechPanel>
 
         {/* AI Action Panel */}
-        <GlassPanel className="lg:col-span-4 p-6 flex flex-col rounded-[24px]">
+        <TechPanel className="lg:col-span-4 p-6 flex flex-col rounded-[24px]">
           <h4 className="text-sm font-semibold tracking-wide text-white mb-5 flex items-center gap-2">
              <BrainCircuit className="h-4 w-4 text-violet-400" />
              {t("timeArbitrage.aiReasoning")}
@@ -364,7 +364,7 @@ export default function TimeArbitragePage() {
               </motion.div>
             ) : null}
           </div>
-        </GlassPanel>
+        </TechPanel>
       </div>
 
     </PlatformShell>

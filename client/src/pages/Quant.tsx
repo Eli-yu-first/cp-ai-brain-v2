@@ -1,5 +1,5 @@
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { GlassPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -267,7 +267,7 @@ export default function QuantPage() {
         aside={<div className="data-chip text-[12px]">{copy.formulaSignal}</div>}
       />
 
-      <GlassPanel className="mb-6 overflow-visible">
+      <TechPanel className="mb-6 overflow-visible">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
@@ -275,11 +275,11 @@ export default function QuantPage() {
           </div>
           <Badge className="rounded-lg border-cyan-400/15 bg-cyan-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-cyan-200/80">{copy.compareDesc}</Badge>
         </div>
-      </GlassPanel>
+      </TechPanel>
 
       <div className="grid gap-6 xl:grid-cols-[1.08fr_1.42fr]">
         <div className="space-y-6">
-          <GlassPanel>
+          <TechPanel>
             <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.inputs}</p>
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-1">
               <div>
@@ -312,9 +312,9 @@ export default function QuantPage() {
                 </Select>
               </div>
             </div>
-          </GlassPanel>
+          </TechPanel>
 
-          <GlassPanel>
+          <TechPanel>
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
                 <Sigma className="h-4.5 w-4.5" />
@@ -327,9 +327,9 @@ export default function QuantPage() {
             <div className="mt-5 rounded-[24px] border border-cyan-400/10 bg-cyan-400/5 p-4 text-sm leading-7 text-cyan-50/90">
               {copy.formulaBody}
             </div>
-          </GlassPanel>
+          </TechPanel>
 
-          <GlassPanel>
+          <TechPanel>
             <div className="flex items-center justify-between gap-4">
               <p className="text-base font-semibold text-white">{copy.currentBatch}</p>
               <Badge className="rounded-full border-white/10 bg-white/[0.05] text-slate-200">{copy.decisionStack}</Badge>
@@ -340,7 +340,7 @@ export default function QuantPage() {
               <div className="rounded-[20px] border border-white/8 bg-slate-950/50 p-3 text-slate-300">{copy.cost}：¥{data?.batch.unitCost}/kg</div>
               <div className="rounded-[20px] border border-white/8 bg-slate-950/50 p-3 text-slate-300">{copy.age}：{data?.batch.ageDays} {copy.days}</div>
             </div>
-          </GlassPanel>
+          </TechPanel>
         </div>
 
         <div className="space-y-6">
@@ -401,7 +401,7 @@ export default function QuantPage() {
             })}
           </div>
 
-          <GlassPanel>
+          <TechPanel>
             <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.aiExplanation}</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="metric-orb rounded-[24px] p-4 text-sm leading-7 text-slate-300">
@@ -413,7 +413,7 @@ export default function QuantPage() {
                 <p className="mt-3">{copy.governanceDesc}</p>
               </div>
             </div>
-          </GlassPanel>
+          </TechPanel>
         </div>
       </div>
 

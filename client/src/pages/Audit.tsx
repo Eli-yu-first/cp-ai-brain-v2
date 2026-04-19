@@ -1,5 +1,5 @@
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { GlassPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
@@ -157,7 +157,7 @@ export default function AuditPage() {
         }
       />
 
-      <GlassPanel className="mb-6 overflow-visible">
+      <TechPanel className="mb-6 overflow-visible">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
@@ -165,11 +165,11 @@ export default function AuditPage() {
           </div>
           <Badge className="rounded-lg border-emerald-400/15 bg-emerald-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-emerald-200/80">{copy.compliance}</Badge>
         </div>
-      </GlassPanel>
+      </TechPanel>
 
       <div className="grid gap-6 xl:grid-cols-[1.08fr_1.52fr]">
         <div className="space-y-6">
-          <GlassPanel>
+          <TechPanel>
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100"><ShieldCheck className="h-5 w-5" /></div>
               <div>
@@ -205,9 +205,9 @@ export default function AuditPage() {
                 </motion.div>
               ))}
             </div>
-          </GlassPanel>
+          </TechPanel>
 
-          <GlassPanel>
+          <TechPanel>
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-emerald-400/20 bg-emerald-400/10 text-emerald-200"><ScanSearch className="h-4.5 w-4.5" /></div>
               <div>
@@ -220,10 +220,10 @@ export default function AuditPage() {
                 <div key={item} className="metric-orb rounded-[22px] p-4 text-sm leading-6 text-slate-300">{item}</div>
               ))}
             </div>
-          </GlassPanel>
+          </TechPanel>
         </div>
 
-        <GlassPanel>
+        <TechPanel>
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100"><History className="h-5 w-5" /></div>
             <div>
@@ -273,7 +273,7 @@ export default function AuditPage() {
               ))}
             </div>
           </div>
-        </GlassPanel>
+        </TechPanel>
       </div>
     </PlatformShell>
   );

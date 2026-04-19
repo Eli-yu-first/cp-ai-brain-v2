@@ -1,5 +1,5 @@
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { GlassPanel, MetricCard, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, MetricCard, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import { TimeframeToggle } from "@/components/platform/TimeframeToggle";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -281,7 +281,7 @@ export default function OverviewPage() {
       />
 
       {/* Control deck */}
-      <GlassPanel className="mb-6 overflow-visible">
+      <TechPanel className="mb-6 overflow-visible">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
@@ -294,7 +294,7 @@ export default function OverviewPage() {
             </Badge>
           </div>
         </div>
-      </GlassPanel>
+      </TechPanel>
 
       {/* KPI metrics */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -313,7 +313,7 @@ export default function OverviewPage() {
 
       {/* Chain flow + Business units */}
       <div className="mt-6 grid gap-5 xl:grid-cols-[1.3fr_1fr]">
-        <GlassPanel>
+        <TechPanel>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.chainFlow}</p>
@@ -351,9 +351,9 @@ export default function OverviewPage() {
               </motion.div>
             ))}
           </div>
-        </GlassPanel>
+        </TechPanel>
 
-        <GlassPanel>
+        <TechPanel>
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.businessUnits}</p>
@@ -391,12 +391,12 @@ export default function OverviewPage() {
               );
             })}
           </div>
-        </GlassPanel>
+        </TechPanel>
       </div>
 
       {/* Risk + Division panels */}
       <div className="mt-6 grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
-        <GlassPanel>
+        <TechPanel>
           <div className="flex items-center gap-3 text-amber-300">
             <CircleAlert className="h-5 w-5" />
             <h3 className="text-lg font-bold text-white">{copy.riskTitle}</h3>
@@ -422,10 +422,10 @@ export default function OverviewPage() {
               </motion.div>
             ))}
           </div>
-        </GlassPanel>
+        </TechPanel>
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <GlassPanel>
+          <TechPanel>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">Poultry Division</p>
@@ -450,9 +450,9 @@ export default function OverviewPage() {
               ))}
             </div>
             <p className="mt-3 text-[12px] leading-[1.7] text-slate-400/80">{copy.poultryDesc}</p>
-          </GlassPanel>
+          </TechPanel>
 
-          <GlassPanel>
+          <TechPanel>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">Feed Division</p>
@@ -477,7 +477,7 @@ export default function OverviewPage() {
               ))}
             </div>
             <p className="mt-3 text-[12px] leading-[1.7] text-slate-400/80">{copy.feedDesc}</p>
-          </GlassPanel>
+          </TechPanel>
         </div>
       </div>
     </PlatformShell>

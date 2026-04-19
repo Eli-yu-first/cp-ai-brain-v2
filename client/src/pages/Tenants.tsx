@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { GlassPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, Building2, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
@@ -116,7 +116,7 @@ export default function TenantsPage() {
       />
 
       <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
-        <GlassPanel>
+        <TechPanel>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.tenantStack}</p>
@@ -166,9 +166,9 @@ export default function TenantsPage() {
               </motion.button>
             ))}
           </div>
-        </GlassPanel>
+        </TechPanel>
 
-        <GlassPanel>
+        <TechPanel>
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.roleMatrix}</p>
@@ -221,7 +221,7 @@ export default function TenantsPage() {
             {copy.unifiedOverview}
             <ArrowRight className="h-4 w-4" />
           </Button>
-        </GlassPanel>
+        </TechPanel>
       </div>
     </PlatformShell>
   );

@@ -1,5 +1,5 @@
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { GlassPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -757,7 +757,7 @@ export default function AiDecisionPage() {
         }
       />
 
-      <GlassPanel>
+      <TechPanel>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
@@ -911,10 +911,10 @@ export default function AiDecisionPage() {
           </div>
           {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
         </div>
-      </GlassPanel>
+      </TechPanel>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-        <GlassPanel>
+        <TechPanel>
           <div className="flex flex-col gap-6">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-fuchsia-300/60">{current.whatIfEyebrow}</p>
@@ -934,9 +934,9 @@ export default function AiDecisionPage() {
               <MetricCard label={current.expectedRevenue} value={`¥${whatIfData?.summary.expectedRevenue.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={Factory} />
             </div>
           </div>
-        </GlassPanel>
+        </TechPanel>
 
-        <GlassPanel>
+        <TechPanel>
           <div className="flex h-full flex-col gap-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-fuchsia-300/60">{current.resourcesTitle}</p><h4 className="mt-3 text-xl font-bold tracking-tight text-white">{current.resourcesTitle}</h4></div>
@@ -961,11 +961,11 @@ export default function AiDecisionPage() {
             </div>
             {whatIfLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
           </div>
-        </GlassPanel>
+        </TechPanel>
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
-        <GlassPanel>
+        <TechPanel>
           <div className="flex h-full flex-col gap-5">
             <div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-violet-300/60">{current.agentEyebrow}</p><h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.agentTitle}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{current.agentDesc}</p></div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
@@ -975,22 +975,22 @@ export default function AiDecisionPage() {
             </div>
             <Button onClick={runAiAgents} disabled={aiAgents.isPending} className="h-12 rounded-2xl bg-violet-500/90 text-white hover:bg-violet-400">{aiAgents.isPending ? current.generatingAgents : current.generateAgents}</Button>
           </div>
-        </GlassPanel>
+        </TechPanel>
 
         <div className="grid gap-6 xl:grid-cols-3">
           {(aiAgents.data?.agents ?? []).map((agent: AgentCard) => (
-            <GlassPanel key={agent.agentId} className="h-full">
+            <TechPanel key={agent.agentId} className="h-full">
               <div className="flex h-full flex-col gap-4">
                 <div className="flex items-center justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/[0.08] text-violet-200">{agent.agentId === "global" ? <BrainCircuit className="h-5 w-5" /> : agent.agentId === "business" ? <Factory className="h-5 w-5" /> : <Truck className="h-5 w-5" />}</div><Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-slate-200">{current.riskLevel} {agent.riskLevel}</Badge></div>
                 <div><h4 className="text-lg font-semibold text-white">{agent.agentName}</h4><div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400"><p><span className="font-semibold text-slate-200">{current.objective}：</span>{agent.objective}</p><p><span className="font-semibold text-slate-200">{current.recommendation}：</span>{agent.recommendation}</p><p><span className="font-semibold text-slate-200">{current.rationale}：</span>{agent.rationale}</p><p><span className="font-semibold text-slate-200">{current.nextAction}：</span>{agent.nextAction}</p></div></div>
               </div>
-            </GlassPanel>
+            </TechPanel>
           ))}
-          {current.modules.map(module => { const Icon = module.icon; return <GlassPanel key={module.title} className="h-full"><div className="flex h-full flex-col gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200"><Icon className="h-5 w-5" /></div><div><h4 className="text-lg font-semibold text-white">{module.title}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{module.desc}</p></div></div></GlassPanel>; })}
+          {current.modules.map(module => { const Icon = module.icon; return <TechPanel key={module.title} className="h-full"><div className="flex h-full flex-col gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200"><Icon className="h-5 w-5" /></div><div><h4 className="text-lg font-semibold text-white">{module.title}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{module.desc}</p></div></div></TechPanel>; })}
         </div>
       </div>
       <div className="mt-6 grid gap-3 md:hidden">
-        <GlassPanel className="p-4">
+        <TechPanel className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-300/70">Mobile War-Room</p>
@@ -1059,11 +1059,11 @@ export default function AiDecisionPage() {
               ))}
             </div>
           </div>
-        </GlassPanel>
+        </TechPanel>
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <GlassPanel>
+        <TechPanel>
           <div className="flex h-full flex-col gap-5">
             <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-rose-300/60">{current.alertEyebrow}</p><h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.alertTitle}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{current.alertDesc}</p></div><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] text-rose-200"><Siren className="h-5 w-5" /></div></div>
             <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.alertOverview}</p><p className="mt-3 text-sm leading-7 text-slate-300">{alertsData?.overview ?? current.closeHint}</p></div>
@@ -1074,26 +1074,26 @@ export default function AiDecisionPage() {
               })}
             </div>
           </div>
-        </GlassPanel>
+        </TechPanel>
 
-        <GlassPanel>
+        <TechPanel>
           <div className="grid gap-4 md:grid-cols-3">
             {(alertsData?.items ?? []).map((alert: AlertCard) => {
               const colors = getAlertColors(alert.status);
               return <button key={alert.alertId} onClick={() => setActiveAlert(alert)} className={`rounded-[22px] border p-4 text-left transition-all hover:translate-y-[-2px] ${colors.panel}`}><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-white">{alert.title}</p><Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge></div><p className="mt-3 text-[12px] leading-6 text-slate-300">{alert.summary}</p><p className="mt-3 text-[12px] text-slate-400">{current.impactScope}：{alert.impactScope}</p><p className="mt-1 text-[12px] text-slate-400">{current.estimatedLoss}：¥{alert.estimatedLoss.toLocaleString()}</p></button>;
             })}
           </div>
-        </GlassPanel>
+        </TechPanel>
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="xl:col-span-2 grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
-          <GlassPanel className="p-5">
+          <TechPanel className="p-5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Device Ready</p>
             <h4 className="mt-3 text-xl font-bold tracking-tight text-white">工业平板与战房大屏适配</h4>
             <p className="mt-3 text-[13px] leading-6 text-slate-400">当前布局已按移动端、工业平板和桌面战房进行分层编排：移动端优先显示关键 KPI，平板端保持双列执行卡片，桌面端延续全量分析工作台。</p>
-          </GlassPanel>
-          <GlassPanel className="p-5">
+          </TechPanel>
+          <TechPanel className="p-5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Notification Entry</p>
             <h4 className="mt-3 text-xl font-bold tracking-tight text-white">企业微信 / 短信告警升级链路</h4>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1112,10 +1112,10 @@ export default function AiDecisionPage() {
                 <p className="mt-3 text-[13px] leading-6 text-slate-400">短信链路会在高风险预警与工单超时升级时向负责人推送摘要，落库与回执升级均会写入通知投递记录。</p>
               </div>
             </div>
-          </GlassPanel>
+          </TechPanel>
         </div>
 
-        <GlassPanel>
+        <TechPanel>
           <div className="flex h-full flex-col gap-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -1160,9 +1160,9 @@ export default function AiDecisionPage() {
               <pre className="mt-3 overflow-x-auto text-[12px] leading-6 text-slate-300">{dispatchJson}</pre>
             </div>
           </div>
-        </GlassPanel>
+        </TechPanel>
 
-        <GlassPanel>
+        <TechPanel>
           <div className="flex h-full flex-col gap-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-emerald-300/60">Execution Tracker</p>
@@ -1192,7 +1192,7 @@ export default function AiDecisionPage() {
               ))}
             </div>
           </div>
-        </GlassPanel>
+        </TechPanel>
       </div>
 
       <div className="fixed inset-x-4 bottom-4 z-20 md:hidden">

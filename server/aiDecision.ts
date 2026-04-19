@@ -89,6 +89,30 @@ export type AiAlertBoardResult = {
   items: AiAlertItem[];
 };
 
+export type DispatchWorkOrder = {
+  orderId: string;
+  factory: string;
+  quantity: number;
+  scheduledTime: string;
+  acceptanceStandard: string;
+  priority: "P1" | "P2" | "P3";
+  payload: Record<string, string | number>;
+};
+
+export type DispatchFeedbackItem = {
+  role: "厂长" | "司机" | "仓储管理员";
+  status: "待确认" | "已接单" | "执行中" | "已完成" | "超时升级";
+  etaMinutes: number;
+  note: string;
+};
+
+export type DispatchBoardResult = {
+  summary: string;
+  escalation: boolean;
+  workOrders: DispatchWorkOrder[];
+  feedback: DispatchFeedbackItem[];
+};
+
 function clampMonth(month: number) {
   return Math.max(1, Math.min(8, Math.round(month)));
 }
@@ -419,5 +443,101 @@ export function buildAlertBoard(
   return {
     overview: `已生成 ${items.length} 个动态预警点，覆盖利润、产能、仓储、冷链、需求和执行节奏。`,
     items,
+  };
+}
+
+export function buildDispatchBoard(
+  batchCode: string,
+  selectedMonth: number,
+  targetPrice: number,
+  capacityAdjustment: number,
+  demandAdjustment: number,
+): DispatchBoardResult {
+  const simulation = buildWhatIfSimulation(
+    batchCode,
+    Math.max(1, Math.min(3, selectedMonth)),
+    targetPrice,
+    capacityAdjustment,
+    demandAdjustment,
+  );
+  const alerts = buildAlertBoard(
+    batchCode,
+    selectedMonth,
+    targetPrice,
+    capacityAdjustment,
+    demandAdjustment,
+  );
+  const highRiskCount = alerts.items.filter(item => item.status === "red").length;
+  const primaryResource = simulation.resources[0];
+  const escalation = highRiskCount >= 2 || simulation.summary.utilizationRate > 112;
+
+  const workOrders: DispatchWorkOrder[] = [
+    {
+      orderId: `${batchCode}-F-${selectedMonth}`,
+      factory: "华东一厂",
+      quantity: primaryResource?.slaughterHeads ?? 0,
+      scheduledTime: `T+${selectedMonth} 06:30`,
+      acceptanceStandard: "屠宰完成率≥98%，批次温控记录完整",
+      priority: escalation ? "P1" : "P2",
+      payload: {
+        batchCode,
+        scenarioMonth: selectedMonth,
+        slaughterHeads: primaryResource?.slaughterHeads ?? 0,
+      },
+    },
+    {
+      orderId: `${batchCode}-C-${selectedMonth}`,
+      factory: "冷链调度中心",
+      quantity: primaryResource?.coldChainTrips ?? 0,
+      scheduledTime: `T+${selectedMonth} 09:20`,
+      acceptanceStandard: "车辆准点率≥95%，在途温控异常为0",
+      priority: escalation ? "P1" : "P2",
+      payload: {
+        batchCode,
+        coldChainTrips: primaryResource?.coldChainTrips ?? 0,
+        warehousePallets: primaryResource?.warehousePallets ?? 0,
+      },
+    },
+    {
+      orderId: `${batchCode}-W-${selectedMonth}`,
+      factory: "华东冷库",
+      quantity: primaryResource?.warehousePallets ?? 0,
+      scheduledTime: `T+${selectedMonth} 11:00`,
+      acceptanceStandard: "托盘位预留完成，入库扫码准确率100%",
+      priority: highRiskCount > 0 ? "P1" : "P3",
+      payload: {
+        batchCode,
+        storageTons: primaryResource?.storageTons ?? 0,
+        warehousePallets: primaryResource?.warehousePallets ?? 0,
+      },
+    },
+  ];
+
+  const feedback: DispatchFeedbackItem[] = [
+    {
+      role: "厂长",
+      status: escalation ? "执行中" : "已接单",
+      etaMinutes: escalation ? 25 : 45,
+      note: escalation ? "已锁定加班班次，等待现场确认。" : "已确认产线窗口，按标准节奏执行。",
+    },
+    {
+      role: "司机",
+      status: primaryResource && primaryResource.coldChainTrips > 1 ? "执行中" : "待确认",
+      etaMinutes: primaryResource && primaryResource.coldChainTrips > 1 ? 35 : 60,
+      note: primaryResource && primaryResource.coldChainTrips > 1 ? "车辆已编组，等待装车口令。" : "待冷链高峰车次确认后出车。",
+    },
+    {
+      role: "仓储管理员",
+      status: escalation ? "超时升级" : "已接单",
+      etaMinutes: escalation ? 80 : 30,
+      note: escalation ? "库容峰值偏高，已触发库位扩容升级。" : "库位与托盘位已按计划预留。",
+    },
+  ];
+
+  return {
+    summary: `已生成 ${workOrders.length} 条标准化派单，覆盖工厂、冷链与仓储执行链路。`,
+    escalation,
+    workOrders,
+    feedback,
   };
 }

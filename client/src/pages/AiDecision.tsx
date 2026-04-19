@@ -472,7 +472,10 @@ export default function AiDecisionPage() {
   );
   const { data: whatIfData, isLoading: whatIfLoading } = trpc.platform.aiWhatIf.useQuery(queryInput, { enabled: Boolean(batchCode) });
   const { data: alertsData } = trpc.platform.aiAlerts.useQuery(queryInput, { enabled: Boolean(batchCode) });
+  const { data: dispatchData } = trpc.platform.aiDispatch.useQuery(queryInput, { enabled: Boolean(batchCode) });
   const aiAgents = trpc.platform.aiAgents.useMutation();
+
+  const dispatchJson = useMemo(() => JSON.stringify(dispatchData?.workOrders ?? [], null, 2), [dispatchData]);
 
   const runAiAgents = () => {
     aiAgents.mutate(queryInput);
@@ -693,6 +696,52 @@ export default function AiDecisionPage() {
               const colors = getAlertColors(alert.status);
               return <button key={alert.alertId} onClick={() => setActiveAlert(alert)} className={`rounded-[22px] border p-4 text-left transition-all hover:translate-y-[-2px] ${colors.panel}`}><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-white">{alert.title}</p><Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge></div><p className="mt-3 text-[12px] leading-6 text-slate-300">{alert.summary}</p><p className="mt-3 text-[12px] text-slate-400">{current.impactScope}：{alert.impactScope}</p><p className="mt-1 text-[12px] text-slate-400">{current.estimatedLoss}：¥{alert.estimatedLoss.toLocaleString()}</p></button>;
             })}
+          </div>
+        </GlassPanel>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <GlassPanel>
+          <div className="flex h-full flex-col gap-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-emerald-300/60">Dispatch & Feedback</p>
+                <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">自动派单调度与执行反馈</h4>
+                <p className="mt-3 text-[13px] leading-6 text-slate-400">系统会把当前模拟结果转换成标准化 JSON 工单，并同步展示厂长、司机、仓储管理员三类角色的执行状态与超时升级信号。</p>
+              </div>
+              <Badge className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${dispatchData?.escalation ? "border-rose-400/20 bg-rose-400/10 text-rose-100" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>{dispatchData?.escalation ? "已触发超时升级" : "执行链路正常"}</Badge>
+            </div>
+            <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Dispatch Summary</p>
+              <p className="mt-3 text-sm leading-7 text-slate-300">{dispatchData?.summary ?? "等待派单数据返回"}</p>
+            </div>
+            <div className="rounded-[24px] border border-white/[0.06] bg-slate-950/60 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Work Order JSON</p>
+              <pre className="mt-3 overflow-x-auto text-[12px] leading-6 text-slate-300">{dispatchJson}</pre>
+            </div>
+          </div>
+        </GlassPanel>
+
+        <GlassPanel>
+          <div className="flex h-full flex-col gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-emerald-300/60">Execution Tracker</p>
+              <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">角色执行反馈与状态追踪</h4>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {(dispatchData?.feedback ?? []).map(item => (
+                <div key={item.role} className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-base font-semibold text-white">{item.role}</p>
+                    <Badge className={`rounded-full px-2 py-1 text-[10px] ${item.status === "超时升级" ? "border border-rose-400/20 bg-rose-400/10 text-rose-100" : item.status === "执行中" ? "border border-amber-400/20 bg-amber-400/10 text-amber-100" : "border border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>{item.status}</Badge>
+                  </div>
+                  <div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400">
+                    <p><span className="font-semibold text-slate-200">ETA：</span>{item.etaMinutes} 分钟</p>
+                    <p><span className="font-semibold text-slate-200">说明：</span>{item.note}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </GlassPanel>
       </div>

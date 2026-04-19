@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentDecisionDraft, buildAiForecast, buildAlertBoard, buildWhatIfSimulation } from "./aiDecision";
+import { buildAgentDecisionDraft, buildAiForecast, buildAlertBoard, buildDispatchBoard, buildWhatIfSimulation } from "./aiDecision";
 
 describe("buildAiForecast", () => {
   it("returns eight forecast points and clamps selected month into range", () => {
@@ -103,5 +103,30 @@ describe("buildAlertBoard", () => {
     const stressedRedCount = stressed.items.filter(item => item.status === "red").length;
 
     expect(stressedRedCount).toBeGreaterThanOrEqual(stableRedCount);
+  });
+});
+
+describe("buildDispatchBoard", () => {
+  it("returns standardized work orders and role feedback states", () => {
+    const result = buildDispatchBoard("CP-PK-240418-A1", 2, 15.5, 12, 8);
+
+    expect(result.workOrders).toHaveLength(3);
+    expect(result.feedback.map(item => item.role)).toEqual(["厂长", "司机", "仓储管理员"]);
+    expect(result.workOrders[0]).toMatchObject({
+      orderId: expect.any(String),
+      factory: expect.any(String),
+      quantity: expect.any(Number),
+      scheduledTime: expect.any(String),
+      acceptanceStandard: expect.any(String),
+      priority: expect.any(String),
+    });
+  });
+
+  it("marks escalation when risk is high enough", () => {
+    const stable = buildDispatchBoard("CP-PK-240418-A1", 1, 16.5, 0, 5);
+    const stressed = buildDispatchBoard("CP-PK-240418-A1", 3, 12.5, 80, -20);
+
+    expect(stressed.escalation || stressed.feedback.some(item => item.status === "超时升级")).toBe(true);
+    expect(stable.workOrders.length).toBe(3);
   });
 });

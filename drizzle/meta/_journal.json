@@ -8,6 +8,13 @@
       "when": 1776518706843,
       "tag": "0000_fantastic_living_mummy",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1776587553551,
+      "tag": "0001_chubby_eternity",
+      "breakpoints": true
     }
   ]
 }

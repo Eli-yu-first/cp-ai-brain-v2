@@ -108,6 +108,12 @@ const translations: TranslationBranch = {
       ja: "全体概況",
       th: "ภาพรวมทั้งห่วงโซ่",
     },
+    cpVenture: {
+      zh: "正大创投",
+      en: "CP Ventures",
+      ja: "CP投資",
+      th: "ซีพีเวนเจอร์",
+    },
     pork: {
       zh: "猪事业部",
       en: "Pork Division",

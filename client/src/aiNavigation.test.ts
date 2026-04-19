@@ -16,6 +16,13 @@ describe("AI decision navigation registration", () => {
     expect(content).toContain('{ id: "ai", href: "/ai", Component: AiDecisionPage }');
   });
 
+  it("registers the CP venture platform route in App.tsx", () => {
+    const content = readProjectFile("client/src/App.tsx");
+
+    expect(content).toContain('import CpVenturePage from "./pages/CpVenture";');
+    expect(content).toContain('{ id: "cp-venture", href: "/cp-venture", Component: CpVenturePage }');
+  });
+
   it("adds an AI nav item to PlatformShell", () => {
     const content = readProjectFile("client/src/components/platform/PlatformShell.tsx");
 
@@ -29,5 +36,14 @@ describe("AI decision navigation registration", () => {
     expect(content).toContain('ai: {');
     expect(content).toContain('zh: "AI 决策"');
     expect(content).toContain('en: "AI Decision"');
+  });
+
+  it("adds a CP venture nav item and translation", () => {
+    const shell = readProjectFile("client/src/components/platform/PlatformShell.tsx");
+    const language = readProjectFile("client/src/contexts/LanguageContext.tsx");
+
+    expect(shell).toContain('{ id: "cp-venture", label: t("nav.cpVenture"), href: "/cp-venture", shortLabel: "VC" }');
+    expect(language).toContain('cpVenture: {');
+    expect(language).toContain('zh: "正大创投"');
   });
 });

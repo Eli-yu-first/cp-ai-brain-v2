@@ -8,6 +8,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   Activity,
+  Building2,
   ChevronLeft,
   ChevronRight,
   Globe,
@@ -36,7 +37,7 @@ const languages: Array<{ code: LanguageCode; label: string }> = [
   { code: "th", label: "\u0e44\u0e17\u0e22" },
 ];
 
-const navIcons = [LayoutGrid, Workflow, Sparkles, MapPinned, BrainCircuit, Timer, Map, ShieldCheck, UsersRound] as const;
+const navIcons = [LayoutGrid, Workflow, Building2, Sparkles, MapPinned, BrainCircuit, Timer, Map, ShieldCheck, UsersRound] as const;
 
 interface NavDef {
   id: string;
@@ -65,6 +66,7 @@ export function PlatformShell({
   const navItems: NavDef[] = [
     { id: "tenants", label: t("nav.tenants"), href: "/tenants", shortLabel: "T" },
     { id: "overview", label: t("nav.overview"), href: "/overview", shortLabel: "O" },
+    { id: "cp-venture", label: t("nav.cpVenture"), href: "/cp-venture", shortLabel: "VC" },
     { id: "pork", label: t("nav.pork"), href: "/pork", shortLabel: "P" },
     { id: "pork-map", label: t("nav.porkMap"), href: "/pork-map", shortLabel: "PM" },
     { id: "quant", label: t("nav.quant"), href: "/quant", shortLabel: "Q" },

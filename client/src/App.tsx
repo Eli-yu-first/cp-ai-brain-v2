@@ -9,6 +9,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { TabProvider, useTabContext } from "./contexts/TabContext";
 import AuditPage from "./pages/Audit";
 import AiDecisionPage from "./pages/AiDecision";
+import CpVenturePage from "./pages/CpVenture";
 import Home from "./pages/Home";
 import OverviewPage from "./pages/Overview";
 import PorkPage from "./pages/Pork";
@@ -30,6 +31,7 @@ function PlatformRouter() {
   const platformPages = [
     { id: "tenants", href: "/tenants", Component: TenantsPage },
     { id: "overview", href: "/overview", Component: OverviewPage },
+    { id: "cp-venture", href: "/cp-venture", Component: CpVenturePage },
     { id: "pork", href: "/pork", Component: PorkPage },
     { id: "pork-map", href: "/pork-map", Component: PorkMapPage },
     { id: "quant", href: "/quant", Component: QuantPage },

@@ -31,6 +31,7 @@ import {
   ComposedChart,
   Line,
   Bar,
+  Brush,
   ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
@@ -540,7 +541,7 @@ export default function TimeArbitragePage() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                     <XAxis
                       dataKey="month"
@@ -670,6 +671,15 @@ export default function TimeArbitragePage() {
                         strokeOpacity={0.65}
                       />
                     ))}
+
+                    <Brush
+                      dataKey="month"
+                      height={28}
+                      stroke="#475569"
+                      fill="#0f172a"
+                      className="recharts-brush-custom"
+                      travellerWidth={8}
+                    />
                   </ComposedChart>
                 </ResponsiveContainer>
               )}

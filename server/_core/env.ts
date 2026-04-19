@@ -7,4 +7,9 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  wecomBotWebhookUrl: process.env.WECOM_BOT_WEBHOOK_URL ?? "",
+  wecomMentionedMobiles: process.env.WECOM_MENTIONED_MOBILES ?? "",
+  smsApiUrl: process.env.SMS_API_URL ?? "",
+  smsApiKey: process.env.SMS_API_KEY ?? "",
+  smsTargets: process.env.SMS_TARGETS ?? "",
 };

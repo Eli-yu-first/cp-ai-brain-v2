@@ -25,6 +25,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   Bar,
   BarChart,
@@ -553,6 +554,7 @@ export default function AiDecisionPage() {
     demandAdjustment,
   };
 
+  const utils = trpc.useUtils();
   const { data: snapshot } = trpc.platform.snapshot.useQuery({ timeframe: "month" });
   const { data, isLoading } = trpc.platform.aiForecast.useQuery(
     { batchCode, selectedMonth: selectedMonthNumber, targetPrice, strategy: forecastStrategy, basisAdjustment },
@@ -561,9 +563,38 @@ export default function AiDecisionPage() {
   const { data: whatIfData, isLoading: whatIfLoading } = trpc.platform.aiWhatIf.useQuery(queryInput, { enabled: Boolean(batchCode) });
   const { data: alertsData } = trpc.platform.aiAlerts.useQuery(queryInput, { enabled: Boolean(batchCode) });
   const { data: dispatchData } = trpc.platform.aiDispatch.useQuery(queryInput, { enabled: Boolean(batchCode) });
+  const { data: dispatchHistory } = trpc.platform.aiDispatchHistory.useQuery(
+    { batchCode },
+    { enabled: Boolean(batchCode) },
+  );
+  const persistDispatch = trpc.platform.persistAiDispatch.useMutation({
+    onSuccess: async () => {
+      await utils.platform.aiDispatchHistory.invalidate({ batchCode });
+      await utils.platform.auditLogs.invalidate();
+      toast.success("派单已落库，并已触发通知链路。");
+    },
+    onError: error => {
+      toast.error(error.message || "派单落库失败，请稍后重试。");
+    },
+  });
+  const updateDispatchReceiptMutation = trpc.platform.updateAiDispatchReceipt.useMutation({
+    onSuccess: async result => {
+      await utils.platform.aiDispatchHistory.invalidate({ batchCode });
+      await utils.platform.auditLogs.invalidate();
+      if (result.notifications.wecom === "sent" || result.notifications.sms === "sent") {
+        toast.success("回执已更新，升级通知已发送。", { duration: 3500 });
+        return;
+      }
+      toast.success("回执状态已更新。", { duration: 2500 });
+    },
+    onError: error => {
+      toast.error(error.message || "回执更新失败，请稍后重试。");
+    },
+  });
   const aiAgents = trpc.platform.aiAgents.useMutation();
 
-  const dispatchJson = useMemo(() => JSON.stringify(dispatchData?.workOrders ?? [], null, 2), [dispatchData]);
+  const effectiveDispatchData = persistDispatch.data ?? dispatchData;
+  const dispatchJson = useMemo(() => JSON.stringify(effectiveDispatchData?.workOrders ?? [], null, 2), [effectiveDispatchData]);
   const chartWindowSize = useMemo(() => Math.max(2, Number(historyWindow)), [historyWindow]);
   const chartData = useMemo(() => {
     const timeline = data?.timeline ?? [];
@@ -577,8 +608,70 @@ export default function AiDecisionPage() {
     [data?.curve, selectedMonthNumber],
   );
 
+  const persistedFeedback = useMemo(() => {
+    if (!dispatchHistory?.length) {
+      return (effectiveDispatchData?.feedback ?? []).map(item => ({
+        orderId: `preview-${item.role}`,
+        role: item.role,
+        status: item.status,
+        etaMinutes: item.etaMinutes,
+        note: item.note,
+        priority: "P2",
+      }));
+    }
+
+    return dispatchHistory
+      .map(order => {
+        const latest = order.receipts[0];
+        if (!latest) {
+          return undefined;
+        }
+        return {
+          orderId: order.orderId,
+          role: latest.role,
+          status: latest.status,
+          etaMinutes: latest.etaMinutes,
+          note: latest.note,
+          priority: order.priority,
+        };
+      })
+      .filter((item): item is { orderId: string; role: "厂长" | "司机" | "仓储管理员"; status: "待确认" | "已接单" | "执行中" | "已完成" | "超时升级"; etaMinutes: number; note: string; priority: string } => Boolean(item));
+  }, [dispatchHistory, effectiveDispatchData]);
+
+  const notificationStatus = persistDispatch.data?.notifications;
+
   const runAiAgents = () => {
     aiAgents.mutate(queryInput);
+  };
+
+  const persistCurrentDispatch = () => {
+    persistDispatch.mutate(queryInput);
+  };
+
+  const updateRoleReceipt = (
+    role: "厂长" | "司机" | "仓储管理员",
+    status: "已接单" | "已完成" | "超时升级",
+    orderId?: string,
+  ) => {
+    if (!orderId) {
+      toast.error("当前角色尚未生成可更新的工单。", { duration: 2500 });
+      return;
+    }
+
+    updateDispatchReceiptMutation.mutate({
+      orderId,
+      role,
+      status,
+      etaMinutes: status === "已完成" ? 0 : status === "超时升级" ? 90 : 25,
+      note:
+        status === "已完成"
+          ? `${role} 已完成签收回执并留痕。`
+          : status === "超时升级"
+            ? `${role} 工单超时，已触发升级通知。`
+            : `${role} 已确认接单，准备执行。`,
+      acknowledgedBy: status === "已接单" ? `${role}-现场确认` : undefined,
+      receiptBy: status === "已完成" ? `${role}-签收回执` : undefined,
+    });
   };
 
   return (
@@ -888,21 +981,21 @@ export default function AiDecisionPage() {
           </GlassPanel>
           <GlassPanel className="p-5">
             <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Notification Entry</p>
-            <h4 className="mt-3 text-xl font-bold tracking-tight text-white">企业微信 / 短信提醒预留</h4>
+            <h4 className="mt-3 text-xl font-bold tracking-tight text-white">企业微信 / 短信告警升级链路</h4>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-white">企业微信提醒</p>
-                  <Badge className="border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">预留入口</Badge>
+                  <Badge className="border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">{notificationStatus?.wecom ?? "待触发"}</Badge>
                 </div>
-                <p className="mt-3 text-[13px] leading-6 text-slate-400">后续可把红色预警、派单超时与根因分析摘要推送到企业微信群机器人或应用消息。</p>
+                <p className="mt-3 text-[13px] leading-6 text-slate-400">红色预警与超时升级会在派单落库或执行回执升级时自动触发企业微信机器人通知；未配置密钥时会自动记录为 skipped。</p>
               </div>
               <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-white">短信提醒</p>
-                  <Badge className="border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">预留入口</Badge>
+                  <Badge className="border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">{notificationStatus?.sms ?? "待触发"}</Badge>
                 </div>
-                <p className="mt-3 text-[13px] leading-6 text-slate-400">后续可将超时升级、车辆延误与现场验收异常等关键事件同步到短信通知通道。</p>
+                <p className="mt-3 text-[13px] leading-6 text-slate-400">短信链路会在高风险预警与工单超时升级时向负责人推送摘要，落库与回执升级均会写入通知投递记录。</p>
               </div>
             </div>
           </GlassPanel>
@@ -919,8 +1012,34 @@ export default function AiDecisionPage() {
               <Badge className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${dispatchData?.escalation ? "border-rose-400/20 bg-rose-400/10 text-rose-100" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>{dispatchData?.escalation ? "已触发超时升级" : "执行链路正常"}</Badge>
             </div>
             <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Dispatch Summary</p>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{dispatchData?.summary ?? "等待派单数据返回"}</p>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Dispatch Summary</p>
+                  <p className="mt-3 text-sm leading-7 text-slate-300">{effectiveDispatchData?.summary ?? "等待派单数据返回"}</p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={persistCurrentDispatch}
+                  disabled={persistDispatch.isPending}
+                  className="rounded-full bg-cyan-500/90 px-4 text-slate-950 hover:bg-cyan-400"
+                >
+                  {persistDispatch.isPending ? "正在落库与通知..." : "落库并通知负责人"}
+                </Button>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Persistence</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{persistDispatch.data?.persistence.persisted ? "已写入数据库" : "待落库"}</p>
+                </div>
+                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">WeCom</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{notificationStatus?.wecom ?? "待触发"}</p>
+                </div>
+                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">SMS</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{notificationStatus?.sms ?? "待触发"}</p>
+                </div>
+              </div>
             </div>
             <div className="rounded-[24px] border border-white/[0.06] bg-slate-950/60 p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Work Order JSON</p>
@@ -936,15 +1055,24 @@ export default function AiDecisionPage() {
               <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">角色执行反馈与状态追踪</h4>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
-              {(dispatchData?.feedback ?? []).map(item => (
-                <div key={item.role} className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
+              {persistedFeedback.map(item => (
+                <div key={`${item.role}-${item.orderId}`} className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-base font-semibold text-white">{item.role}</p>
+                    <div>
+                      <p className="text-base font-semibold text-white">{item.role}</p>
+                      <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-slate-500">{item.priority}</p>
+                    </div>
                     <Badge className={`rounded-full px-2 py-1 text-[10px] ${item.status === "超时升级" ? "border border-rose-400/20 bg-rose-400/10 text-rose-100" : item.status === "执行中" ? "border border-amber-400/20 bg-amber-400/10 text-amber-100" : "border border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>{item.status}</Badge>
                   </div>
                   <div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400">
                     <p><span className="font-semibold text-slate-200">ETA：</span>{item.etaMinutes} 分钟</p>
                     <p><span className="font-semibold text-slate-200">说明：</span>{item.note}</p>
+                    <p><span className="font-semibold text-slate-200">工单：</span>{item.orderId}</p>
+                  </div>
+                  <div className="mt-4 grid gap-2">
+                    <Button type="button" variant="outline" className="rounded-full border-white/[0.12] bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]" onClick={() => updateRoleReceipt(item.role, "已接单", item.orderId)} disabled={updateDispatchReceiptMutation.isPending}>确认接单</Button>
+                    <Button type="button" variant="outline" className="rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-50 hover:bg-emerald-400/20" onClick={() => updateRoleReceipt(item.role, "已完成", item.orderId)} disabled={updateDispatchReceiptMutation.isPending}>完成签收</Button>
+                    <Button type="button" variant="outline" className="rounded-full border-rose-400/20 bg-rose-400/10 text-rose-50 hover:bg-rose-400/20" onClick={() => updateRoleReceipt(item.role, "超时升级", item.orderId)} disabled={updateDispatchReceiptMutation.isPending}>超时升级</Button>
                   </div>
                 </div>
               ))}
@@ -961,7 +1089,7 @@ export default function AiDecisionPage() {
           </div>
           <div className="rounded-2xl bg-white/[0.04] px-3 py-2 text-center">
             <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">工单</p>
-            <p className="mt-1 text-sm font-semibold text-white">{dispatchData?.workOrders.length ?? 0}</p>
+            <p className="mt-1 text-sm font-semibold text-white">{effectiveDispatchData?.workOrders.length ?? 0}</p>
           </div>
           <div className="rounded-2xl bg-white/[0.04] px-3 py-2 text-center">
             <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Agent</p>

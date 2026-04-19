@@ -20,6 +20,16 @@ import {
   buildDispatchBoard,
   buildWhatIfSimulation,
 } from "./aiDecision";
+import {
+  createAuditLog,
+  getDispatchOrderByOrderId,
+  listDispatchReceiptsByBatch,
+  listPersistedAuditLogs,
+  persistDispatchPlan,
+  updateDispatchReceipt,
+} from "./db";
+import { sendEscalationNotifications } from "./escalationNotifier";
+import { buildPorkBusinessMap } from "./porkMap";
 
 const timeframeSchema = z.enum(["day", "week", "month", "quarter", "halfYear", "year"]);
 const roleSchema = z.enum(["admin", "strategist", "executor"]);
@@ -65,6 +75,18 @@ export const appRouter = router({
           input?.regionCode ?? "national",
           input?.sortBy ?? "hogPrice",
         );
+      }),
+    porkMap: protectedProcedure
+      .input(
+        z
+          .object({
+            metric: z.enum(["hogPrice", "cornPrice", "soymealPrice"]).optional(),
+            scenario: z.enum(["margin", "logistics", "balanced"]).optional(),
+          })
+          .optional(),
+      )
+      .query(({ input }) => {
+        return buildPorkBusinessMap(input?.metric ?? "hogPrice", input?.scenario ?? "balanced");
       }),
     scenarios: protectedProcedure
       .input(
@@ -248,8 +270,162 @@ export const appRouter = router({
           input.demandAdjustment,
         );
       }),
-    auditLogs: protectedProcedure.query(() => {
-      return listAuditEntries();
+    persistAiDispatch: protectedProcedure
+      .input(
+        z.object({
+          batchCode: z.string(),
+          selectedMonth: z.number().int().min(1).max(3),
+          targetPrice: z.number().min(1).max(40),
+          capacityAdjustment: z.number().min(-60).max(120),
+          demandAdjustment: z.number().min(-60).max(120),
+        }),
+      )
+      .mutation(async ({ input, ctx }) => {
+        const dispatch = buildDispatchBoard(
+          input.batchCode,
+          input.selectedMonth,
+          input.targetPrice,
+          input.capacityAdjustment,
+          input.demandAdjustment,
+        );
+        const alerts = buildAlertBoard(
+          input.batchCode,
+          input.selectedMonth,
+          input.targetPrice,
+          input.capacityAdjustment,
+          input.demandAdjustment,
+        );
+        const persistence = await persistDispatchPlan({
+          batchCode: input.batchCode,
+          scenarioMonth: input.selectedMonth,
+          escalation: dispatch.escalation,
+          summary: dispatch.summary,
+          workOrders: dispatch.workOrders,
+          feedback: dispatch.feedback,
+          operatorName: ctx.user.name ?? "系统",
+          operatorRole: ctx.user.role === "admin" ? "admin" : "strategist",
+        });
+        const notifications = dispatch.escalation || alerts.items.some(item => item.status === "red")
+          ? await sendEscalationNotifications({
+              batchCode: input.batchCode,
+              overview: alerts.overview,
+              alerts: alerts.items,
+              workOrders: dispatch.workOrders,
+            })
+          : { wecom: "skipped", sms: "skipped", owner: "skipped" };
+
+        return {
+          ...dispatch,
+          persistence,
+          notifications,
+        };
+      }),
+    aiDispatchHistory: protectedProcedure
+      .input(
+        z.object({
+          batchCode: z.string(),
+        }),
+      )
+      .query(async ({ input }) => {
+        return listDispatchReceiptsByBatch(input.batchCode);
+      }),
+    updateAiDispatchReceipt: protectedProcedure
+      .input(
+        z.object({
+          orderId: z.string(),
+          role: z.enum(["厂长", "司机", "仓储管理员"]),
+          status: z.enum(["待确认", "已接单", "执行中", "已完成", "超时升级"]),
+          etaMinutes: z.number().int().min(0).max(720),
+          note: z.string().min(1),
+          acknowledgedBy: z.string().optional(),
+          receiptBy: z.string().optional(),
+        }),
+      )
+      .mutation(async ({ input, ctx }) => {
+        const updateResult = await updateDispatchReceipt(input);
+        const order = await getDispatchOrderByOrderId(input.orderId);
+        const persistedAudit = await createAuditLog({
+          actionType: input.status === "超时升级" ? "工单超时升级" : "工单回执更新",
+          entityType: "DispatchOrder",
+          entityId: input.orderId,
+          relatedOrderId: input.orderId,
+          operatorRole: ctx.user.role === "admin" ? "admin" : "executor",
+          operatorName: ctx.user.name ?? input.receiptBy ?? input.acknowledgedBy ?? "现场执行",
+          riskLevel: input.status === "超时升级" ? "高" : input.status === "已完成" ? "低" : "中",
+          decision: `${input.role} -> ${input.status}`,
+          beforeValue: `ETA=${input.etaMinutes}; 说明=${input.note}`,
+          afterValue: input.receiptBy ? `签收人=${input.receiptBy}` : `确认人=${input.acknowledgedBy ?? "系统"}`,
+          status: input.status === "超时升级" ? "待审批" : "已执行",
+        });
+        const audit =
+          persistedAudit ??
+          appendAuditEntry({
+            actionType: input.status === "超时升级" ? "工单超时升级" : "工单回执更新",
+            entityType: "DispatchOrder",
+            entityId: input.orderId,
+            operatorRole: ctx.user.role === "admin" ? "admin" : "executor",
+            operatorName: ctx.user.name ?? input.receiptBy ?? input.acknowledgedBy ?? "现场执行",
+            riskLevel: input.status === "超时升级" ? "高" : input.status === "已完成" ? "低" : "中",
+            decision: `${input.role} -> ${input.status}`,
+            beforeValue: `ETA=${input.etaMinutes}; 说明=${input.note}`,
+            afterValue: input.receiptBy ? `签收人=${input.receiptBy}` : `确认人=${input.acknowledgedBy ?? "系统"}`,
+            status: input.status === "超时升级" ? "待审批" : "已执行",
+          });
+
+        let notifications = { wecom: "skipped", sms: "skipped", owner: "skipped" };
+        if (input.status === "超时升级" && order) {
+          let payload: Record<string, string | number> = {};
+          try {
+            const parsed = JSON.parse(order.payloadJson) as Record<string, unknown>;
+            payload = Object.fromEntries(
+              Object.entries(parsed).filter((entry): entry is [string, string | number] => {
+                return typeof entry[1] === "string" || typeof entry[1] === "number";
+              }),
+            );
+          } catch {
+            payload = {};
+          }
+
+          notifications = await sendEscalationNotifications({
+            batchCode: order.batchCode,
+            overview: `工单 ${order.orderId} 已触发超时升级，请负责人立即介入。`,
+            alerts: [
+              {
+                alertId: `TIMEOUT-${order.orderId}`,
+                title: `${input.role} 工单超时升级`,
+                status: "red",
+                summary: `工厂 ${order.factory} 的 ${input.role} 工单已超时，当前 ETA 为 ${input.etaMinutes} 分钟。`,
+                impactScope: `${order.factory} / 订单 ${order.orderId}`,
+                estimatedLoss: Math.max(order.quantity * 2, 5000),
+                aiRecommendation: input.note,
+                rootCause: "执行回执超时或签收未闭环",
+                actionOwner: input.role,
+              },
+            ],
+            workOrders: [
+              {
+                orderId: order.orderId,
+                factory: order.factory,
+                quantity: order.quantity,
+                priority: order.priority,
+                scheduledTime: order.scheduledLabel,
+                acceptanceStandard: order.acceptanceStandard,
+                payload,
+              },
+            ],
+          });
+        }
+
+        return {
+          success: true,
+          updateResult,
+          audit,
+          notifications,
+        };
+      }),
+    auditLogs: protectedProcedure.query(async () => {
+      const persisted = await listPersistedAuditLogs();
+      return [...persisted, ...listAuditEntries()].sort((a, b) => b.createdAt - a.createdAt);
     }),
     confirmDecision: protectedProcedure
       .input(
@@ -267,10 +443,11 @@ export const appRouter = router({
           throw new Error("Decision scenario not found");
         }
         const status = targetScenario.riskLevel === "高" ? "待审批" : "已确认";
-        const audit = appendAuditEntry({
+        const persistedAudit = await createAuditLog({
           actionType: targetScenario.riskLevel === "高" ? "高风险策略提交" : "策略确认",
           entityType: "DecisionScenario",
           entityId: targetScenario.scenarioId,
+          relatedOrderId: null,
           operatorRole: input.operatorRole,
           operatorName: input.operatorName,
           riskLevel: targetScenario.riskLevel,
@@ -282,6 +459,23 @@ export const appRouter = router({
               : `已确认执行; 动作=${targetScenario.action}`,
           status,
         });
+        const audit =
+          persistedAudit ??
+          appendAuditEntry({
+            actionType: targetScenario.riskLevel === "高" ? "高风险策略提交" : "策略确认",
+            entityType: "DecisionScenario",
+            entityId: targetScenario.scenarioId,
+            operatorRole: input.operatorRole,
+            operatorName: input.operatorName,
+            riskLevel: targetScenario.riskLevel,
+            decision: `${targetScenario.action} ${targetScenario.holdMonths} 个月`,
+            beforeValue: `保本价=${targetScenario.breakEvenPrice}; 预计售价=${targetScenario.expectedSellPrice}`,
+            afterValue:
+              status === "待审批"
+                ? "已触发人工二次确认弹窗，等待审批"
+                : `已确认执行; 动作=${targetScenario.action}`,
+            status,
+          });
         return {
           success: true,
           audit,

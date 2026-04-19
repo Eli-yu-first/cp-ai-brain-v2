@@ -8,6 +8,7 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { TabProvider, useTabContext } from "./contexts/TabContext";
 import AuditPage from "./pages/Audit";
+import AiDecisionPage from "./pages/AiDecision";
 import Home from "./pages/Home";
 import OverviewPage from "./pages/Overview";
 import PorkPage from "./pages/Pork";
@@ -28,6 +29,7 @@ function PlatformRouter() {
     { id: "overview", href: "/overview", Component: OverviewPage },
     { id: "pork", href: "/pork", Component: PorkPage },
     { id: "quant", href: "/quant", Component: QuantPage },
+    { id: "ai", href: "/ai", Component: AiDecisionPage },
     { id: "audit", href: "/audit", Component: AuditPage },
   ];
 

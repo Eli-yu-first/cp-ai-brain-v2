@@ -17,6 +17,7 @@ import {
   Sparkles,
   UsersRound,
   Workflow,
+  BrainCircuit,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -32,7 +33,7 @@ const languages: Array<{ code: LanguageCode; label: string }> = [
   { code: "th", label: "\u0e44\u0e17\u0e22" },
 ];
 
-const navIcons = [LayoutGrid, Workflow, Sparkles, ShieldCheck, UsersRound] as const;
+const navIcons = [LayoutGrid, Workflow, Sparkles, BrainCircuit, ShieldCheck, UsersRound] as const;
 
 interface NavDef {
   id: string;
@@ -63,6 +64,7 @@ export function PlatformShell({
     { id: "overview", label: t("nav.overview"), href: "/overview", shortLabel: "O" },
     { id: "pork", label: t("nav.pork"), href: "/pork", shortLabel: "P" },
     { id: "quant", label: t("nav.quant"), href: "/quant", shortLabel: "Q" },
+    { id: "ai", label: t("nav.ai"), href: "/ai", shortLabel: "AI" },
     { id: "audit", label: t("nav.audit"), href: "/audit", shortLabel: "A" },
   ];
 

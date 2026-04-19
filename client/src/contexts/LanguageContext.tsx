@@ -120,6 +120,12 @@ const translations: TranslationBranch = {
       ja: "定量意思決定",
       th: "เอนจินเชิงปริมาณ",
     },
+    ai: {
+      zh: "AI 决策",
+      en: "AI Decision",
+      ja: "AI意思決定",
+      th: "การตัดสินใจ AI",
+    },
     audit: {
       zh: "审计日志",
       en: "Audit Log",

@@ -2,16 +2,17 @@ import { SectionHeader, TechPanel } from "@/components/platform/PlatformPrimitiv
 import { PlatformShell } from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc";
 import {
-  cpVentureCompanies,
-  cpVentureLinks,
-  cpVentureSources,
+  cpVentureCompanies as seedCompanies,
+  cpVentureLinks as seedLinks,
+  cpVentureSources as seedSources,
   ventureDomains,
   ventureStages,
   type VentureCompany,
   type VentureDomain,
   type VentureStage,
-} from "@/data/cpVentureMap";
+} from "@shared/cpVenture";
 import { motion } from "framer-motion";
 import { Building2, GitBranch, Layers3, Network, Search, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -37,8 +38,8 @@ const linkColor = {
   "value-chain": "#fb7185",
 };
 
-function getCompany(id: string) {
-  return cpVentureCompanies.find(company => company.id === id)!;
+function getCompany(companies: VentureCompany[], id: string) {
+  return companies.find(company => company.id === id) ?? companies[0]!;
 }
 
 export default function CpVenturePage() {
@@ -46,10 +47,21 @@ export default function CpVenturePage() {
   const [domainFilter, setDomainFilter] = useState<VentureDomain | "all">("all");
   const [stageFilter, setStageFilter] = useState<VentureStage | "all">("all");
   const [query, setQuery] = useState("");
+  const { data } = trpc.platform.cpVentureMap.useQuery(undefined, {
+    placeholderData: {
+      companies: seedCompanies,
+      links: seedLinks,
+      sources: seedSources,
+      persisted: false,
+    },
+  });
+  const companies = data?.companies ?? seedCompanies;
+  const links = data?.links ?? seedLinks;
+  const sources = data?.sources ?? seedSources;
 
   const filteredCompanies = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return cpVentureCompanies.filter(company => {
+    return companies.filter(company => {
       const matchesDomain = domainFilter === "all" || company.domain === domainFilter;
       const matchesStage = stageFilter === "all" || company.stage === stageFilter;
       const matchesQuery =
@@ -59,12 +71,12 @@ export default function CpVenturePage() {
         company.business.toLowerCase().includes(normalized);
       return matchesDomain && matchesStage && matchesQuery;
     });
-  }, [domainFilter, query, stageFilter]);
+  }, [companies, domainFilter, query, stageFilter]);
 
   const visibleIds = new Set(filteredCompanies.map(company => company.id));
   visibleIds.add("cp-group");
-  const visibleLinks = cpVentureLinks.filter(link => visibleIds.has(link.source) && visibleIds.has(link.target));
-  const selected = getCompany(selectedId);
+  const visibleLinks = links.filter(link => visibleIds.has(link.source) && visibleIds.has(link.target));
+  const selected = getCompany(companies, selectedId);
 
   const stageColumns = useMemo(() => {
     return stageOrder.map(stage => ({
@@ -80,14 +92,14 @@ export default function CpVenturePage() {
       <SectionHeader
         eyebrow="Investment Atlas"
         title="正大集团投资版图与企业关系图谱"
-        description="以公开资料可核实的正大核心企业、平台公司和战略参股关系为基础，展示正大如何通过农牧食品、零售、通信、数字、地产、医药和金融形成复合生态。图谱支持点击企业节点查看参与方式，并用阶段×领域矩阵观察参与深度。"
+        description="以公开资料可核实的正大核心企业、平台公司、战略参股和生态合作关系为基础，展示正大如何通过农牧食品、零售、通信、数字、地产、医药和金融形成复合生态。图谱支持点击企业节点查看参与方式，并用投资矩阵观察参与深度。"
         aside={
           <div className="flex flex-wrap gap-2">
             <Badge className="border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
-              <Network className="mr-1 h-3 w-3" /> {cpVentureCompanies.length} 家公开样本
+              <Network className="mr-1 h-3 w-3" /> {companies.length} 家公开样本
             </Badge>
             <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
-              <ShieldCheck className="mr-1 h-3 w-3" /> 来源可追溯
+              <ShieldCheck className="mr-1 h-3 w-3" /> {data?.persisted ? "数据库持久化" : "种子数据兜底"}
             </Badge>
           </div>
         }
@@ -183,8 +195,8 @@ export default function CpVenturePage() {
                 </filter>
               </defs>
               {visibleLinks.map(link => {
-                const source = getCompany(link.source);
-                const target = getCompany(link.target);
+                const source = getCompany(companies, link.source);
+                const target = getCompany(companies, link.target);
                 return (
                   <line
                     key={`${link.source}-${link.target}`}
@@ -248,7 +260,7 @@ export default function CpVenturePage() {
         <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h3 className="flex items-center gap-2 text-base font-bold text-white">
-              <Layers3 className="h-5 w-5 text-emerald-300" /> 投资阶段 × 领域矩阵
+              <Layers3 className="h-5 w-5 text-emerald-300" /> 投资矩阵
             </h3>
             <p className="mt-1 text-[12px] text-slate-400">不同层级代表正大的参与阶段，不同列代表领域；每列按参与深度从高到低排序。</p>
           </div>
@@ -283,7 +295,7 @@ export default function CpVenturePage() {
           本页当前是公开资料可核实的核心样本图谱，并非法律意义上的全部股权穿透表。后续可接入工商数据、年报、公告和内部投资台账，扩展为完整“正大创投知识图谱”。
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {cpVentureSources.map(source => (
+          {sources.map(source => (
             <a
               key={source.url}
               href={source.url}
@@ -303,6 +315,8 @@ export default function CpVenturePage() {
 function CompanyDetail({ company }: { company: VentureCompany }) {
   const domain = ventureDomains[company.domain];
   const stage = ventureStages[company.stage];
+  const logoDomain = company.logoDomain ?? new URL(company.sourceUrl).hostname;
+  const logoUrl = `https://www.google.com/s2/favicons?domain=${logoDomain}&sz=128`;
 
   return (
     <TechPanel className="rounded-[24px] p-5">
@@ -313,10 +327,18 @@ function CompanyDetail({ company }: { company: VentureCompany }) {
           <p className="mt-1 text-[12px] text-slate-400">{company.englishName}</p>
         </div>
         <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/10"
+          className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 p-2"
           style={{ background: `${domain.color}1f`, color: domain.color }}
         >
-          <Building2 className="h-5 w-5" />
+          <img
+            src={logoUrl}
+            alt={`${company.name} logo`}
+            className="h-full w-full rounded-lg object-contain"
+            onError={event => {
+              event.currentTarget.style.display = "none";
+              event.currentTarget.parentElement?.classList.add("after:content-['LOGO']");
+            }}
+          />
         </div>
       </div>
 
@@ -328,6 +350,8 @@ function CompanyDetail({ company }: { company: VentureCompany }) {
       </div>
 
       <div className="space-y-4">
+        {company.ownershipSummary && <DetailBlock title="股权/关系口径" text={company.ownershipSummary} />}
+        {company.boardRole && <DetailBlock title="董事会/治理参与" text={company.boardRole} />}
         <DetailBlock title="正大如何参与" text={company.participation} />
         <DetailBlock title="正大角色" text={company.cpRole} />
         <DetailBlock title="主营业务" text={company.business} />

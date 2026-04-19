@@ -41,6 +41,7 @@ import {
 } from "./db";
 import { sendEscalationNotifications } from "./escalationNotifier";
 import { buildPorkBusinessMap } from "./porkMap";
+import { getCpVentureMap } from "./cpVentureData";
 
 const timeframeSchema = z.enum(["day", "week", "month", "quarter", "halfYear", "year"]);
 const roleSchema = z.enum(["admin", "strategist", "executor"]);
@@ -99,6 +100,9 @@ export const appRouter = router({
       .query(({ input }) => {
         return buildPorkBusinessMap(input?.metric ?? "hogPrice", input?.scenario ?? "balanced");
       }),
+    cpVentureMap: protectedProcedure.query(() => {
+      return getCpVentureMap();
+    }),
     scenarios: protectedProcedure
       .input(
         z.object({

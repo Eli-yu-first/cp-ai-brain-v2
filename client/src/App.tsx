@@ -31,7 +31,6 @@ function PlatformRouter() {
   const platformPages = [
     { id: "tenants", href: "/tenants", Component: TenantsPage },
     { id: "overview", href: "/overview", Component: OverviewPage },
-    { id: "cp-venture", href: "/cp-venture", Component: CpVenturePage },
     { id: "pork", href: "/pork", Component: PorkPage },
     { id: "pork-map", href: "/pork-map", Component: PorkMapPage },
     { id: "quant", href: "/quant", Component: QuantPage },
@@ -39,6 +38,7 @@ function PlatformRouter() {
     { id: "time-arbitrage", href: "/time-arbitrage", Component: TimeArbitragePage },
     { id: "spatial-arbitrage", href: "/spatial-arbitrage", Component: SpatialArbitragePage },
     { id: "audit", href: "/audit", Component: AuditPage },
+    { id: "cp-venture", href: "/cp-venture", Component: CpVenturePage },
   ];
 
   // Check if current route is a platform page

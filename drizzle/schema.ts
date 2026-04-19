@@ -105,7 +105,47 @@ export const arbitrageRecords = mysqlTable("arbitrage_records", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const cpVentureCompaniesTable = mysqlTable("cp_venture_companies", {
+  id: int("id").autoincrement().primaryKey(),
+  companyId: varchar("companyId", { length: 96 }).notNull().unique(),
+  name: varchar("name", { length: 128 }).notNull(),
+  englishName: varchar("englishName", { length: 160 }).notNull(),
+  domain: varchar("domain", { length: 64 }).notNull(),
+  stage: varchar("stage", { length: 64 }).notNull(),
+  depth: int("depth").notNull(),
+  x: int("x").notNull(),
+  y: int("y").notNull(),
+  relation: varchar("relation", { length: 160 }).notNull(),
+  logoDomain: varchar("logoDomain", { length: 160 }),
+  ownershipSummary: text("ownershipSummary"),
+  boardRole: text("boardRole"),
+  cpRole: text("cpRole").notNull(),
+  participation: text("participation").notNull(),
+  business: text("business").notNull(),
+  synergy: text("synergy").notNull(),
+  geography: varchar("geography", { length: 160 }).notNull(),
+  evidence: text("evidence").notNull(),
+  sourceUrl: text("sourceUrl").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const cpVentureLinksTable = mysqlTable("cp_venture_links", {
+  id: int("id").autoincrement().primaryKey(),
+  linkId: varchar("linkId", { length: 192 }).notNull().unique(),
+  source: varchar("source", { length: 96 }).notNull(),
+  target: varchar("target", { length: 96 }).notNull(),
+  type: varchar("type", { length: 64 }).notNull(),
+  strength: int("strength").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 export type NotificationDelivery = typeof notificationDeliveries.$inferSelect;
 export type InsertNotificationDelivery = typeof notificationDeliveries.$inferInsert;
 export type ArbitrageRecord = typeof arbitrageRecords.$inferSelect;
 export type InsertArbitrageRecord = typeof arbitrageRecords.$inferInsert;
+export type CpVentureCompanyRow = typeof cpVentureCompaniesTable.$inferSelect;
+export type InsertCpVentureCompanyRow = typeof cpVentureCompaniesTable.$inferInsert;
+export type CpVentureLinkRow = typeof cpVentureLinksTable.$inferSelect;
+export type InsertCpVentureLinkRow = typeof cpVentureLinksTable.$inferInsert;

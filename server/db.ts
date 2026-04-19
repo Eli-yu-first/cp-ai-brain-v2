@@ -388,3 +388,66 @@ function mapRoleStatusByOrder(orderId: string, feedback: DispatchFeedbackItem[])
   if (orderId.includes("-C-")) return feedback.find(item => item.role === "司机")?.status ?? "待确认";
   return feedback.find(item => item.role === "仓储管理员")?.status ?? "待确认";
 }
+
+
+// ========== Arbitrage Records (Time/Spatial) ==========
+import { arbitrageRecords, type ArbitrageRecord, type InsertArbitrageRecord } from "../drizzle/schema";
+
+export type ArbitrageRecordInput = {
+  recordType: "time" | "spatial";
+  scenarioLabel: string;
+  params: Record<string, unknown>;
+  result: Record<string, unknown>;
+  summaryProfit: string;
+  summaryMetric: string;
+  operatorOpenId?: string;
+  operatorName?: string;
+};
+
+export async function createArbitrageRecord(input: ArbitrageRecordInput): Promise<ArbitrageRecord | null> {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const values: InsertArbitrageRecord = {
+      recordType: input.recordType,
+      scenarioLabel: input.scenarioLabel.slice(0, 128),
+      paramsJson: JSON.stringify(input.params),
+      resultJson: JSON.stringify(input.result),
+      summaryProfit: input.summaryProfit.slice(0, 64),
+      summaryMetric: input.summaryMetric.slice(0, 128),
+      operatorOpenId: input.operatorOpenId?.slice(0, 64),
+      operatorName: input.operatorName?.slice(0, 128),
+    };
+    const [res] = await db.insert(arbitrageRecords).values(values);
+    const insertedId = (res as { insertId?: number }).insertId;
+    if (!insertedId) return null;
+    const rows = await db.select().from(arbitrageRecords).where(eq(arbitrageRecords.id, insertedId)).limit(1);
+    return rows[0] ?? null;
+  } catch (error) {
+    console.error("[Database] Failed to create arbitrage record:", error);
+    return null;
+  }
+}
+
+export async function listArbitrageRecords(options?: {
+  recordType?: "time" | "spatial";
+  limit?: number;
+}): Promise<ArbitrageRecord[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const limit = Math.max(1, Math.min(200, options?.limit ?? 50));
+  try {
+    if (options?.recordType) {
+      return await db.select().from(arbitrageRecords)
+        .where(eq(arbitrageRecords.recordType, options.recordType))
+        .orderBy(desc(arbitrageRecords.createdAt))
+        .limit(limit);
+    }
+    return await db.select().from(arbitrageRecords)
+      .orderBy(desc(arbitrageRecords.createdAt))
+      .limit(limit);
+  } catch (error) {
+    console.error("[Database] Failed to list arbitrage records:", error);
+    return [];
+  }
+}

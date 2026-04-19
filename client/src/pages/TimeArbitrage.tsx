@@ -1,61 +1,67 @@
 import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
 import { PlatformShell } from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { motion } from "framer-motion";
 import {
   BrainCircuit,
-  Calculator,
   CalendarDays,
+  LayersIcon,
   LineChart as LineChartIcon,
   PiggyBank,
+  Save,
   SlidersHorizontal,
   TimerReset,
   TrendingDown,
   TrendingUp,
   Warehouse,
   Package,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   CartesianGrid,
   Cell,
   ComposedChart,
   Line,
   Bar,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  Legend,
 } from "recharts";
 
-// 月份名称映射
 const MONTH_NAMES: Record<number, string> = {
   1: "1月", 2: "2月", 3: "3月", 4: "4月", 5: "5月", 6: "6月",
   7: "7月", 8: "8月", 9: "9月", 10: "10月", 11: "11月", 12: "12月",
 };
 
-// 收储时长选项（月数）
-const DURATION_OPTIONS = [
-  { label: "1个月", value: 1 },
-  { label: "2个月", value: 2 },
-  { label: "3个月", value: 3 },
-  { label: "4个月", value: 4 },
-  { label: "5个月", value: 5 },
-  { label: "6个月", value: 6 },
-  { label: "7个月", value: 7 },
-  { label: "8个月", value: 8 },
-  { label: "9个月", value: 9 },
-];
+type PlanSnapshot = {
+  id: string;
+  label: string;
+  color: string;
+  params: {
+    spotPrice: number;
+    holdingCost: number;
+    socialCost: number;
+    storageTons: number;
+    startMonth: number;
+    storageDuration: number;
+  };
+};
+
+const PLAN_COLORS = ["#06b6d4", "#a78bfa", "#f59e0b"];
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0a1628]/95 px-4 py-3 shadow-[0_20px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl min-w-[200px]">
+    <div className="rounded-xl border border-white/10 bg-[#0a1628]/95 px-4 py-3 shadow-[0_20px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl min-w-[220px]">
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">{label}</p>
       <div className="space-y-1.5">
         {payload.map((entry: any) => (
@@ -65,7 +71,7 @@ function CustomTooltip({ active, payload, label }: any) {
               <span className="text-slate-400">{entry.name}</span>
             </div>
             <span className="font-mono font-semibold" style={{ color: entry.color }}>
-              {entry.dataKey === "profitSpace"
+              {String(entry.dataKey).startsWith("profitSpace")
                 ? `${entry.value >= 0 ? "+" : ""}${Number(entry.value).toFixed(2)} 元/kg`
                 : `¥${Number(entry.value).toFixed(2)}`}
             </span>
@@ -81,24 +87,25 @@ export default function TimeArbitragePage() {
 
   // 参数状态
   const [spotPrice, setSpotPrice] = useState(9.0);
-  const [futuresPrice, setFuturesPrice] = useState(12.0);
   const [socialCost, setSocialCost] = useState(12.0);
   const [holdingCost, setHoldingCost] = useState(0.20);
   const [storageTons, setStorageTons] = useState(1000);
   const [startMonth, setStartMonth] = useState(4);
-  const [storageDuration, setStorageDuration] = useState(6); // 收储时长（月）
+  const [storageDuration, setStorageDuration] = useState(6);
 
-  // 计算收储结束月（用于显示，但实际后端固定返回9个月数据）
+  // 多方案对比
+  const [savedPlans, setSavedPlans] = useState<PlanSnapshot[]>([]);
+
   const endMonth = ((startMonth - 1 + storageDuration - 1) % 12) + 1;
 
   const { data: simulation, isLoading: simulationLoading } = trpc.platform.arbitrageSimulate.useQuery(
     {
       spotPrice,
-      futuresPrice,
       holdingCostPerMonth: holdingCost,
       socialBreakevenCost: socialCost,
       storageTons,
       startMonth,
+      storageDurationMonths: storageDuration,
     },
     { placeholderData: (prev: any) => prev }
   );
@@ -109,51 +116,123 @@ export default function TimeArbitragePage() {
     isPending: isPredicting,
   } = trpc.platform.arbitrageAiDecision.useMutation();
 
-  // 参数变化时自动触发 AI 决策（防抖 600ms）
+  const { mutate: saveRecord, isPending: isSavingRecord } =
+    trpc.platform.saveArbitrageRecord.useMutation({
+      onSuccess: () => toast.success("方案已保存到审计日志"),
+      onError: (e) => toast.error(`保存失败：${e.message}`),
+    });
+
   useEffect(() => {
     const handler = setTimeout(() => {
       fetchDecision({
         spotPrice,
-        futuresPrice,
         holdingCostPerMonth: holdingCost,
         socialBreakevenCost: socialCost,
         storageTons,
         startMonth,
+        storageDurationMonths: storageDuration,
       });
     }, 600);
     return () => clearTimeout(handler);
-  }, [spotPrice, futuresPrice, holdingCost, socialCost, storageTons, startMonth, fetchDecision]);
+  }, [spotPrice, holdingCost, socialCost, storageTons, startMonth, storageDuration, fetchDecision]);
 
-  // 根据收储时长截取数据
+  // 查询其他已保存方案的曲线数据
+  const planQueries = savedPlans.map((plan) =>
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    trpc.platform.arbitrageSimulate.useQuery(
+      {
+        spotPrice: plan.params.spotPrice,
+        holdingCostPerMonth: plan.params.holdingCost,
+        socialBreakevenCost: plan.params.socialCost,
+        storageTons: plan.params.storageTons,
+        startMonth: plan.params.startMonth,
+        storageDurationMonths: plan.params.storageDuration,
+      },
+      { placeholderData: (prev: any) => prev }
+    )
+  );
+
+  // 主图表数据
   const chartData = useMemo(() => {
     if (!simulation) return [];
-    return simulation.months.slice(0, storageDuration).map((month, index) => ({
-      month: MONTH_NAMES[month] ?? `${month}月`,
-      costLine: simulation.costCurve[index],
-      futurePriceLine: simulation.futurePriceCurve[index],
-      socialCostLine: simulation.socialCostLine[index],
-      profitSpace: simulation.profitSpace[index],
-    }));
-  }, [simulation, storageDuration]);
+    return simulation.months.map((month, index) => {
+      const row: any = {
+        month: MONTH_NAMES[month] ?? `${month}月`,
+        costLine: simulation.costCurve[index],
+        futurePriceLine: simulation.futurePriceCurve[index],
+        socialCostLine: simulation.socialCostLine[index],
+        profitSpace: simulation.profitSpace[index],
+      };
+      savedPlans.forEach((plan, idx) => {
+        const planSim = planQueries[idx]?.data;
+        if (planSim) {
+          const alignIdx = planSim.months.findIndex(m => m === month);
+          if (alignIdx >= 0) {
+            row[`plan${idx}Cost`] = planSim.costCurve[alignIdx];
+          }
+        }
+      });
+      return row;
+    });
+  }, [simulation, savedPlans, planQueries]);
 
-  const profitCards = useMemo(() => {
-    if (!simulation) return [];
-    return simulation.profits.slice(0, storageDuration);
-  }, [simulation, storageDuration]);
+  const profitCards = useMemo(() => simulation?.profits ?? [], [simulation]);
 
-  // 统计指标
   const stats = useMemo(() => {
     if (!simulation || profitCards.length === 0) return null;
     const arbitrageMonths = profitCards.filter(p => p.shouldArbitrage);
-    const maxCard = profitCards.reduce((a, b) => (a.profit > b.profit ? a : b), profitCards[0]!);
     return {
       arbitrageCount: arbitrageMonths.length,
-      maxProfitMonth: maxCard.month,
-      maxProfit: maxCard.profit,
-      maxTotalProfit: maxCard.totalProfit,
+      maxProfitMonth: simulation.maxProfitMonth,
+      maxProfit: simulation.maxProfit,
+      maxTotalProfit: simulation.maxTotalProfit,
       capitalRequired: parseFloat((spotPrice * storageTons * 1000 / 10000).toFixed(0)),
     };
   }, [simulation, profitCards, spotPrice, storageTons]);
+
+  // 收储期高亮
+  const arbitrageWindow = simulation?.arbitrageWindow;
+  const windowStartLabel = arbitrageWindow ? MONTH_NAMES[arbitrageWindow.startMonth] : null;
+  const windowEndLabel = arbitrageWindow ? MONTH_NAMES[arbitrageWindow.endMonth] : null;
+
+  // 保存当前方案为对比方案
+  const handleSavePlan = () => {
+    if (savedPlans.length >= 3) {
+      toast.warning("最多保存 3 组对比方案");
+      return;
+    }
+    const newPlan: PlanSnapshot = {
+      id: `plan-${Date.now()}`,
+      label: `方案${String.fromCharCode(65 + savedPlans.length)}`,
+      color: PLAN_COLORS[savedPlans.length]!,
+      params: { spotPrice, holdingCost, socialCost, storageTons, startMonth, storageDuration },
+    };
+    setSavedPlans([...savedPlans, newPlan]);
+    toast.success(`已保存为${newPlan.label}作对比`);
+  };
+
+  const handleRemovePlan = (id: string) => {
+    setSavedPlans(savedPlans.filter(p => p.id !== id));
+  };
+
+  // 持久化保存到数据库
+  const handlePersist = () => {
+    if (!simulation || !stats) return;
+    saveRecord({
+      recordType: "time",
+      scenarioLabel: `${startMonth}月起${storageDuration}个月 | ${storageTons}吨`,
+      params: { spotPrice, holdingCost, socialCost, storageTons, startMonth, storageDuration },
+      result: {
+        maxProfit: stats.maxProfit,
+        maxProfitMonth: stats.maxProfitMonth,
+        maxTotalProfit: stats.maxTotalProfit,
+        arbitrageWindow: simulation.arbitrageWindow,
+        arbitrageCount: stats.arbitrageCount,
+      },
+      summaryProfit: `${stats.maxTotalProfit > 0 ? "+" : ""}${stats.maxTotalProfit}万元`,
+      summaryMetric: `${stats.maxProfitMonth}月出货 / +${stats.maxProfit.toFixed(2)}元·kg`,
+    });
+  };
 
   return (
     <PlatformShell
@@ -170,6 +249,24 @@ export default function TimeArbitragePage() {
             <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
               <TrendingUp className="mr-1 h-3 w-3" /> 模型已启用
             </Badge>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 border-cyan-500/30 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20"
+              onClick={handleSavePlan}
+            >
+              <LayersIcon className="mr-1.5 h-3.5 w-3.5" />
+              存为对比方案
+            </Button>
+            <Button
+              size="sm"
+              className="h-8 bg-emerald-500/90 text-white hover:bg-emerald-500"
+              onClick={handlePersist}
+              disabled={isSavingRecord}
+            >
+              <Save className="mr-1.5 h-3.5 w-3.5" />
+              {isSavingRecord ? "保存中…" : "保存决策记录"}
+            </Button>
           </div>
         }
       />
@@ -181,20 +278,20 @@ export default function TimeArbitragePage() {
             {
               label: "套利窗口月数",
               value: `${stats.arbitrageCount} 个月`,
-              sub: `共 ${storageDuration} 个月中`,
+              sub: arbitrageWindow ? `${windowStartLabel} → ${windowEndLabel}` : "无有效窗口",
               color: "text-cyan-400",
               icon: <CalendarDays className="h-4 w-4 text-cyan-400" />,
             },
             {
               label: "最佳出货月",
               value: `${stats.maxProfitMonth} 月`,
-              sub: `利润 +${stats.maxProfit.toFixed(2)} 元/kg`,
+              sub: `价差 +${stats.maxProfit.toFixed(2)} 元/kg`,
               color: "text-emerald-400",
               icon: <TrendingUp className="h-4 w-4 text-emerald-400" />,
             },
             {
               label: "最大总利润",
-              value: `${stats.maxTotalProfit} 万元`,
+              value: `${stats.maxTotalProfit > 0 ? "+" : ""}${stats.maxTotalProfit} 万元`,
               sub: `按 ${storageTons} 吨计算`,
               color: stats.maxTotalProfit > 0 ? "text-emerald-400" : "text-rose-400",
               icon: <LineChartIcon className="h-4 w-4 text-emerald-400" />,
@@ -226,6 +323,38 @@ export default function TimeArbitragePage() {
         </div>
       )}
 
+      {/* 已保存方案标签栏 */}
+      {savedPlans.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-[11px] text-slate-500 uppercase tracking-wider mr-2">
+            <LayersIcon className="inline h-3.5 w-3.5 mr-1 text-slate-400" />
+            多方案对比
+          </span>
+          {savedPlans.map((plan) => (
+            <div
+              key={plan.id}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-medium"
+              style={{
+                borderColor: `${plan.color}55`,
+                backgroundColor: `${plan.color}15`,
+                color: plan.color,
+              }}
+            >
+              <span className="font-semibold">{plan.label}</span>
+              <span className="font-mono text-slate-400">
+                现价¥{plan.params.spotPrice.toFixed(1)} / {plan.params.storageDuration}月
+              </span>
+              <button
+                onClick={() => handleRemovePlan(plan.id)}
+                className="text-slate-500 hover:text-rose-400"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* 参数控制面板 */}
         <div className="lg:col-span-4 space-y-4">
@@ -253,22 +382,6 @@ export default function TimeArbitragePage() {
                   className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4" />
               </div>
 
-              {/* 预期未来价 */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <label className="text-[12px] text-slate-400 font-medium flex items-center gap-1.5">
-                    <LineChartIcon className="h-3.5 w-3.5 text-slate-500" />
-                    预期未来价 (元/kg)
-                  </label>
-                  <span className="font-mono text-violet-300 font-bold bg-violet-400/10 px-2 py-0.5 rounded border border-violet-400/20 text-[13px]">
-                    ¥{futuresPrice.toFixed(1)}
-                  </span>
-                </div>
-                <Slider min={6} max={25} step={0.1} value={[futuresPrice]}
-                  onValueChange={(val) => setFuturesPrice(val[0]!)}
-                  className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4" />
-              </div>
-
               {/* 社会养殖成本 */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -283,6 +396,7 @@ export default function TimeArbitragePage() {
                 <Slider min={8} max={20} step={0.1} value={[socialCost]}
                   onValueChange={(val) => setSocialCost(val[0]!)}
                   className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4" />
+                <p className="text-[10.5px] text-slate-500">生猪期货预测价会自动以此为保本点生成曲线</p>
               </div>
 
               {/* 仓储费 */}
@@ -333,29 +447,22 @@ export default function TimeArbitragePage() {
                   className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4" />
               </div>
 
-              {/* 收储时长选择器 */}
+              {/* 收储时长 - 改为滑块 1-10 月 */}
               <div className="space-y-3">
-                <label className="text-[12px] text-slate-400 font-medium flex items-center gap-1.5">
-                  <Calculator className="h-3.5 w-3.5 text-slate-500" />
-                  收储时长（月）
-                </label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {DURATION_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setStorageDuration(opt.value)}
-                      className={`rounded-lg px-2 py-1.5 text-[11px] font-medium transition-all ${
-                        storageDuration === opt.value
-                          ? "bg-cyan-500/20 border border-cyan-500/50 text-cyan-300"
-                          : "bg-white/5 border border-white/10 text-slate-400 hover:border-white/20 hover:text-slate-300"
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                <div className="flex justify-between items-center">
+                  <label className="text-[12px] text-slate-400 font-medium flex items-center gap-1.5">
+                    <TimerReset className="h-3.5 w-3.5 text-slate-500" />
+                    收储时长（月）
+                  </label>
+                  <span className="font-mono text-violet-300 font-bold bg-violet-400/10 px-2 py-0.5 rounded border border-violet-400/20 text-[13px]">
+                    {storageDuration} 个月
+                  </span>
                 </div>
+                <Slider min={1} max={10} step={1} value={[storageDuration]}
+                  onValueChange={(val) => setStorageDuration(val[0]!)}
+                  className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4" />
                 <p className="text-[11px] text-slate-500">
-                  {startMonth} 月 → {endMonth} 月（共 {storageDuration} 个月）
+                  {MONTH_NAMES[startMonth]} → {MONTH_NAMES[endMonth]}（共 {storageDuration} 个月）
                 </p>
               </div>
             </div>
@@ -364,12 +471,12 @@ export default function TimeArbitragePage() {
 
         {/* 多指标价格曲线图 */}
         <div className="lg:col-span-8 space-y-4">
-          <TechPanel className="p-6 flex flex-col relative rounded-[24px] h-[520px]">
+          <TechPanel className="p-6 flex flex-col relative rounded-[24px] h-[560px]">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-semibold tracking-wide text-white">价格曲线 — 持有成本 VS 未来价格</h4>
                 <p className="mt-1 text-[12px] text-slate-400">
-                  当预期售价线高于持有成本线时，即存在有效套利区间（绿色柱）。
+                  生猪期货预测价线（紫色）自下而上穿越社会养殖成本线（橙色虚线）→ 形成有效套利窗口（绿色高亮区）。
                 </p>
               </div>
             </div>
@@ -377,27 +484,40 @@ export default function TimeArbitragePage() {
             {/* 图例 */}
             <div className="flex flex-wrap items-center gap-4 mb-4 text-[11px] font-medium">
               <div className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-5 h-0.5 bg-cyan-400 rounded-full inline-block" />
-                持有成本线
+                <span className="inline-block w-5 h-0.5 bg-cyan-400 rounded-full" />
+                持有成本线（毛猪价+储存费×月数）
               </div>
               <div className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-5 h-0.5 bg-violet-400 rounded-full inline-block" />
-                预期售价线
+                <span className="inline-block w-5 h-0.5 bg-violet-400 rounded-full" />
+                生猪期货预测价
               </div>
               <div className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-5 h-0.5 bg-orange-400 rounded-full inline-block border-dashed" style={{ borderTop: '2px dashed #fb923c', height: 0 }} />
-                社会养殖成本
+                <span className="inline-block w-5 border-t-2 border-dashed border-orange-400" />
+                社会养殖成本 ¥{socialCost.toFixed(1)}/kg
               </div>
               <div className="flex items-center gap-1.5 text-slate-300">
-                <span className="w-3 h-3 rounded-sm bg-emerald-500/60 inline-block" />
-                利润空间
+                <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500/60" />
+                利润空间 / 收储窗口
               </div>
+              {savedPlans.map((plan) => (
+                <div key={plan.id} className="flex items-center gap-1.5 text-slate-300">
+                  <span
+                    className="inline-block w-5 h-0.5 rounded-full"
+                    style={{ background: plan.color, opacity: 0.5 }}
+                  />
+                  {plan.label}持有成本
+                </div>
+              ))}
             </div>
 
-            <div className="flex-1 w-full min-h-0 relative">
+            <div className="w-full relative" style={{ height: 420 }}>
               {simulationLoading && !chartData.length ? (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+                </div>
+              ) : chartData.length === 0 ? (
+                <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
+                  暂无数据（请先登录以载入模拟数据）
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -410,7 +530,6 @@ export default function TimeArbitragePage() {
                       tick={{ fill: "#64748b", fontSize: 11 }}
                       dy={8}
                     />
-                    {/* 左轴：价格 */}
                     <YAxis
                       yAxisId="price"
                       axisLine={false}
@@ -420,7 +539,6 @@ export default function TimeArbitragePage() {
                       tickFormatter={(v) => `¥${v}`}
                       width={52}
                     />
-                    {/* 右轴：利润空间 */}
                     <YAxis
                       yAxisId="profit"
                       orientation="right"
@@ -434,6 +552,24 @@ export default function TimeArbitragePage() {
                       cursor={{ stroke: "rgba(255,255,255,0.08)", strokeWidth: 1 }}
                       content={<CustomTooltip />}
                     />
+
+                    {/* 有效套利窗口高亮 */}
+                    {windowStartLabel && windowEndLabel && (
+                      <ReferenceArea
+                        yAxisId="price"
+                        x1={windowStartLabel}
+                        x2={windowEndLabel}
+                        fill="rgba(16,185,129,0.08)"
+                        stroke="rgba(16,185,129,0.3)"
+                        strokeDasharray="3 3"
+                        label={{
+                          value: "收储窗口",
+                          position: "insideTop",
+                          fill: "rgba(16,185,129,0.9)",
+                          fontSize: 11,
+                        }}
+                      />
+                    )}
 
                     {/* 利润空间柱（背景层） */}
                     <Bar
@@ -461,20 +597,22 @@ export default function TimeArbitragePage() {
                       ))}
                     </Bar>
 
-                    {/* 社会养殖成本线（虚线） */}
-                    <Line
+                    {/* 社会养殖成本水平线 */}
+                    <ReferenceLine
                       yAxisId="price"
-                      type="monotone"
-                      dataKey="socialCostLine"
-                      name="社会养殖成本"
+                      y={socialCost}
                       stroke="#fb923c"
-                      strokeWidth={1.5}
                       strokeDasharray="5 4"
-                      dot={false}
-                      activeDot={{ r: 3, fill: "#fb923c" }}
+                      strokeWidth={1.5}
+                      label={{
+                        value: `社会养殖成本 ¥${socialCost.toFixed(1)}`,
+                        position: "insideTopRight",
+                        fill: "#fb923c",
+                        fontSize: 10,
+                      }}
                     />
 
-                    {/* 持有成本线 */}
+                    {/* 持有成本线（主方案） */}
                     <Line
                       yAxisId="price"
                       type="monotone"
@@ -486,17 +624,33 @@ export default function TimeArbitragePage() {
                       activeDot={{ r: 5, fill: "#0a1628", stroke: "#38bdf8", strokeWidth: 2 }}
                     />
 
-                    {/* 预期售价线 */}
+                    {/* 生猪期货预测价 */}
                     <Line
                       yAxisId="price"
                       type="monotone"
                       dataKey="futurePriceLine"
-                      name="预期售价线"
+                      name="生猪期货预测价"
                       stroke="#a78bfa"
                       strokeWidth={2.5}
                       dot={{ r: 3, fill: "#0a1628", stroke: "#a78bfa", strokeWidth: 2 }}
                       activeDot={{ r: 5 }}
                     />
+
+                    {/* 对比方案持有成本线 */}
+                    {savedPlans.map((plan, idx) => (
+                      <Line
+                        key={plan.id}
+                        yAxisId="price"
+                        type="monotone"
+                        dataKey={`plan${idx}Cost`}
+                        name={`${plan.label} 持有成本`}
+                        stroke={plan.color}
+                        strokeWidth={1.5}
+                        strokeDasharray="3 3"
+                        dot={{ r: 2 }}
+                        strokeOpacity={0.65}
+                      />
+                    ))}
                   </ComposedChart>
                 </ResponsiveContainer>
               )}
@@ -512,7 +666,7 @@ export default function TimeArbitragePage() {
           <h4 className="text-sm font-semibold tracking-wide text-white mb-5 flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-cyan-400" />
             {t("timeArbitrage.adviceTitle")}
-            <span className="ml-auto text-[11px] text-slate-500 font-normal">元/kg（右侧为万元总利润）</span>
+            <span className="ml-auto text-[11px] text-slate-500 font-normal">价差（元/kg）/ 总利润（万元）</span>
           </h4>
 
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
@@ -529,8 +683,14 @@ export default function TimeArbitragePage() {
                 }`}
               >
                 <p className="text-[11px] font-medium text-slate-400 mb-1.5">{card.month}月</p>
+                <p className="font-mono text-[11px] text-slate-400">
+                  成本 ¥{card.holdingCost.toFixed(2)}
+                </p>
+                <p className="font-mono text-[11px] text-violet-300 mb-1">
+                  预期 ¥{card.futurePrice.toFixed(2)}
+                </p>
                 <p className={`font-mono text-base font-bold tracking-tight ${card.shouldArbitrage ? "text-emerald-400" : "text-slate-500"}`}>
-                  {card.profit > 0 ? "+" : ""}{card.profit.toFixed(2)}
+                  {card.priceGap > 0 ? "+" : ""}{card.priceGap.toFixed(2)}
                 </p>
                 {card.shouldArbitrage && (
                   <p className="text-[10px] text-emerald-500/80 mt-1 font-mono">

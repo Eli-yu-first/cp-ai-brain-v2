@@ -92,5 +92,20 @@ export type DispatchOrder = typeof dispatchOrders.$inferSelect;
 export type InsertDispatchOrder = typeof dispatchOrders.$inferInsert;
 export type DispatchReceipt = typeof dispatchReceipts.$inferSelect;
 export type InsertDispatchReceipt = typeof dispatchReceipts.$inferInsert;
+export const arbitrageRecords = mysqlTable("arbitrage_records", {
+  id: int("id").autoincrement().primaryKey(),
+  recordType: mysqlEnum("recordType", ["time", "spatial"]).notNull(),
+  scenarioLabel: varchar("scenarioLabel", { length: 128 }).notNull(),
+  paramsJson: text("paramsJson").notNull(),
+  resultJson: text("resultJson").notNull(),
+  summaryProfit: varchar("summaryProfit", { length: 64 }).notNull(),
+  summaryMetric: varchar("summaryMetric", { length: 128 }).notNull(),
+  operatorOpenId: varchar("operatorOpenId", { length: 64 }),
+  operatorName: varchar("operatorName", { length: 128 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export type NotificationDelivery = typeof notificationDeliveries.$inferSelect;
 export type InsertNotificationDelivery = typeof notificationDeliveries.$inferInsert;
+export type ArbitrageRecord = typeof arbitrageRecords.$inferSelect;
+export type InsertArbitrageRecord = typeof arbitrageRecords.$inferInsert;

@@ -31,7 +31,9 @@ import {
 } from "./spatialArbitrage";
 import {
   createAuditLog,
+  createArbitrageRecord,
   getDispatchOrderByOrderId,
+  listArbitrageRecords,
   listDispatchReceiptsByBatch,
   listPersistedAuditLogs,
   persistDispatchPlan,
@@ -149,50 +151,50 @@ export const appRouter = router({
       .input(
         z.object({
           spotPrice: z.number().min(1).max(40),
-          futuresPrice: z.number().min(1).max(40),
           holdingCostPerMonth: z.number().min(0.01).max(2.0),
           socialBreakevenCost: z.number().min(1).max(40).optional().default(12.0),
           storageTons: z.number().min(50).max(50000).optional().default(1000),
           startMonth: z.number().min(1).max(12).optional().default(4),
+          storageDurationMonths: z.number().int().min(1).max(10).optional().default(6),
         })
       )
       .query(({ input }) => {
         return calculateArbitrage(
           input.spotPrice,
-          input.futuresPrice,
           input.holdingCostPerMonth,
           input.socialBreakevenCost,
           input.storageTons,
           input.startMonth,
+          input.storageDurationMonths,
         );
       }),
     arbitrageAiDecision: protectedProcedure
       .input(
         z.object({
           spotPrice: z.number().min(1).max(40),
-          futuresPrice: z.number().min(1).max(40),
           holdingCostPerMonth: z.number().min(0.01).max(2.0),
           socialBreakevenCost: z.number().min(1).max(40).optional().default(12.0),
           storageTons: z.number().min(50).max(50000).optional().default(1000),
           startMonth: z.number().min(1).max(12).optional().default(4),
+          storageDurationMonths: z.number().int().min(1).max(10).optional().default(6),
         })
       )
       .mutation(async ({ input }) => {
         const context = buildArbitrageDecisionContext(
           input.spotPrice,
-          input.futuresPrice,
           input.holdingCostPerMonth,
           input.socialBreakevenCost,
           input.storageTons,
           input.startMonth,
+          input.storageDurationMonths,
         );
         const fallback = buildArbitrageAgentDraft(
           input.spotPrice,
-          input.futuresPrice,
           input.holdingCostPerMonth,
           input.socialBreakevenCost,
           input.storageTons,
           input.startMonth,
+          input.storageDurationMonths,
         );
 
         try {
@@ -320,6 +322,55 @@ export const appRouter = router({
         } catch {
           return fallback;
         }
+      }),
+    saveArbitrageRecord: protectedProcedure
+      .input(
+        z.object({
+          recordType: z.enum(["time", "spatial"]),
+          scenarioLabel: z.string().min(1).max(128),
+          params: z.record(z.string(), z.any()),
+          result: z.record(z.string(), z.any()),
+          summaryProfit: z.string().min(1).max(64),
+          summaryMetric: z.string().min(1).max(128),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const user = ctx.user;
+        const record = await createArbitrageRecord({
+          recordType: input.recordType,
+          scenarioLabel: input.scenarioLabel,
+          params: input.params,
+          result: input.result,
+          summaryProfit: input.summaryProfit,
+          summaryMetric: input.summaryMetric,
+          operatorOpenId: user?.openId,
+          operatorName: user?.name ?? undefined,
+        });
+        return { success: !!record, record };
+      }),
+    listArbitrageRecords: protectedProcedure
+      .input(
+        z.object({
+          recordType: z.enum(["time", "spatial"]).optional(),
+          limit: z.number().int().min(1).max(200).optional().default(50),
+        }).optional()
+      )
+      .query(async ({ input }) => {
+        const rows = await listArbitrageRecords({
+          recordType: input?.recordType,
+          limit: input?.limit ?? 50,
+        });
+        return rows.map(row => ({
+          id: row.id,
+          recordType: row.recordType,
+          scenarioLabel: row.scenarioLabel,
+          summaryProfit: row.summaryProfit,
+          summaryMetric: row.summaryMetric,
+          operatorName: row.operatorName ?? null,
+          createdAt: row.createdAt,
+          params: (() => { try { return JSON.parse(row.paramsJson); } catch { return {}; } })(),
+          result: (() => { try { return JSON.parse(row.resultJson); } catch { return {}; } })(),
+        }));
       }),
     aiAgents: protectedProcedure
       .input(

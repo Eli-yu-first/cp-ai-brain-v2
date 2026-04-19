@@ -3,12 +3,13 @@ import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitiv
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
-import { History, ScanSearch, ShieldCheck, Sparkles, UserRoundCog } from "lucide-react";
+import { History, ScanSearch, ShieldCheck, Sparkles, UserRoundCog, TrendingUp, Truck } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function AuditPage() {
   const { data: logs } = trpc.platform.auditLogs.useQuery();
   const { data: snapshot } = trpc.platform.snapshot.useQuery({ timeframe: "month" });
+  const { data: arbitrageRecords } = trpc.platform.listArbitrageRecords.useQuery({ limit: 20 });
   const { language } = useLanguage();
 
   const copy = {
@@ -275,6 +276,72 @@ export default function AuditPage() {
           </div>
         </TechPanel>
       </div>
+
+      {/* 套利决策记录 */}
+      <TechPanel className="mt-6">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-violet-400/20 bg-violet-400/10 text-violet-100">
+            <History className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Arbitrage Records</p>
+            <h3 className="mt-1 text-lg font-bold tracking-tight text-white">
+              {language === "zh" ? "套利决策历史记录" : language === "en" ? "Arbitrage Decision History" : language === "ja" ? "アービトラージ履歴" : "ประวัติการตัดสินใจอาร์บิทราซ"}
+            </h3>
+            <p className="mt-1 text-xs text-slate-400">
+              {language === "zh" ? "时间套利与空间套利的模拟与决策留痕汇总" : "All arbitrage simulations & dispatch decisions persisted with parameters and results."}
+            </p>
+          </div>
+          <Badge className="ml-auto rounded-lg border-violet-400/15 bg-violet-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-violet-200/80">
+            {arbitrageRecords?.length ?? 0} {language === "zh" ? "条记录" : "records"}
+          </Badge>
+        </div>
+
+        {arbitrageRecords && arbitrageRecords.length > 0 ? (
+          <div className="overflow-hidden rounded-[24px] border border-white/10">
+            <div className="grid grid-cols-[80px_1fr_1fr_100px_120px_140px] border-b border-white/10 bg-white/[0.04] px-5 py-3 text-xs uppercase tracking-[0.18em] text-slate-500">
+              <span>{language === "zh" ? "类型" : "Type"}</span>
+              <span>{language === "zh" ? "场景" : "Scenario"}</span>
+              <span>{language === "zh" ? "参数摘要" : "Params"}</span>
+              <span>{language === "zh" ? "指标" : "Metric"}</span>
+              <span>{language === "zh" ? "利润" : "Profit"}</span>
+              <span>{language === "zh" ? "时间" : "Time"}</span>
+            </div>
+            <div className="divide-y divide-white/8">
+              {arbitrageRecords.map((rec: any, idx: number) => (
+                <motion.div
+                  key={rec.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.03 * idx, duration: 0.3 }}
+                  className="grid grid-cols-[80px_1fr_1fr_100px_120px_140px] items-center gap-3 px-5 py-3 text-sm text-slate-300 hover:bg-white/[0.02]"
+                >
+                  <Badge className={rec.recordType === "time" ? "rounded-full border-cyan-400/20 bg-cyan-400/10 text-cyan-100" : "rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}>
+                    {rec.recordType === "time" ? (
+                      <><TrendingUp className="mr-1 h-3 w-3" />{language === "zh" ? "时间" : "Time"}</>
+                    ) : (
+                      <><Truck className="mr-1 h-3 w-3" />{language === "zh" ? "空间" : "Spatial"}</>
+                    )}
+                  </Badge>
+                  <span className="truncate text-slate-200">{rec.scenarioLabel}</span>
+                  <span className="truncate text-[12px] text-slate-500 font-mono">
+                    {rec.params ? Object.entries(typeof rec.params === "string" ? JSON.parse(rec.params) : rec.params).slice(0, 3).map(([k, v]) => `${k}=${v}`).join(" | ") : "-"}
+                  </span>
+                  <span className="text-[12px] text-slate-400">{rec.summaryMetric ?? "-"}</span>
+                  <span className="font-semibold text-emerald-300">{rec.summaryProfit ?? "-"}</span>
+                  <span className="text-[11px] text-slate-500">
+                    {new Date(rec.createdAt).toLocaleString()}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] p-10 text-center text-sm text-slate-500">
+            {language === "zh" ? "暂无套利决策记录，在时间套利或空间套利页面点击《保存决策记录》后自动呈现。" : "No arbitrage records yet. Save a decision on Time/Spatial Arbitrage page to populate this list."}
+          </div>
+        )}
+      </TechPanel>
     </PlatformShell>
   );
 }

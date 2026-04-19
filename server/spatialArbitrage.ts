@@ -1,4 +1,5 @@
 import { partQuotes } from "./platformData";
+import { calculateArbitrage } from "./timeArbitrage";
 
 export type GeoNode = {
   id: string;
@@ -70,6 +71,75 @@ export const VEHICLE_TYPES: VehicleType[] = [
   { code: "large", name: "大型干线(25吨)", payloadTon: 25, costPerKmPerTon: 1.1 },
 ];
 
+export type ChainStrategyMode = "balanced" | "fresh_first" | "storage_first" | "deep_processing";
+export type TimeStoragePolicy = "auto" | "force" | "off";
+
+export const PORK_CHAIN_FACTORS = {
+  farm: {
+    stage: "肥猪出栏",
+    output: "肥猪",
+    timeNode: "T / 24h",
+    adjustable: true,
+    targetHeadsPerDay: 40000,
+    actualHeadsPerDay: 40000,
+    optimization: "毛猪调配",
+  },
+  slaughter: {
+    stage: "屠宰",
+    output: "白条副产",
+    timeNode: "T+1 / 24h",
+    targetHeadsPerDay: 40000,
+    actualHeadsPerDay: 20000,
+    constraint: "非储备部位的鲜销能力，通过鲜销价格解决",
+    optimization: "寻找屠宰分割速冻一体产能",
+  },
+  cutting: {
+    stage: "分割",
+    output: "皮膘骨肉",
+    timeNode: "T+2 / 24h",
+    targetHeadsPerDay: 40000,
+    actualHeadsPerDay: 8000,
+    optimization: "补充分割小刀手",
+  },
+  freezing: {
+    stage: "速冻",
+    output: "-28℃产品",
+    timeNode: "T+4 / 48h",
+    yieldKgPerHead: 78,
+    targetKgPerDay: 78 * 40000,
+    actualKgPerDay: 400000,
+    optimization: "匹配屠宰分割速冻一体节点",
+  },
+  storage: {
+    stage: "仓储",
+    output: "-18℃产品",
+    timeNode: "长期 / 累计4个月",
+    targetReserveTon: (78 * 40000 * 30 * 4) / 10000,
+    actualStorageTon: 5000,
+    constraint: "储备冻品原料销售能力",
+    reverseConstraint: "冻品目标储备量",
+    optimization: "就近标准外租库",
+  },
+  sales: {
+    freshConstraint: "非储备部位鲜销能力",
+    reserveConstraint: "储备冻品原料未来销售能力",
+    deepProcessingConstraint: "深加工品未来销售能力",
+  },
+} as const;
+
+export type ChainStageFactor = {
+  code: keyof typeof PORK_CHAIN_FACTORS;
+  stage: string;
+  target: number;
+  actual: number;
+  gap: number;
+  unit: string;
+  timeNode: string;
+  utilization: number;
+  constraint?: string;
+  optimization?: string;
+};
+
 function pickVehicleFor(remainingTon: number, preference: "auto" | VehicleType["code"]): VehicleType {
   if (preference !== "auto") {
     const fixed = VEHICLE_TYPES.find((v) => v.code === preference);
@@ -122,6 +192,22 @@ export type SchedulePlanItem = {
   netProfitPerKg: number;
   /** 该条线总净利（万元） */
   netProfitTotal: number;
+  freshSalesTon: number;
+  storageTon: number;
+  deepProcessingTon: number;
+  timeArbitrageTriggered: boolean;
+  storageOpened: boolean;
+  timeProfitPerKg: number;
+  bestStorageMonth: number | null;
+  arbitrageWindow: { startMonth: number; endMonth: number } | null;
+  chainUtilization: {
+    dailyInputTon: number;
+    hogHeadsPerDay: number;
+    slaughter: number;
+    cutting: number;
+    freezing: number;
+    storage: number;
+  };
   /** 车型明细（便于前端展示） */
   tripBreakdown: Array<{ vehicleCode: VehicleType["code"]; vehicleName: string; count: number; tonPerTrip: number }>;
 };
@@ -142,6 +228,22 @@ export type SpatialArbitrageResult = {
     usedCapacityByOrigin: Record<string, number>;
     usedDemandByDest: Record<string, number>;
     vehicleMix: Record<VehicleType["code"], number>;
+    freshSalesTon: number;
+    storageTon: number;
+    deepProcessingTon: number;
+    storageOpenedRoutes: number;
+    averageChainUtilization: number;
+    bottleneckStage: string;
+  };
+  chainFactors: ChainStageFactor[];
+  chainAnalysis: {
+    strategyMode: ChainStrategyMode;
+    timeStoragePolicy: TimeStoragePolicy;
+    planningDays: number;
+    storageCapacityTon: number;
+    rentedStorageTon: number;
+    constraints: string[];
+    optimizationLevers: string[];
   };
   totalOpportunities: number;
   bestRouteProfit: number;
@@ -192,7 +294,7 @@ export function generateDetailedStrategyReport(
       : routes.slice(0, 5).reduce((sum, r) => sum + r.batchProfit, 0).toFixed(1);
 
   const shippedStr = scheduleSummary
-    ? `按真实调度算法可发运 ${scheduleSummary.totalShippedTon.toFixed(0)} 吨，平均单吨运费 ${(scheduleSummary.averageFreightPerKg * 1000).toFixed(0)} 元`
+    ? `按真实调度算法可发运 ${scheduleSummary.totalShippedTon.toFixed(0)} 吨，鲜销 ${scheduleSummary.freshSalesTon.toFixed(0)} 吨、入储 ${scheduleSummary.storageTon.toFixed(0)} 吨、深加工 ${scheduleSummary.deepProcessingTon.toFixed(0)} 吨，平均单吨运费 ${(scheduleSummary.averageFreightPerKg * 1000).toFixed(0)} 元`
     : `按基准车次发运`;
 
   return {
@@ -201,7 +303,7 @@ export function generateDetailedStrategyReport(
       (r) => `${r.originName} 调往 ${r.destName}：净利预期 +${r.netProfit.toFixed(2)}元/kg`,
     ),
     profitPrediction: `${shippedStr}，跨区溢价足以覆盖 ${top.distanceKm} 公里的运输磨耗与保险。预计全线净利合计 ${totalProfit} 万元。`,
-    recommendedAction: `立即启动【${top.originName}】产区紧急冷链收货，锁定【${top.destName}】大宗批发渠道及餐饮供应链，按车型组合执行点对点极速调拨。`,
+    recommendedAction: `立即启动【${top.originName}】产区紧急冷链收货，锁定【${top.destName}】大宗批发渠道及餐饮供应链；若时间套利窗口为正，同步开启就近外租库和冻品储备链路，避免屠宰、分割、速冻产能被单一鲜销能力反向制约。`,
     estimatedReturn: `${totalProfit} 万元 (${scheduleSummary ? "调度算法合计" : "前五条路径合计"})`,
   };
 }
@@ -216,7 +318,143 @@ export type SpatialArbitrageOptions = {
   vehiclePreference?: "auto" | VehicleType["code"];
   /** 目标发运总量（吨）；留空则按产能/需求最小值自动铺满 */
   targetShipmentTon?: number;
+  strategyMode?: ChainStrategyMode;
+  timeStoragePolicy?: TimeStoragePolicy;
+  planningDays?: number;
+  holdingCostPerMonth?: number;
+  socialBreakevenCost?: number;
+  startMonth?: number;
+  storageDurationMonths?: number;
+  freshSalesTonPerDay?: number;
+  reserveSalesTonPerMonth?: number;
+  deepProcessingTonPerDay?: number;
+  rentedStorageTon?: number;
 };
+
+function round(value: number, digits = 2) {
+  return Number(value.toFixed(digits));
+}
+
+function buildChainFactors(rentedStorageTon = 0): ChainStageFactor[] {
+  const storageActual = PORK_CHAIN_FACTORS.storage.actualStorageTon + Math.max(0, rentedStorageTon);
+  const factors: ChainStageFactor[] = [
+    {
+      code: "farm",
+      stage: PORK_CHAIN_FACTORS.farm.stage,
+      target: PORK_CHAIN_FACTORS.farm.targetHeadsPerDay,
+      actual: PORK_CHAIN_FACTORS.farm.actualHeadsPerDay,
+      gap: PORK_CHAIN_FACTORS.farm.targetHeadsPerDay - PORK_CHAIN_FACTORS.farm.actualHeadsPerDay,
+      unit: "头/天",
+      timeNode: PORK_CHAIN_FACTORS.farm.timeNode,
+      utilization: 100,
+      optimization: PORK_CHAIN_FACTORS.farm.optimization,
+    },
+    {
+      code: "slaughter",
+      stage: PORK_CHAIN_FACTORS.slaughter.stage,
+      target: PORK_CHAIN_FACTORS.slaughter.targetHeadsPerDay,
+      actual: PORK_CHAIN_FACTORS.slaughter.actualHeadsPerDay,
+      gap: PORK_CHAIN_FACTORS.slaughter.targetHeadsPerDay - PORK_CHAIN_FACTORS.slaughter.actualHeadsPerDay,
+      unit: "头/天",
+      timeNode: PORK_CHAIN_FACTORS.slaughter.timeNode,
+      utilization: round((PORK_CHAIN_FACTORS.slaughter.actualHeadsPerDay / PORK_CHAIN_FACTORS.slaughter.targetHeadsPerDay) * 100),
+      constraint: PORK_CHAIN_FACTORS.slaughter.constraint,
+      optimization: PORK_CHAIN_FACTORS.slaughter.optimization,
+    },
+    {
+      code: "cutting",
+      stage: PORK_CHAIN_FACTORS.cutting.stage,
+      target: PORK_CHAIN_FACTORS.cutting.targetHeadsPerDay,
+      actual: PORK_CHAIN_FACTORS.cutting.actualHeadsPerDay,
+      gap: PORK_CHAIN_FACTORS.cutting.targetHeadsPerDay - PORK_CHAIN_FACTORS.cutting.actualHeadsPerDay,
+      unit: "头/天",
+      timeNode: PORK_CHAIN_FACTORS.cutting.timeNode,
+      utilization: round((PORK_CHAIN_FACTORS.cutting.actualHeadsPerDay / PORK_CHAIN_FACTORS.cutting.targetHeadsPerDay) * 100),
+      optimization: PORK_CHAIN_FACTORS.cutting.optimization,
+    },
+    {
+      code: "freezing",
+      stage: PORK_CHAIN_FACTORS.freezing.stage,
+      target: PORK_CHAIN_FACTORS.freezing.targetKgPerDay / 1000,
+      actual: PORK_CHAIN_FACTORS.freezing.actualKgPerDay / 1000,
+      gap: (PORK_CHAIN_FACTORS.freezing.targetKgPerDay - PORK_CHAIN_FACTORS.freezing.actualKgPerDay) / 1000,
+      unit: "吨/天",
+      timeNode: PORK_CHAIN_FACTORS.freezing.timeNode,
+      utilization: round((PORK_CHAIN_FACTORS.freezing.actualKgPerDay / PORK_CHAIN_FACTORS.freezing.targetKgPerDay) * 100),
+      optimization: PORK_CHAIN_FACTORS.freezing.optimization,
+    },
+    {
+      code: "storage",
+      stage: PORK_CHAIN_FACTORS.storage.stage,
+      target: PORK_CHAIN_FACTORS.storage.targetReserveTon,
+      actual: storageActual,
+      gap: PORK_CHAIN_FACTORS.storage.targetReserveTon - storageActual,
+      unit: "吨",
+      timeNode: PORK_CHAIN_FACTORS.storage.timeNode,
+      utilization: round((storageActual / PORK_CHAIN_FACTORS.storage.targetReserveTon) * 100),
+      constraint: PORK_CHAIN_FACTORS.storage.constraint,
+      optimization: PORK_CHAIN_FACTORS.storage.optimization,
+    },
+  ];
+  return factors;
+}
+
+function getModeBias(mode: ChainStrategyMode, lane: "fresh" | "storage" | "deep") {
+  if (mode === "fresh_first") return lane === "fresh" ? 1.2 : lane === "storage" ? 0.88 : 0.95;
+  if (mode === "storage_first") return lane === "storage" ? 1.25 : lane === "deep" ? 1.05 : 0.9;
+  if (mode === "deep_processing") return lane === "deep" ? 1.25 : lane === "storage" ? 1.05 : 0.9;
+  return lane === "fresh" ? 1 : lane === "storage" ? 1.04 : 1.02;
+}
+
+function allocateProfitLanes({
+  ship,
+  freshProfitPerKg,
+  storageProfitPerKg,
+  deepProfitPerKg,
+  freshCapLeft,
+  storageCapLeft,
+  deepCapLeft,
+  strategyMode,
+  storageAllowed,
+}: {
+  ship: number;
+  freshProfitPerKg: number;
+  storageProfitPerKg: number;
+  deepProfitPerKg: number;
+  freshCapLeft: number;
+  storageCapLeft: number;
+  deepCapLeft: number;
+  strategyMode: ChainStrategyMode;
+  storageAllowed: boolean;
+}) {
+  const lanes = [
+    { key: "fresh" as const, cap: freshCapLeft, profit: freshProfitPerKg },
+    { key: "storage" as const, cap: storageAllowed ? storageCapLeft : 0, profit: storageProfitPerKg },
+    { key: "deep" as const, cap: storageAllowed ? deepCapLeft : 0, profit: deepProfitPerKg },
+  ]
+    .filter(lane => lane.cap > 0 && lane.profit > 0)
+    .sort((a, b) => b.profit * getModeBias(strategyMode, b.key) - a.profit * getModeBias(strategyMode, a.key));
+
+  let left = ship;
+  const allocation = { fresh: 0, storage: 0, deep: 0 };
+  let weightedProfit = 0;
+
+  for (const lane of lanes) {
+    if (left <= 0) break;
+    const ton = Math.min(left, lane.cap);
+    allocation[lane.key] += ton;
+    weightedProfit += ton * 1000 * lane.profit;
+    left -= ton;
+  }
+
+  return {
+    freshSalesTon: round(allocation.fresh),
+    storageTon: round(allocation.storage),
+    deepProcessingTon: round(allocation.deep),
+    allocatedTon: round(ship - left),
+    weightedProfit,
+  };
+}
 
 /**
  * 真实物流调度算法：
@@ -242,6 +480,8 @@ export function calculateSpatialArbitrage(
           originFilter: originFilter ?? "all",
           partCode,
           vehiclePreference: "auto",
+          strategyMode: "balanced",
+          timeStoragePolicy: "auto",
         }
       : optionsOrTransportCost;
 
@@ -253,6 +493,17 @@ export function calculateSpatialArbitrage(
     partCode: partCodeVal = "all",
     vehiclePreference = "auto",
     targetShipmentTon,
+    strategyMode = "balanced",
+    timeStoragePolicy = "auto",
+    planningDays = 7,
+    holdingCostPerMonth = 0.2,
+    socialBreakevenCost = 12,
+    startMonth = 4,
+    storageDurationMonths = 6,
+    freshSalesTonPerDay = 900,
+    reserveSalesTonPerMonth = 5000,
+    deepProcessingTonPerDay = 260,
+    rentedStorageTon = 0,
   } = options;
 
   // 获取部位溢价系数
@@ -315,6 +566,13 @@ export function calculateSpatialArbitrage(
     typeof targetShipmentTon === "number" && targetShipmentTon > 0
       ? targetShipmentTon
       : Math.min(totalCapacity, totalDemand);
+  const effectivePlanningDays = Math.max(1, Math.min(30, Math.round(planningDays)));
+  const chainFactors = buildChainFactors(rentedStorageTon);
+  let remainingFreshSales = Math.max(0, freshSalesTonPerDay) * effectivePlanningDays;
+  let remainingStorage = Math.max(0, PORK_CHAIN_FACTORS.storage.actualStorageTon + rentedStorageTon);
+  let remainingDeepProcessing = Math.max(0, deepProcessingTonPerDay) * effectivePlanningDays;
+  const remainingReserveSales = Math.max(0, reserveSalesTonPerMonth) * Math.max(1, Math.round(storageDurationMonths));
+  remainingStorage = Math.min(remainingStorage, remainingReserveSales);
 
   const schedulePlan: SchedulePlanItem[] = [];
   const vehicleMix: Record<VehicleType["code"], number> = { small: 0, medium: 0, large: 0 };
@@ -350,27 +608,64 @@ export function calculateSpatialArbitrage(
 
     const freightPerKg = parseFloat((freightTotal / (ship * 1000)).toFixed(3));
     const spreadPerKg = r.destPrice - r.originPrice;
-    const netProfitPerKg = parseFloat((spreadPerKg - freightPerKg).toFixed(2));
-    const netProfitTotal = parseFloat(((netProfitPerKg * ship * 1000) / 10000).toFixed(1));
+    const freshProfitPerKg = parseFloat((spreadPerKg - freightPerKg).toFixed(2));
+    const timeArbitrage = calculateArbitrage(
+      r.originPrice,
+      holdingCostPerMonth,
+      socialBreakevenCost,
+      ship,
+      startMonth,
+      storageDurationMonths,
+    );
+    const timeArbitrageTriggered =
+      timeStoragePolicy === "force" ||
+      (timeStoragePolicy === "auto" && timeArbitrage.profits.some(item => item.shouldArbitrage) && timeArbitrage.maxProfit > 0);
+    const storageHandlingCostPerKg = 0.18 + freightPerKg * 0.55;
+    const storageProfitPerKg = parseFloat((timeArbitrage.maxProfit - storageHandlingCostPerKg).toFixed(2));
+    const deepProfitPerKg = parseFloat((storageProfitPerKg + 0.42).toFixed(2));
+    const storageAllowed = timeStoragePolicy !== "off" && timeArbitrageTriggered;
+    const laneAllocation = allocateProfitLanes({
+      ship,
+      freshProfitPerKg,
+      storageProfitPerKg,
+      deepProfitPerKg,
+      freshCapLeft: remainingFreshSales,
+      storageCapLeft: remainingStorage,
+      deepCapLeft: remainingDeepProcessing,
+      strategyMode,
+      storageAllowed,
+    });
+    const netProfitPerKg =
+      laneAllocation.allocatedTon > 0
+        ? parseFloat((laneAllocation.weightedProfit / (laneAllocation.allocatedTon * 1000)).toFixed(2))
+        : freshProfitPerKg;
+    const netProfitTotal = parseFloat((laneAllocation.weightedProfit / 10000).toFixed(1));
 
     // 仅在调度后仍为正净利才记入计划（避免小车拉高尾批次运费导致亏损）
-    if (netProfitPerKg > 0) {
-      remainingCapacity[r.originId] = (remainingCapacity[r.originId] ?? 0) - ship;
-      remainingDemand[r.destId] = (remainingDemand[r.destId] ?? 0) - ship;
-      remainingTarget -= ship;
+    if (netProfitPerKg > 0 && laneAllocation.allocatedTon > 0) {
+      const shippedTon = laneAllocation.allocatedTon;
+      remainingCapacity[r.originId] = (remainingCapacity[r.originId] ?? 0) - shippedTon;
+      remainingDemand[r.destId] = (remainingDemand[r.destId] ?? 0) - shippedTon;
+      remainingTarget -= shippedTon;
+      remainingFreshSales -= laneAllocation.freshSalesTon;
+      remainingStorage -= laneAllocation.storageTon;
+      remainingDeepProcessing -= laneAllocation.deepProcessingTon;
+      const dailyInputTon = shippedTon / effectivePlanningDays;
+      const hogHeadsPerDay = (dailyInputTon * 1000) / PORK_CHAIN_FACTORS.freezing.yieldKgPerHead;
+      const storageUsed = laneAllocation.storageTon + laneAllocation.deepProcessingTon;
       schedulePlan.push({
         originId: r.originId,
         destId: r.destId,
         originName: r.originName,
         destName: r.destName,
         distanceKm: r.distanceKm,
-        shippedTon: parseFloat(ship.toFixed(2)),
-        vehicleCode: vehiclePreference === "auto" ? (ship >= 22 ? "large" : ship >= 10 ? "medium" : "small") : vehiclePreference,
+        shippedTon: parseFloat(shippedTon.toFixed(2)),
+        vehicleCode: vehiclePreference === "auto" ? (shippedTon >= 22 ? "large" : shippedTon >= 10 ? "medium" : "small") : vehiclePreference,
         vehicleName:
           vehiclePreference === "auto"
-            ? ship >= 22
+            ? shippedTon >= 22
               ? VEHICLE_TYPES[2]!.name
-              : ship >= 10
+              : shippedTon >= 10
                 ? VEHICLE_TYPES[1]!.name
                 : VEHICLE_TYPES[0]!.name
             : (VEHICLE_TYPES.find((v) => v.code === vehiclePreference)?.name ?? "自动"),
@@ -379,6 +674,22 @@ export function calculateSpatialArbitrage(
         freightPerKg,
         netProfitPerKg,
         netProfitTotal,
+        freshSalesTon: laneAllocation.freshSalesTon,
+        storageTon: laneAllocation.storageTon,
+        deepProcessingTon: laneAllocation.deepProcessingTon,
+        timeArbitrageTriggered,
+        storageOpened: storageAllowed && (laneAllocation.storageTon > 0 || laneAllocation.deepProcessingTon > 0),
+        timeProfitPerKg: timeArbitrage.maxProfit,
+        bestStorageMonth: timeArbitrage.maxProfit > 0 ? timeArbitrage.maxProfitMonth : null,
+        arbitrageWindow: timeArbitrage.arbitrageWindow,
+        chainUtilization: {
+          dailyInputTon: round(dailyInputTon),
+          hogHeadsPerDay: round(hogHeadsPerDay),
+          slaughter: round((hogHeadsPerDay / PORK_CHAIN_FACTORS.slaughter.actualHeadsPerDay) * 100),
+          cutting: round((hogHeadsPerDay / PORK_CHAIN_FACTORS.cutting.actualHeadsPerDay) * 100),
+          freezing: round((dailyInputTon / (PORK_CHAIN_FACTORS.freezing.actualKgPerDay / 1000)) * 100),
+          storage: round((storageUsed / Math.max(1, PORK_CHAIN_FACTORS.storage.actualStorageTon + rentedStorageTon)) * 100),
+        },
         tripBreakdown: Object.values(tripBreakdownMap),
       });
     } else {
@@ -393,6 +704,30 @@ export function calculateSpatialArbitrage(
   const totalShippedTon = schedulePlan.reduce((s, p) => s + p.shippedTon, 0);
   const totalFreight = schedulePlan.reduce((s, p) => s + p.freightTotal, 0);
   const totalNetProfit = parseFloat(schedulePlan.reduce((s, p) => s + p.netProfitTotal, 0).toFixed(1));
+  const freshSalesTon = parseFloat(schedulePlan.reduce((s, p) => s + p.freshSalesTon, 0).toFixed(1));
+  const storageTon = parseFloat(schedulePlan.reduce((s, p) => s + p.storageTon, 0).toFixed(1));
+  const deepProcessingTon = parseFloat(schedulePlan.reduce((s, p) => s + p.deepProcessingTon, 0).toFixed(1));
+  const storageOpenedRoutes = schedulePlan.filter(p => p.storageOpened).length;
+  const averageChainUtilization =
+    schedulePlan.length > 0
+      ? parseFloat(
+          (
+            schedulePlan.reduce(
+              (sum, p) =>
+                sum +
+                Math.max(
+                  p.chainUtilization.slaughter,
+                  p.chainUtilization.cutting,
+                  p.chainUtilization.freezing,
+                  p.chainUtilization.storage,
+                ),
+              0,
+            ) / schedulePlan.length
+          ).toFixed(1),
+        )
+      : 0;
+  const bottleneckStage =
+    [...chainFactors].sort((a, b) => b.gap - a.gap)[0]?.stage ?? "无";
   const averageFreightPerKg =
     totalShippedTon > 0 ? parseFloat((totalFreight / (totalShippedTon * 1000)).toFixed(3)) : 0;
   const averageNetProfitPerKg =
@@ -420,6 +755,12 @@ export function calculateSpatialArbitrage(
     usedCapacityByOrigin,
     usedDemandByDest,
     vehicleMix,
+    freshSalesTon,
+    storageTon,
+    deepProcessingTon,
+    storageOpenedRoutes,
+    averageChainUtilization,
+    bottleneckStage,
   };
 
   // 顶层汇总（兼容现有前端字段）
@@ -444,7 +785,7 @@ export function calculateSpatialArbitrage(
 
   const decisionOverview =
     schedulePlan.length > 0
-      ? `AI决策：基于产能/需求/车型约束，生成 ${schedulePlan.length} 条可执行调度（合计 ${scheduleSummary.totalShippedTon} 吨 / 预期净利 ${scheduleSummary.totalNetProfit} 万元），优先路由：${topStr}`
+      ? `AI决策：基于产能/需求/车型约束，生成 ${schedulePlan.length} 条可执行调度（合计 ${scheduleSummary.totalShippedTon} 吨 / 预期净利 ${scheduleSummary.totalNetProfit} 万元）。时间套利触发 ${scheduleSummary.storageOpenedRoutes} 条储备链路，鲜销 ${scheduleSummary.freshSalesTon} 吨、入储 ${scheduleSummary.storageTon} 吨、深加工 ${scheduleSummary.deepProcessingTon} 吨，优先路由：${topStr}`
       : routes.length > 0
         ? `AI决策：发现 ${routes.length} 条套利窗口，但产能/需求已耗尽或单位运费超阈值，建议放宽车型或分批执行。`
         : "AI决策：目前市场供需与运费不匹配，无最优套利路线。";
@@ -453,6 +794,27 @@ export function calculateSpatialArbitrage(
     routes,
     schedulePlan,
     scheduleSummary,
+    chainFactors,
+    chainAnalysis: {
+      strategyMode,
+      timeStoragePolicy,
+      planningDays: effectivePlanningDays,
+      storageCapacityTon: PORK_CHAIN_FACTORS.storage.actualStorageTon + Math.max(0, rentedStorageTon),
+      rentedStorageTon: Math.max(0, rentedStorageTon),
+      constraints: [
+        PORK_CHAIN_FACTORS.slaughter.constraint,
+        PORK_CHAIN_FACTORS.storage.constraint,
+        PORK_CHAIN_FACTORS.sales.freshConstraint,
+        PORK_CHAIN_FACTORS.sales.reserveConstraint,
+        PORK_CHAIN_FACTORS.sales.deepProcessingConstraint,
+      ],
+      optimizationLevers: [
+        PORK_CHAIN_FACTORS.farm.optimization,
+        PORK_CHAIN_FACTORS.slaughter.optimization,
+        PORK_CHAIN_FACTORS.cutting.optimization,
+        PORK_CHAIN_FACTORS.storage.optimization,
+      ],
+    },
     aiStrategyReport: generateDetailedStrategyReport(routes, partName, scheduleSummary),
     totalOpportunities: routes.length,
     bestRouteProfit,

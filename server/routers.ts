@@ -256,6 +256,17 @@ export const appRouter = router({
           partCode: z.string().optional(),
           vehiclePreference: z.enum(["auto", "small", "medium", "large"]).optional().default("auto"),
           targetShipmentTon: z.number().min(0).max(200000).optional(),
+          strategyMode: z.enum(["balanced", "fresh_first", "storage_first", "deep_processing"]).optional().default("balanced"),
+          timeStoragePolicy: z.enum(["auto", "force", "off"]).optional().default("auto"),
+          planningDays: z.number().int().min(1).max(30).optional().default(7),
+          holdingCostPerMonth: z.number().min(0.01).max(2.0).optional().default(0.2),
+          socialBreakevenCost: z.number().min(1).max(40).optional().default(12.0),
+          startMonth: z.number().int().min(1).max(12).optional().default(4),
+          storageDurationMonths: z.number().int().min(1).max(10).optional().default(6),
+          freshSalesTonPerDay: z.number().min(0).max(50000).optional().default(900),
+          reserveSalesTonPerMonth: z.number().min(0).max(200000).optional().default(5000),
+          deepProcessingTonPerDay: z.number().min(0).max(50000).optional().default(260),
+          rentedStorageTon: z.number().min(0).max(200000).optional().default(0),
         })
       )
       .query(({ input }) => {
@@ -267,6 +278,17 @@ export const appRouter = router({
           partCode: input.partCode ?? "all",
           vehiclePreference: input.vehiclePreference,
           targetShipmentTon: input.targetShipmentTon,
+          strategyMode: input.strategyMode,
+          timeStoragePolicy: input.timeStoragePolicy,
+          planningDays: input.planningDays,
+          holdingCostPerMonth: input.holdingCostPerMonth,
+          socialBreakevenCost: input.socialBreakevenCost,
+          startMonth: input.startMonth,
+          storageDurationMonths: input.storageDurationMonths,
+          freshSalesTonPerDay: input.freshSalesTonPerDay,
+          reserveSalesTonPerMonth: input.reserveSalesTonPerMonth,
+          deepProcessingTonPerDay: input.deepProcessingTonPerDay,
+          rentedStorageTon: input.rentedStorageTon,
         });
       }),
     spatialAiDispatch: protectedProcedure

@@ -60,6 +60,17 @@ export default function SpatialArbitragePage() {
   const [partCode, setPartCode] = useState("carcass");
   const [vehiclePreference, setVehiclePreference] = useState<"auto" | "small" | "medium" | "large">("auto");
   const [targetShipmentTon, setTargetShipmentTon] = useState<number>(0); // 0 => 自动
+  const [strategyMode, setStrategyMode] = useState<"balanced" | "fresh_first" | "storage_first" | "deep_processing">("balanced");
+  const [timeStoragePolicy, setTimeStoragePolicy] = useState<"auto" | "force" | "off">("auto");
+  const [planningDays, setPlanningDays] = useState(7);
+  const [holdingCostPerMonth, setHoldingCostPerMonth] = useState(0.2);
+  const [socialBreakevenCost, setSocialBreakevenCost] = useState(12);
+  const [startMonth, setStartMonth] = useState(4);
+  const [storageDurationMonths, setStorageDurationMonths] = useState(6);
+  const [freshSalesTonPerDay, setFreshSalesTonPerDay] = useState(900);
+  const [reserveSalesTonPerMonth, setReserveSalesTonPerMonth] = useState(5000);
+  const [deepProcessingTonPerDay, setDeepProcessingTonPerDay] = useState(260);
+  const [rentedStorageTon, setRentedStorageTon] = useState(0);
 
   const { data: simulation, isLoading: mapLoading } = trpc.platform.spatialArbitrageSimulate.useQuery(
     {
@@ -70,6 +81,17 @@ export default function SpatialArbitragePage() {
       partCode,
       vehiclePreference,
       targetShipmentTon: targetShipmentTon > 0 ? targetShipmentTon : undefined,
+      strategyMode,
+      timeStoragePolicy,
+      planningDays,
+      holdingCostPerMonth,
+      socialBreakevenCost,
+      startMonth,
+      storageDurationMonths,
+      freshSalesTonPerDay,
+      reserveSalesTonPerMonth,
+      deepProcessingTonPerDay,
+      rentedStorageTon,
     },
     { placeholderData: (prev: any) => prev }
   );
@@ -112,8 +134,8 @@ export default function SpatialArbitragePage() {
         {[
           { label: t("spatialArbitrage.statTotal"), value: `${simulation?.totalOpportunities ?? 0} 条`, desc: "扫描全国动态路网" },
           { label: t("spatialArbitrage.statBest"), value: `+${simulation?.bestRouteProfit.toFixed(2) ?? "0.00"} 元/kg`, desc: simulation?.bestRouteName ?? "-" },
-          { label: t("spatialArbitrage.statTop5"), value: `${simulation?.top5TotalProfit ?? 0} 万元`, desc: `基于 ${batchSize} 吨/批次` },
-          { label: t("spatialArbitrage.statAvg"), value: `${simulation?.averageSpread.toFixed(2) ?? "0.00"} 元/kg`, desc: "有效路由价差均值" }
+          { label: "调度总净利", value: `${simulation?.scheduleSummary?.totalNetProfit ?? 0} 万元`, desc: `${simulation?.scheduleSummary?.totalShippedTon ?? 0} 吨已分配` },
+          { label: "入储/深加工", value: `${(simulation?.scheduleSummary?.storageTon ?? 0) + (simulation?.scheduleSummary?.deepProcessingTon ?? 0)} 吨`, desc: `触发 ${simulation?.scheduleSummary?.storageOpenedRoutes ?? 0} 条时间套利` }
         ].map((stat, i) => (
           <TechPanel key={i} className="p-4 rounded-[20px] relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -134,6 +156,38 @@ export default function SpatialArbitragePage() {
            {simulation?.aiDecisionOverview ?? "正在加载区域数据与测算路由..."}
          </p>
       </div>
+
+      {/* Excel-derived pork chain constraints */}
+      <TechPanel className="mb-6 rounded-[24px] p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-bold text-white tracking-wide">猪食品产业链约束引擎</h3>
+            <p className="mt-1 text-[12px] text-slate-400">由 Excel 中 T→T+1→T+2→T+4→长期链路抽取：出栏、屠宰、分割、速冻、仓储和销售反向约束共同参与调度。</p>
+          </div>
+          <Badge className="border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
+            瓶颈：{simulation?.scheduleSummary?.bottleneckStage ?? "计算中"}
+          </Badge>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+          {simulation?.chainFactors?.map((factor: any) => (
+            <div key={factor.code} className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[12px] font-semibold text-white">{factor.stage}</p>
+                <span className="font-mono text-[10px] text-cyan-300">{factor.timeNode}</span>
+              </div>
+              <p className="font-mono text-lg font-bold text-slate-100">{factor.actual.toLocaleString()} <span className="text-[11px] text-slate-500">{factor.unit}</span></p>
+              <p className="mt-1 text-[11px] text-slate-400">目标 {factor.target.toLocaleString()}，缺口 {factor.gap.toLocaleString()}</p>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-cyan-400"
+                  style={{ width: `${Math.max(4, Math.min(100, factor.utilization))}%` }}
+                />
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">{factor.optimization}</p>
+            </div>
+          ))}
+        </div>
+      </TechPanel>
 
       {/* Main Middle Row (Sliders + Map) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
@@ -203,6 +257,51 @@ export default function SpatialArbitragePage() {
                       <SelectItem value="large" className="hover:bg-white/10 rounded-lg cursor-pointer">大型干线 25 吨</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <label className="text-[13px] text-slate-400 font-medium">利润策略</label>
+                    <Select value={strategyMode} onValueChange={(v) => setStrategyMode(v as typeof strategyMode)}>
+                      <SelectTrigger className="w-full bg-[#081020] border-white/10 text-white shadow-none focus:ring-1 focus:ring-cyan-500/50 rounded-xl transition-all hover:bg-white/5">
+                        <SelectValue placeholder="利润策略" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#081020] border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                        <SelectItem value="balanced" className="hover:bg-white/10 rounded-lg cursor-pointer">均衡利润最大化</SelectItem>
+                        <SelectItem value="fresh_first" className="hover:bg-white/10 rounded-lg cursor-pointer">鲜销优先</SelectItem>
+                        <SelectItem value="storage_first" className="hover:bg-white/10 rounded-lg cursor-pointer">冻品储备优先</SelectItem>
+                        <SelectItem value="deep_processing" className="hover:bg-white/10 rounded-lg cursor-pointer">深加工优先</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-[13px] text-slate-400 font-medium">时间套利</label>
+                    <Select value={timeStoragePolicy} onValueChange={(v) => setTimeStoragePolicy(v as typeof timeStoragePolicy)}>
+                      <SelectTrigger className="w-full bg-[#081020] border-white/10 text-white shadow-none focus:ring-1 focus:ring-cyan-500/50 rounded-xl transition-all hover:bg-white/5">
+                        <SelectValue placeholder="时间套利" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#081020] border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                        <SelectItem value="auto" className="hover:bg-white/10 rounded-lg cursor-pointer">自动触发入储</SelectItem>
+                        <SelectItem value="force" className="hover:bg-white/10 rounded-lg cursor-pointer">强制开启仓储</SelectItem>
+                        <SelectItem value="off" className="hover:bg-white/10 rounded-lg cursor-pointer">关闭仓储套利</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <ControlSlider label="计划天数" value={planningDays} suffix="天" min={1} max={30} step={1} onChange={setPlanningDays} />
+                  <ControlSlider label="起始月份" value={startMonth} suffix="月" min={1} max={12} step={1} onChange={setStartMonth} />
+                  <ControlSlider label="储备周期" value={storageDurationMonths} suffix="月" min={1} max={10} step={1} onChange={setStorageDurationMonths} />
+                  <ControlSlider label="持有成本" value={holdingCostPerMonth} suffix="元/kg/月" min={0.05} max={1.2} step={0.05} onChange={setHoldingCostPerMonth} />
+                  <ControlSlider label="社会成本线" value={socialBreakevenCost} suffix="元/kg" min={8} max={18} step={0.1} onChange={setSocialBreakevenCost} />
+                  <ControlSlider label="外租库容" value={rentedStorageTon} suffix="吨" min={0} max={50000} step={1000} onChange={setRentedStorageTon} />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <ControlSlider label="当期鲜销能力" value={freshSalesTonPerDay} suffix="吨/天" min={0} max={5000} step={100} onChange={setFreshSalesTonPerDay} />
+                  <ControlSlider label="未来冻品销售能力" value={reserveSalesTonPerMonth} suffix="吨/月" min={0} max={50000} step={500} onChange={setReserveSalesTonPerMonth} />
+                  <ControlSlider label="深加工原料消化" value={deepProcessingTonPerDay} suffix="吨/天" min={0} max={3000} step={50} onChange={setDeepProcessingTonPerDay} />
                 </div>
 
                 {/* dropdowns */}
@@ -453,6 +552,10 @@ export default function SpatialArbitragePage() {
                 <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">平均单吨运费</p>
                 <p className="font-mono text-lg font-bold text-slate-200">¥{(simulation.scheduleSummary.averageFreightPerKg * 1000).toFixed(0)}</p>
               </div>
+              <div className="text-right">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">时间套利入储</p>
+                <p className="font-mono text-lg font-bold text-cyan-200">{simulation.scheduleSummary.storageOpenedRoutes} 条</p>
+              </div>
               <button
                 onClick={() => {
                   if (!simulation) return;
@@ -467,12 +570,24 @@ export default function SpatialArbitragePage() {
                       partCode,
                       vehiclePreference,
                       targetShipmentTon: targetShipmentTon > 0 ? targetShipmentTon : null,
+                      strategyMode,
+                      timeStoragePolicy,
+                      planningDays,
+                      holdingCostPerMonth,
+                      socialBreakevenCost,
+                      startMonth,
+                      storageDurationMonths,
+                      freshSalesTonPerDay,
+                      reserveSalesTonPerMonth,
+                      deepProcessingTonPerDay,
+                      rentedStorageTon,
                     },
                     result: {
                       bestRouteName: simulation.bestRouteName,
                       bestRouteProfit: simulation.bestRouteProfit,
                       totalOpportunities: simulation.totalOpportunities,
                       scheduleSummary: simulation.scheduleSummary,
+                      chainAnalysis: simulation.chainAnalysis,
                       schedulePlanTop5: simulation.schedulePlan.slice(0, 5),
                     },
                     summaryProfit: `${simulation.scheduleSummary.totalNetProfit} 万元`,
@@ -494,6 +609,9 @@ export default function SpatialArbitragePage() {
                   <th className="pb-3 px-2 font-medium">产地 → 销地</th>
                   <th className="pb-3 px-2 font-medium text-right">距离(km)</th>
                   <th className="pb-3 px-2 font-medium text-right">发运(吨)</th>
+                  <th className="pb-3 px-2 font-medium text-right">鲜销</th>
+                  <th className="pb-3 px-2 font-medium text-right">入储</th>
+                  <th className="pb-3 px-2 font-medium text-right">深加工</th>
                   <th className="pb-3 px-2 font-medium">车型组合</th>
                   <th className="pb-3 px-2 font-medium text-right">车次</th>
                   <th className="pb-3 px-2 font-medium text-right">运费(元/kg)</th>
@@ -507,6 +625,12 @@ export default function SpatialArbitragePage() {
                     <td className="py-3 px-2 font-medium text-white">{p.originName} → {p.destName}</td>
                     <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.distanceKm}</td>
                     <td className="py-3 px-2 text-slate-200 font-mono text-right">{p.shippedTon}</td>
+                    <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.freshSalesTon}</td>
+                    <td className="py-3 px-2 text-cyan-300 font-mono text-right">
+                      {p.storageTon}
+                      {p.storageOpened && <span className="ml-1 text-[10px] text-cyan-400">开仓</span>}
+                    </td>
+                    <td className="py-3 px-2 text-violet-300 font-mono text-right">{p.deepProcessingTon}</td>
                     <td className="py-3 px-2 text-slate-400 text-[12px]">{p.tripBreakdown.map(tb => `${tb.vehicleName}×${tb.count}`).join(", ")}</td>
                     <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.trips}</td>
                     <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.freightPerKg.toFixed(2)}</td>
@@ -531,6 +655,24 @@ export default function SpatialArbitragePage() {
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-4">
               <p className="text-[11px] uppercase tracking-[0.2em] text-amber-300/80">小型冷链 5吨</p>
               <p className="font-mono text-2xl font-bold text-amber-200 mt-1">{simulation.scheduleSummary.vehicleMix.small} 车次</p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">当期鲜销分配</p>
+              <p className="mt-1 font-mono text-2xl font-bold text-white">{simulation.scheduleSummary.freshSalesTon} 吨</p>
+              <p className="mt-2 text-[11px] text-slate-400">受非储备部位鲜销能力约束，价格越强越优先兑现。</p>
+            </div>
+            <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/[0.05] p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-300/80">冻品储备分配</p>
+              <p className="mt-1 font-mono text-2xl font-bold text-cyan-200">{simulation.scheduleSummary.storageTon} 吨</p>
+              <p className="mt-2 text-[11px] text-slate-400">时间套利为正时开仓，优先消化长期库存目标与外租库容。</p>
+            </div>
+            <div className="rounded-xl border border-violet-500/30 bg-violet-500/[0.05] p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-violet-300/80">深加工原料分配</p>
+              <p className="mt-1 font-mono text-2xl font-bold text-violet-200">{simulation.scheduleSummary.deepProcessingTon} 吨</p>
+              <p className="mt-2 text-[11px] text-slate-400">承接储备冻品未来销售能力，把时间价差转成加工品溢价。</p>
             </div>
           </div>
         </TechPanel>
@@ -680,6 +822,37 @@ function PulseLines() {
       <div className="h-2 w-3/4 bg-white/10 rounded-full"></div>
       <div className="h-2 w-full bg-white/10 rounded-full"></div>
       <div className="h-2 w-5/6 bg-white/10 rounded-full"></div>
+    </div>
+  );
+}
+
+function ControlSlider({
+  label,
+  value,
+  suffix,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  suffix: string;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+}) {
+  const display = Number.isInteger(step) ? value.toFixed(0) : value.toFixed(2);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-[12px] text-slate-400 font-medium">{label}</label>
+        <span className="font-mono text-slate-300 font-bold bg-white/10 px-2 py-0.5 rounded text-[11px]">
+          {display} {suffix}
+        </span>
+      </div>
+      <Slider min={min} max={max} step={step} value={[value]} onValueChange={v => onChange(v[0] ?? value)} />
     </div>
   );
 }

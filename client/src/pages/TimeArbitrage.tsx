@@ -13,7 +13,9 @@ import {
   LineChart as LineChartIcon,
   PiggyBank,
   Save,
+  ShieldAlert,
   SlidersHorizontal,
+  Target,
   TimerReset,
   TrendingDown,
   TrendingUp,
@@ -152,16 +154,32 @@ export default function TimeArbitragePage() {
     )
   );
 
-  // 主图表数据
+  // 主图表数据（包含历史 3 个月 + 收储期）
   const chartData = useMemo(() => {
     if (!simulation) return [];
-    return simulation.months.map((month, index) => {
+    const rows: any[] = [];
+
+    // 历史月份
+    simulation.historyMonths.forEach((month, index) => {
+      rows.push({
+        month: MONTH_NAMES[month] ?? `${month}月`,
+        costLine: simulation.historyCostCurve[index],
+        futurePriceLine: simulation.historyFuturePriceCurve[index],
+        socialCostLine: simulation.historySocialCostLine[index],
+        profitSpace: simulation.historyProfitSpace[index], // null → 不画柱子
+        isHistory: true,
+      });
+    });
+
+    // 收储期月份
+    simulation.months.forEach((month, index) => {
       const row: any = {
         month: MONTH_NAMES[month] ?? `${month}月`,
         costLine: simulation.costCurve[index],
         futurePriceLine: simulation.futurePriceCurve[index],
         socialCostLine: simulation.socialCostLine[index],
         profitSpace: simulation.profitSpace[index],
+        isHistory: false,
       };
       savedPlans.forEach((plan, idx) => {
         const planSim = planQueries[idx]?.data;
@@ -172,15 +190,16 @@ export default function TimeArbitragePage() {
           }
         }
       });
-      return row;
+      rows.push(row);
     });
+
+    return rows;
   }, [simulation, savedPlans, planQueries]);
 
-  const profitCards = useMemo(() => simulation?.profits ?? [], [simulation]);
-
   const stats = useMemo(() => {
-    if (!simulation || profitCards.length === 0) return null;
-    const arbitrageMonths = profitCards.filter(p => p.shouldArbitrage);
+    const profits = simulation?.profits ?? [];
+    if (!simulation || profits.length === 0) return null;
+    const arbitrageMonths = profits.filter(p => p.shouldArbitrage);
     return {
       arbitrageCount: arbitrageMonths.length,
       maxProfitMonth: simulation.maxProfitMonth,
@@ -188,7 +207,7 @@ export default function TimeArbitragePage() {
       maxTotalProfit: simulation.maxTotalProfit,
       capitalRequired: parseFloat((spotPrice * storageTons * 1000 / 10000).toFixed(0)),
     };
-  }, [simulation, profitCards, spotPrice, storageTons]);
+  }, [simulation, spotPrice, storageTons]);
 
   // 收储期高亮
   const arbitrageWindow = simulation?.arbitrageWindow;
@@ -659,59 +678,17 @@ export default function TimeArbitragePage() {
         </div>
       </div>
 
-      {/* 利润预测卡片 + AI 决策 */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 mb-8">
-        {/* 月度利润预测卡片 */}
-        <TechPanel className="lg:col-span-8 p-6 flex flex-col rounded-[24px]">
-          <h4 className="text-sm font-semibold tracking-wide text-white mb-5 flex items-center gap-2">
-            <CalendarDays className="h-4 w-4 text-cyan-400" />
-            {t("timeArbitrage.adviceTitle")}
-            <span className="ml-auto text-[11px] text-slate-500 font-normal">价差（元/kg）/ 总利润（万元）</span>
-          </h4>
-
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {profitCards.map((card, idx) => (
-              <motion.div
-                key={`${card.month}-${idx}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.04 }}
-                className={`rounded-[14px] border p-3 text-center transition-all ${
-                  card.shouldArbitrage
-                    ? "border-emerald-500/30 bg-emerald-500/10 shadow-[0_0_12px_rgba(16,185,129,0.12)]"
-                    : "border-white/5 bg-white/5"
-                }`}
-              >
-                <p className="text-[11px] font-medium text-slate-400 mb-1.5">{card.month}月</p>
-                <p className="font-mono text-[11px] text-slate-400">
-                  成本 ¥{card.holdingCost.toFixed(2)}
-                </p>
-                <p className="font-mono text-[11px] text-violet-300 mb-1">
-                  预期 ¥{card.futurePrice.toFixed(2)}
-                </p>
-                <p className={`font-mono text-base font-bold tracking-tight ${card.shouldArbitrage ? "text-emerald-400" : "text-slate-500"}`}>
-                  {card.priceGap > 0 ? "+" : ""}{card.priceGap.toFixed(2)}
-                </p>
-                {card.shouldArbitrage && (
-                  <p className="text-[10px] text-emerald-500/80 mt-1 font-mono">
-                    +{card.totalProfit}万元
-                  </p>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        </TechPanel>
-
-        {/* AI 决策推理 */}
-        <TechPanel className="lg:col-span-4 p-6 flex flex-col rounded-[24px]">
+      {/* AI 决策推理（格式化四宫格展示） */}
+      <div className="mb-8">
+        <TechPanel className="p-6 rounded-[24px]">
           <h4 className="text-sm font-semibold tracking-wide text-white mb-5 flex items-center gap-2">
             <BrainCircuit className="h-4 w-4 text-violet-400" />
             {t("timeArbitrage.aiReasoning")}
           </h4>
 
-          <div className="flex-1 relative">
+          <div className="relative">
             {isPredicting ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+              <div className="flex flex-col items-center justify-center gap-3 py-12">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
                 <p className="text-xs text-slate-400 animate-pulse">Running quantitative arbitrage model...</p>
               </div>
@@ -719,24 +696,38 @@ export default function TimeArbitragePage() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="space-y-4 text-[13px] leading-relaxed"
+                className="grid grid-cols-1 gap-4 md:grid-cols-2"
               >
-                <div>
-                  <span className="font-semibold text-white block mb-1">{t("timeArbitrage.marketAnalysis")}</span>
-                  <span className="text-slate-300">{aiDecision.marketAnalysis}</span>
+                {/* 市场分析 */}
+                <div className="rounded-[16px] border border-cyan-500/20 bg-cyan-500/5 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/20">
+                      <TrendingUp className="h-4 w-4 text-cyan-400" />
+                    </div>
+                    <span className="text-[13px] font-semibold text-cyan-300">{t("timeArbitrage.marketAnalysis")}</span>
+                  </div>
+                  <p className="text-[12.5px] leading-relaxed text-slate-300">{aiDecision.marketAnalysis}</p>
                 </div>
 
-                <div className="h-px bg-white/5 w-full" />
-
-                <div>
-                  <span className="font-semibold text-white block mb-1">{t("timeArbitrage.costRecommendation")}</span>
-                  <span className="text-slate-300">{aiDecision.costRecommendation}</span>
+                {/* 成本建议 */}
+                <div className="rounded-[16px] border border-amber-500/20 bg-amber-500/5 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/20">
+                      <Target className="h-4 w-4 text-amber-400" />
+                    </div>
+                    <span className="text-[13px] font-semibold text-amber-300">{t("timeArbitrage.costRecommendation")}</span>
+                  </div>
+                  <p className="text-[12.5px] leading-relaxed text-slate-300">{aiDecision.costRecommendation}</p>
                 </div>
 
-                <div className="h-px bg-white/5 w-full" />
-
-                <div>
-                  <span className="font-semibold text-white block mb-2">{t("timeArbitrage.decision")}</span>
+                {/* 决策信号 */}
+                <div className="rounded-[16px] border border-emerald-500/20 bg-emerald-500/5 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20">
+                      <BrainCircuit className="h-4 w-4 text-emerald-400" />
+                    </div>
+                    <span className="text-[13px] font-semibold text-emerald-300">{t("timeArbitrage.decision")}</span>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {aiDecision.decision && aiDecision.decision.length > 0 ? (
                       aiDecision.decision.map((d: string) => (
@@ -752,9 +743,15 @@ export default function TimeArbitragePage() {
                   </div>
                 </div>
 
-                <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-[12px]">
-                  <span className="font-semibold text-rose-300 block mb-1">{t("timeArbitrage.riskWarning")}</span>
-                  <span className="text-rose-200/80 text-[12px]">{aiDecision.riskWarning}</span>
+                {/* 风险警示 */}
+                <div className="rounded-[16px] border border-rose-500/20 bg-rose-500/5 p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/20">
+                      <ShieldAlert className="h-4 w-4 text-rose-400" />
+                    </div>
+                    <span className="text-[13px] font-semibold text-rose-300">{t("timeArbitrage.riskWarning")}</span>
+                  </div>
+                  <p className="text-[12.5px] leading-relaxed text-rose-200/80">{aiDecision.riskWarning}</p>
                 </div>
               </motion.div>
             ) : null}

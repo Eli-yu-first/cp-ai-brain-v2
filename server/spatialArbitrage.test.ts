@@ -111,4 +111,46 @@ describe("calculateSpatialArbitrage (real logistics scheduling)", () => {
     });
     expect(res.scheduleSummary.totalShippedTon).toBeLessThanOrEqual(1000 + 0.1);
   });
+
+  it("opens storage lanes when time arbitrage policy is forced", () => {
+    const res = calculateSpatialArbitrage({
+      transportCostPerKmPerTon: 0.8,
+      minProfitThreshold: 0.5,
+      batchSizeTon: 500,
+      originFilter: "all",
+      partCode: "carcass",
+      vehiclePreference: "auto",
+      strategyMode: "storage_first",
+      timeStoragePolicy: "force",
+      targetShipmentTon: 1200,
+      rentedStorageTon: 1000,
+      freshSalesTonPerDay: 100,
+      reserveSalesTonPerMonth: 3000,
+      deepProcessingTonPerDay: 80,
+    });
+
+    expect(res.scheduleSummary.storageOpenedRoutes).toBeGreaterThan(0);
+    expect(res.scheduleSummary.storageTon + res.scheduleSummary.deepProcessingTon).toBeGreaterThan(0);
+    expect(res.chainAnalysis.optimizationLevers).toContain("就近标准外租库");
+    expect(res.schedulePlan.some(item => item.timeArbitrageTriggered && item.storageOpened)).toBe(true);
+  });
+
+  it("keeps Excel-derived chain factors visible in the result", () => {
+    const res = calculateSpatialArbitrage({
+      transportCostPerKmPerTon: 0.8,
+      minProfitThreshold: 0.5,
+      batchSizeTon: 500,
+      originFilter: "all",
+      partCode: "carcass",
+    });
+
+    const slaughter = res.chainFactors.find(item => item.code === "slaughter");
+    const storage = res.chainFactors.find(item => item.code === "storage");
+
+    expect(slaughter?.target).toBe(40000);
+    expect(slaughter?.actual).toBe(20000);
+    expect(storage?.target).toBe(37440);
+    expect(storage?.actual).toBeGreaterThanOrEqual(5000);
+    expect(res.scheduleSummary.bottleneckStage).toBeTruthy();
+  });
 });

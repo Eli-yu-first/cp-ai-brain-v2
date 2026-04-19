@@ -51,6 +51,16 @@ export type TimeArbitrageResult = {
   maxTotalProfit: number;
   /** 保本点预计月（future ≈ social） */
   breakEvenMonth: number | null;
+  /** 历史月份列表（收储开始前 3 个月） */
+  historyMonths: number[];
+  /** 历史持有成本线（实际上是当月现货价，尚无储存费） */
+  historyCostCurve: number[];
+  /** 历史期货预测价曲线 */
+  historyFuturePriceCurve: number[];
+  /** 历史社会养殖成本 */
+  historySocialCostLine: number[];
+  /** 历史利润空间（用 null 标记，前端不画柱子） */
+  historyProfitSpace: (number | null)[];
 };
 
 export type ArbitrageContext = {
@@ -85,7 +95,20 @@ export type ArbitrageContext = {
  */
 function futuresPriceAtOffset(spot: number, social: number, offset: number): number {
   const gap = social - spot;
-  // 分段线性拟合图示
+
+  // 负 offset：历史价格逆推（低位震荡，确定性模式）
+  // offset -3 → 现货价的 92%，offset -2 → 94%，offset -1 → 97%
+  if (offset < 0) {
+    const historyRatios: Record<number, number> = {
+      [-3]: 0.92,
+      [-2]: 0.94,
+      [-1]: 0.97,
+    };
+    const ratio = historyRatios[offset] ?? 0.95;
+    return parseFloat((spot * ratio).toFixed(2));
+  }
+
+  // 正 offset：分段线性拟合图示
   const anchors: Record<number, number> = {
     0: spot,
     1: spot + 0.1 * gap,
@@ -124,6 +147,34 @@ export function calculateArbitrage(
 ): TimeArbitrageResult {
   const duration = Math.max(1, Math.min(10, Math.round(storageDurationMonths)));
 
+  // ── 历史数据（收储前 3 个月） ──
+  const HISTORY_MONTHS = 3;
+  const historyMonths: number[] = [];
+  const historyCostCurve: number[] = [];
+  const historyFuturePriceCurve: number[] = [];
+  const historySocialCostLine: number[] = [];
+  const historyProfitSpace: (number | null)[] = [];
+
+  for (let h = -HISTORY_MONTHS; h < 0; h++) {
+    // 月份回退（支持跨年，如 startMonth=1 时 h=-1 → 12月）
+    const displayMonth = ((startMonth - 1 + h + 120) % 12) + 1;
+    historyMonths.push(displayMonth);
+
+    // 历史的现货价（低位震荡）
+    const historySpot = futuresPriceAtOffset(spotPrice, socialBreakevenCost, h);
+    historyCostCurve.push(historySpot);
+
+    // 历史期货预测价：比历史现货稍高（市场升水），但仍低于社会养殖成本
+    const histFutureSpread = 0.15 + Math.abs(h) * 0.08;
+    const histFuture = parseFloat((historySpot + histFutureSpread).toFixed(2));
+    historyFuturePriceCurve.push(histFuture);
+
+    historySocialCostLine.push(socialBreakevenCost);
+    // 历史月无收储操作，利润空间标记为 null（前端不画柱子）
+    historyProfitSpace.push(null);
+  }
+
+  // ── 收储期数据（原有逻辑） ──
   const months: number[] = [];
   const costCurve: number[] = [];
   const futurePriceCurve: number[] = [];
@@ -202,6 +253,11 @@ export function calculateArbitrage(
     maxProfit: maxProfit === -Infinity ? 0 : parseFloat(maxProfit.toFixed(2)),
     maxTotalProfit,
     breakEvenMonth,
+    historyMonths,
+    historyCostCurve,
+    historyFuturePriceCurve,
+    historySocialCostLine,
+    historyProfitSpace,
   };
 }
 

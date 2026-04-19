@@ -674,9 +674,32 @@ export default function AiDecisionPage() {
           ))}
           {current.modules.map(module => { const Icon = module.icon; return <GlassPanel key={module.title} className="h-full"><div className="flex h-full flex-col gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200"><Icon className="h-5 w-5" /></div><div><h4 className="text-lg font-semibold text-white">{module.title}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{module.desc}</p></div></div></GlassPanel>; })}
         </div>
+      </div>      <div className="mt-6 grid gap-3 md:hidden">
+        <GlassPanel className="p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-300/70">Mobile War-Room</p>
+          <h4 className="mt-3 text-lg font-semibold text-white">移动端战房速览</h4>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+              <p className="text-[11px] text-slate-400">预测单价</p>
+              <p className="mt-2 text-lg font-semibold text-white">¥{data ? data.summary.projectedPrice.toFixed(2) : "--"}</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+              <p className="text-[11px] text-slate-400">利润偏差</p>
+              <p className="mt-2 text-lg font-semibold text-white">¥{whatIfData ? whatIfData.summary.incrementalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "--"}</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+              <p className="text-[11px] text-slate-400">预警数量</p>
+              <p className="mt-2 text-lg font-semibold text-white">{alertsData?.items.length ?? 0}</p>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+              <p className="text-[11px] text-slate-400">派单状态</p>
+              <p className="mt-2 text-lg font-semibold text-white">{dispatchData?.escalation ? "升级中" : "稳定"}</p>
+            </div>
+          </div>
+        </GlassPanel>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <GlassPanel>
           <div className="flex h-full flex-col gap-5">
             <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-rose-300/60">{current.alertEyebrow}</p><h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.alertTitle}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{current.alertDesc}</p></div><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] text-rose-200"><Siren className="h-5 w-5" /></div></div>
@@ -701,6 +724,34 @@ export default function AiDecisionPage() {
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="xl:col-span-2 grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
+          <GlassPanel className="p-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Device Ready</p>
+            <h4 className="mt-3 text-xl font-bold tracking-tight text-white">工业平板与战房大屏适配</h4>
+            <p className="mt-3 text-[13px] leading-6 text-slate-400">当前布局已按移动端、工业平板和桌面战房进行分层编排：移动端优先显示关键 KPI，平板端保持双列执行卡片，桌面端延续全量分析工作台。</p>
+          </GlassPanel>
+          <GlassPanel className="p-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Notification Entry</p>
+            <h4 className="mt-3 text-xl font-bold tracking-tight text-white">企业微信 / 短信提醒预留</h4>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-white">企业微信提醒</p>
+                  <Badge className="border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">预留入口</Badge>
+                </div>
+                <p className="mt-3 text-[13px] leading-6 text-slate-400">后续可把红色预警、派单超时与根因分析摘要推送到企业微信群机器人或应用消息。</p>
+              </div>
+              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-white">短信提醒</p>
+                  <Badge className="border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">预留入口</Badge>
+                </div>
+                <p className="mt-3 text-[13px] leading-6 text-slate-400">后续可将超时升级、车辆延误与现场验收异常等关键事件同步到短信通知通道。</p>
+              </div>
+            </div>
+          </GlassPanel>
+        </div>
+
         <GlassPanel>
           <div className="flex h-full flex-col gap-5">
             <div className="flex items-start justify-between gap-4">
@@ -744,6 +795,23 @@ export default function AiDecisionPage() {
             </div>
           </div>
         </GlassPanel>
+      </div>
+
+      <div className="fixed inset-x-4 bottom-4 z-20 md:hidden">
+        <div className="grid grid-cols-3 gap-2 rounded-[24px] border border-white/10 bg-slate-950/80 p-2 shadow-[0_24px_80px_rgba(2,6,23,0.45)] backdrop-blur-xl">
+          <div className="rounded-2xl bg-white/[0.04] px-3 py-2 text-center">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">预警</p>
+            <p className="mt-1 text-sm font-semibold text-white">{alertsData?.items.length ?? 0}</p>
+          </div>
+          <div className="rounded-2xl bg-white/[0.04] px-3 py-2 text-center">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">工单</p>
+            <p className="mt-1 text-sm font-semibold text-white">{dispatchData?.workOrders.length ?? 0}</p>
+          </div>
+          <div className="rounded-2xl bg-white/[0.04] px-3 py-2 text-center">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Agent</p>
+            <p className="mt-1 text-sm font-semibold text-white">{aiAgents.data?.agents.length ?? 3}</p>
+          </div>
+        </div>
       </div>
 
       <Dialog open={Boolean(activeAlert)} onOpenChange={open => !open && setActiveAlert(null)}>

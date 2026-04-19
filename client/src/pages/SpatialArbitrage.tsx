@@ -16,6 +16,8 @@ import {
   Settings2,
   ListOrdered,
   Sparkles,
+  Package,
+  Gauge,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -56,11 +58,26 @@ export default function SpatialArbitragePage() {
   const [batchSize, setBatchSize] = useState(500);
   const [originFilter, setOriginFilter] = useState("all");
   const [partCode, setPartCode] = useState("carcass");
+  const [vehiclePreference, setVehiclePreference] = useState<"auto" | "small" | "medium" | "large">("auto");
+  const [targetShipmentTon, setTargetShipmentTon] = useState<number>(0); // 0 => 自动
 
   const { data: simulation, isLoading: mapLoading } = trpc.platform.spatialArbitrageSimulate.useQuery(
-    { transportCostPerKmPerTon: transportCost, minProfitThreshold: minProfit, batchSizeTon: batchSize, originFilter, partCode },
+    {
+      transportCostPerKmPerTon: transportCost,
+      minProfitThreshold: minProfit,
+      batchSizeTon: batchSize,
+      originFilter,
+      partCode,
+      vehiclePreference,
+      targetShipmentTon: targetShipmentTon > 0 ? targetShipmentTon : undefined,
+    },
     { placeholderData: (prev: any) => prev }
   );
+
+  const utils = trpc.useUtils();
+  const { mutate: saveRecord, isPending: savingRecord } = trpc.platform.saveArbitrageRecord.useMutation({
+    onSuccess: () => utils.platform.listArbitrageRecords.invalidate(),
+  });
 
   const { mutate: runAiDispatch, data: aiTasks, isPending: aiPending } = trpc.platform.spatialAiDispatch.useMutation();
 
@@ -160,6 +177,34 @@ export default function SpatialArbitragePage() {
                   <Slider min={100} max={2000} step={100} value={[batchSize]} onValueChange={v => setBatchSize(v[0]!)} />
                 </div>
                 
+                {/* param 4: 目标发运量 */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[13px] text-slate-400 font-medium flex items-center gap-2">
+                       <Package className="h-4 w-4 text-slate-500" /> 目标发运量（0=自动铺满）
+                    </label>
+                    <span className="font-mono text-slate-300 font-bold bg-white/10 px-2 py-0.5 rounded text-xs">{targetShipmentTon === 0 ? "自动" : `${targetShipmentTon} 吨`}</span>
+                  </div>
+                  <Slider min={0} max={20000} step={500} value={[targetShipmentTon]} onValueChange={v => setTargetShipmentTon(v[0]!)} />
+                </div>
+                {/* param 5: 车型偏好 */}
+                <div className="space-y-3">
+                  <label className="text-[13px] text-slate-400 font-medium flex items-center gap-2">
+                    <Gauge className="h-4 w-4 text-slate-500" /> 车型偏好
+                  </label>
+                  <Select value={vehiclePreference} onValueChange={(v) => setVehiclePreference(v as typeof vehiclePreference)}>
+                    <SelectTrigger className="w-full bg-[#081020] border-white/10 text-white shadow-none focus:ring-1 focus:ring-cyan-500/50 rounded-xl transition-all hover:bg-white/5">
+                      <SelectValue placeholder="车型偏好" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#081020] border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                      <SelectItem value="auto" className="hover:bg-white/10 rounded-lg cursor-pointer">自动选型（按批量）</SelectItem>
+                      <SelectItem value="small" className="hover:bg-white/10 rounded-lg cursor-pointer">小型冷链 5 吨</SelectItem>
+                      <SelectItem value="medium" className="hover:bg-white/10 rounded-lg cursor-pointer">中型冷链 15 吨</SelectItem>
+                      <SelectItem value="large" className="hover:bg-white/10 rounded-lg cursor-pointer">大型干线 25 吨</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* dropdowns */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-3">
@@ -384,6 +429,112 @@ export default function SpatialArbitragePage() {
             </div>
          </TechPanel>
       </div>
+
+      {/* Schedule Plan Panel (真实调度算法输出) */}
+      {simulation?.schedulePlan && simulation.schedulePlan.length > 0 && (
+        <TechPanel className="mb-8 rounded-[24px] p-6">
+          <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
+            <div>
+              <h3 className="text-base font-bold text-white tracking-wide flex items-center gap-2">
+                <Truck className="h-5 w-5 text-emerald-400" /> 真实物流调度计划
+              </h3>
+              <p className="text-[12px] text-slate-400 mt-1">按产能 / 需求 / 车型自动排工，仅保留单强正收益路线</p>
+            </div>
+            <div className="flex flex-wrap gap-3 items-center">
+              <div className="text-right">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">累计发运</p>
+                <p className="font-mono text-lg font-bold text-emerald-300">{simulation.scheduleSummary.totalShippedTon} 吨</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">总净利</p>
+                <p className="font-mono text-lg font-bold text-emerald-300">{simulation.scheduleSummary.totalNetProfit} 万元</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">平均单吨运费</p>
+                <p className="font-mono text-lg font-bold text-slate-200">¥{(simulation.scheduleSummary.averageFreightPerKg * 1000).toFixed(0)}</p>
+              </div>
+              <button
+                onClick={() => {
+                  if (!simulation) return;
+                  saveRecord({
+                    recordType: "spatial",
+                    scenarioLabel: `空间套利 ${simulation.bestRouteName} · ${partCode}`,
+                    params: {
+                      transportCost,
+                      minProfit,
+                      batchSize,
+                      originFilter,
+                      partCode,
+                      vehiclePreference,
+                      targetShipmentTon: targetShipmentTon > 0 ? targetShipmentTon : null,
+                    },
+                    result: {
+                      bestRouteName: simulation.bestRouteName,
+                      bestRouteProfit: simulation.bestRouteProfit,
+                      totalOpportunities: simulation.totalOpportunities,
+                      scheduleSummary: simulation.scheduleSummary,
+                      schedulePlanTop5: simulation.schedulePlan.slice(0, 5),
+                    },
+                    summaryProfit: `${simulation.scheduleSummary.totalNetProfit} 万元`,
+                    summaryMetric: `发运 ${simulation.scheduleSummary.totalShippedTon} 吨 / ${simulation.schedulePlan.length} 条路线`,
+                  });
+                }}
+                disabled={savingRecord}
+                className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-[12px] font-semibold text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+              >
+                {savingRecord ? "保存中…" : "保存该方案"}
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-white/10 text-slate-400 uppercase text-[11px] tracking-wider">
+                  <th className="pb-3 px-2 font-medium">产地 → 销地</th>
+                  <th className="pb-3 px-2 font-medium text-right">距离(km)</th>
+                  <th className="pb-3 px-2 font-medium text-right">发运(吨)</th>
+                  <th className="pb-3 px-2 font-medium">车型组合</th>
+                  <th className="pb-3 px-2 font-medium text-right">车次</th>
+                  <th className="pb-3 px-2 font-medium text-right">运费(元/kg)</th>
+                  <th className="pb-3 px-2 font-medium text-right text-emerald-400">净利(元/kg)</th>
+                  <th className="pb-3 px-2 font-medium text-right text-emerald-300">线章总净利</th>
+                </tr>
+              </thead>
+              <tbody>
+                {simulation.schedulePlan.slice(0, 10).map((p, i) => (
+                  <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                    <td className="py-3 px-2 font-medium text-white">{p.originName} → {p.destName}</td>
+                    <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.distanceKm}</td>
+                    <td className="py-3 px-2 text-slate-200 font-mono text-right">{p.shippedTon}</td>
+                    <td className="py-3 px-2 text-slate-400 text-[12px]">{p.tripBreakdown.map(tb => `${tb.vehicleName}×${tb.count}`).join(", ")}</td>
+                    <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.trips}</td>
+                    <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.freightPerKg.toFixed(2)}</td>
+                    <td className="py-3 px-2 font-mono font-bold text-emerald-400 text-right">+{p.netProfitPerKg.toFixed(2)}</td>
+                    <td className="py-3 px-2 font-mono font-bold text-emerald-300 text-right">{p.netProfitTotal} 万</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Vehicle Mix */}
+          <div className="mt-6 grid grid-cols-3 gap-4">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.05] p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300/80">大型干线 25吨</p>
+              <p className="font-mono text-2xl font-bold text-emerald-200 mt-1">{simulation.scheduleSummary.vehicleMix.large} 车次</p>
+            </div>
+            <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/[0.05] p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-300/80">中型冷链 15吨</p>
+              <p className="font-mono text-2xl font-bold text-cyan-200 mt-1">{simulation.scheduleSummary.vehicleMix.medium} 车次</p>
+            </div>
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-amber-300/80">小型冷链 5吨</p>
+              <p className="font-mono text-2xl font-bold text-amber-200 mt-1">{simulation.scheduleSummary.vehicleMix.small} 车次</p>
+            </div>
+          </div>
+        </TechPanel>
+      )}
 
       {/* AI Strategy Report Block */}
       {simulation?.aiStrategyReport && (

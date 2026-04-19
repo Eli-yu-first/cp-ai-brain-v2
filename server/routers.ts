@@ -425,7 +425,10 @@ export const appRouter = router({
       }),
     auditLogs: protectedProcedure.query(async () => {
       const persisted = await listPersistedAuditLogs();
-      return [...persisted, ...listAuditEntries()].sort((a, b) => b.createdAt - a.createdAt);
+      if (persisted.length > 0) {
+        return persisted.sort((a, b) => b.createdAt - a.createdAt);
+      }
+      return listAuditEntries().sort((a, b) => b.createdAt - a.createdAt);
     }),
     confirmDecision: protectedProcedure
       .input(

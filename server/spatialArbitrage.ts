@@ -1,3 +1,5 @@
+import { partQuotes } from "./platformData";
+
 export type GeoNode = {
   id: string;
   name: string;
@@ -8,27 +10,40 @@ export type GeoNode = {
   capacity?: number; // 产地可处理能力预估数值
 };
 
-// 预设一批地理节点（带简化坐标）用于地图与套利计算
 const GEO_NODES: GeoNode[] = [
-  // 产地，通常是低价区域
-  { id: "origin_gx", name: "广西", lat: 23.8, lng: 108.3, type: "origin", basePrice: 9.3, capacity: 6000 },
-  { id: "origin_hn", name: "湖南", lat: 27.6, lng: 111.7, type: "origin", basePrice: 9.5, capacity: 5500 },
-  { id: "origin_sc", name: "四川", lat: 30.6, lng: 104.0, type: "origin", basePrice: 9.2, capacity: 7000 },
-  { id: "origin_hb", name: "河北", lat: 38.0, lng: 114.5, type: "origin", basePrice: 9.8, capacity: 4800 },
-  { id: "origin_sd", name: "山东", lat: 36.6, lng: 117.0, type: "origin", basePrice: 10.0, capacity: 8000 },
-  { id: "origin_yn", name: "云南", lat: 25.0, lng: 102.7, type: "origin", basePrice: 9.6, capacity: 3500 },
-  { id: "origin_cq", name: "重庆", lat: 29.5, lng: 106.5, type: "origin", basePrice: 11.8, capacity: 4000 },
-  
-  // 目的地
-  { id: "dest_gd", name: "广东", lat: 23.1, lng: 113.2, type: "destination", basePrice: 14.1 },
-  { id: "dest_sh", name: "上海", lat: 31.2, lng: 121.4, type: "destination", basePrice: 13.8 },
-  { id: "dest_zj", name: "浙江", lat: 29.0, lng: 119.5, type: "destination", basePrice: 13.5 },
-  { id: "dest_fj", name: "福建", lat: 26.0, lng: 118.0, type: "destination", basePrice: 13.1 },
-  { id: "dest_bj", name: "北京", lat: 39.9, lng: 116.4, type: "destination", basePrice: 13.2 },
-  { id: "dest_tj", name: "天津", lat: 39.1, lng: 117.2, type: "destination", basePrice: 12.8 },
-  { id: "dest_js", name: "江苏", lat: 33.0, lng: 119.7, type: "destination", basePrice: 12.6 },
-  { id: "dest_hlj", name: "黑龙江", lat: 46.5, lng: 126.6, type: "destination", basePrice: 9.9 },
+  { id: "node_bj", name: "北京", lat: 39.9042, lng: 116.4074, type: "destination", basePrice: 13.2 },
+  { id: "node_tj", name: "天津", lat: 39.0842, lng: 117.2008, type: "destination", basePrice: 12.8 },
+  { id: "node_he", name: "河北", lat: 38.0428, lng: 114.5149, type: "origin", basePrice: 9.8, capacity: 4800 },
+  { id: "node_sx", name: "山西", lat: 37.857, lng: 112.5492, type: "origin", basePrice: 10.1, capacity: 3200 },
+  { id: "node_nm", name: "内蒙古", lat: 40.8175, lng: 111.7652, type: "origin", basePrice: 9.2, capacity: 5000 },
+  { id: "node_ln", name: "辽宁", lat: 41.8057, lng: 123.4315, type: "origin", basePrice: 9.7, capacity: 4500 },
+  { id: "node_jl", name: "吉林", lat: 43.8171, lng: 125.3235, type: "origin", basePrice: 9.6, capacity: 3800 },
+  { id: "node_hlj", name: "黑龙江", lat: 45.7567, lng: 126.6424, type: "origin", basePrice: 9.4, capacity: 4000 },
+  { id: "node_sh", name: "上海", lat: 31.2304, lng: 121.4737, type: "destination", basePrice: 13.8 },
+  { id: "node_js", name: "江苏", lat: 32.0603, lng: 118.7969, type: "destination", basePrice: 12.6 },
+  { id: "node_zj", name: "浙江", lat: 30.2741, lng: 120.1551, type: "destination", basePrice: 13.5 },
+  { id: "node_ah", name: "安徽", lat: 31.8206, lng: 117.2272, type: "origin", basePrice: 11.2, capacity: 5500 },
+  { id: "node_fj", name: "福建", lat: 26.0745, lng: 119.2965, type: "destination", basePrice: 13.1 },
+  { id: "node_jx", name: "江西", lat: 28.6829, lng: 115.8582, type: "origin", basePrice: 10.5, capacity: 4800 },
+  { id: "node_sd", name: "山东", lat: 36.6512, lng: 117.1201, type: "origin", basePrice: 10.0, capacity: 8000 },
+  { id: "node_ha", name: "河南", lat: 34.7466, lng: 113.6254, type: "origin", basePrice: 9.7, capacity: 9000 },
+  { id: "node_hb", name: "湖北", lat: 30.5931, lng: 114.3054, type: "destination", basePrice: 12.1 },
+  { id: "node_hn", name: "湖南", lat: 28.2282, lng: 112.9388, type: "origin", basePrice: 9.5, capacity: 5500 },
+  { id: "node_gd", name: "广东", lat: 23.1291, lng: 113.2644, type: "destination", basePrice: 14.1 },
+  { id: "node_gx", name: "广西", lat: 22.817, lng: 108.3669, type: "origin", basePrice: 9.3, capacity: 6000 },
+  { id: "node_hi", name: "海南", lat: 20.02, lng: 110.3486, type: "destination", basePrice: 14.5 },
+  { id: "node_cq", name: "重庆", lat: 29.563, lng: 106.5516, type: "destination", basePrice: 11.8 },
+  { id: "node_sc", name: "四川", lat: 30.5728, lng: 104.0665, type: "origin", basePrice: 9.2, capacity: 7000 },
+  { id: "node_gz", name: "贵州", lat: 26.5982, lng: 106.7074, type: "origin", basePrice: 10.3, capacity: 3000 },
+  { id: "node_yn", name: "云南", lat: 24.8801, lng: 102.8329, type: "origin", basePrice: 9.6, capacity: 3500 },
+  { id: "node_xz", name: "西藏", lat: 29.6525, lng: 91.1721, type: "destination", basePrice: 15.0 },
+  { id: "node_sn", name: "陕西", lat: 34.3416, lng: 108.9398, type: "origin", basePrice: 10.4, capacity: 4000 },
+  { id: "node_gs", name: "甘肃", lat: 36.0611, lng: 103.8343, type: "origin", basePrice: 10.6, capacity: 2500 },
+  { id: "node_qh", name: "青海", lat: 36.6171, lng: 101.7782, type: "origin", basePrice: 11.0, capacity: 1500 },
+  { id: "node_nx", name: "宁夏", lat: 38.4872, lng: 106.2309, type: "origin", basePrice: 10.2, capacity: 1800 },
+  { id: "node_xj", name: "新疆", lat: 43.7928, lng: 87.6177, type: "origin", basePrice: 9.5, capacity: 2000 },
 ];
+
 
 export type ArbitrageRoute = {
   originId: string;
@@ -47,6 +62,8 @@ export type ArbitrageRoute = {
 };
 
 export type SpatialArbitrageResult = {
+  aiStrategyReport: DetailedStrategyReport;
+
   routes: ArbitrageRoute[];
   totalOpportunities: number;
   bestRouteProfit: number;
@@ -68,15 +85,53 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 }
 
 
+
+export type DetailedStrategyReport = {
+  marketAnalysis: string;
+  corePathways: string[];
+  profitPrediction: string;
+  recommendedAction: string;
+  estimatedReturn: string;
+};
+
+export function generateDetailedStrategyReport(routes: ArbitrageRoute[], partName: string): DetailedStrategyReport {
+  if (routes.length === 0) {
+    return {
+      marketAnalysis: "当前全国各地供需相对平衡，或受巨额运费壁垒阻挡，未能发现具有明显操作空间的价格洼地。",
+      corePathways: [],
+      profitPrediction: "暂无显著盈利空间，盲目跨区可能导致运费亏损。",
+      recommendedAction: "保持现有区域内产销平衡，持续监控中原-华南、东北-长三角的核心价差。",
+      estimatedReturn: "0 万元"
+    };
+  }
+
+  const top = routes[0]!;
+  const topStr = routes.slice(0, 3).map(r => `${r.originName}→${r.destName}(+${r.netProfit.toFixed(2)}元/kg)`).join('，');
+  const totalProfit = routes.slice(0, 5).reduce((sum, r) => sum + r.batchProfit, 0).toFixed(1);
+  return {
+    marketAnalysis: `针对【${partName}】部位的实时测算显示，${top.originName}及周边产区存在显著的价格低谷（￥${top.originPrice.toFixed(2)}/kg），而${top.destName}等销区终端消费依然旺盛或因供给收缩形成价格高地（￥${top.destPrice.toFixed(2)}/kg）。当前时空维度的极差已突破运费壁垒。`,
+    corePathways: routes.slice(0, 3).map(r => `${r.originName} 调往 ${r.destName}：净利预期 +${r.netProfit.toFixed(2)}元/kg`),
+    profitPrediction: `若满载执行（基准车次发运），跨区溢价足以覆盖 ${top.distanceKm} 公里的运输磨耗与保险。预计首批调峰铺货可直接兑现 ${top.batchProfit} 万元单次利润。`,
+    recommendedAction: `立即启动【${top.originName}】产区紧急冷链收货，锁定【${top.destName}】大宗批发渠道及餐饮供应链，实行点对点极速调拨。`,
+    estimatedReturn: `${totalProfit} 万元 (前五条路径合计)`
+  };
+}
+
 export function calculateSpatialArbitrage(
   transportCostPerKmPerTon: number,
   minProfitThreshold: number,
   batchSizeTon: number,
-  originFilter: string
+  originFilter: string,
+  partCode: string = "all"
 ): SpatialArbitrageResult {
   const routes: ArbitrageRoute[] = [];
   const origins = GEO_NODES.filter(n => n.type === "origin" && (originFilter === "all" || n.id === originFilter || n.name.includes(originFilter)));
   const destinations = GEO_NODES.filter(n => n.type === "destination");
+
+  // 获取具体部位的溢价
+  const part = partQuotes.find(p => p.code === partCode);
+  const premiumRatio = part ? (part.spotPrice / 23.4) : 1; // 假设 23.4 为基准白条价的参考
+  const partName = part ? part.name : "生猪/白条通货";
 
   origins.forEach(origin => {
     destinations.forEach(dest => {
@@ -85,7 +140,9 @@ export function calculateSpatialArbitrage(
       
       // 运输成本 = 距离 * 吨公里成本 / 1000 （化为元/公斤）
       const transportCost = parseFloat((distance * transportCostPerKmPerTon / 1000).toFixed(2));
-      const netProfit = parseFloat((dest.basePrice - origin.basePrice - transportCost).toFixed(2));
+      const oPrice = parseFloat((origin.basePrice * premiumRatio).toFixed(2));
+      const dPrice = parseFloat((dest.basePrice * premiumRatio).toFixed(2));
+      const netProfit = parseFloat((dPrice - oPrice - transportCost).toFixed(2));
       
       if (netProfit >= minProfitThreshold) {
         const batchProfit = parseFloat(((netProfit * 1000 * batchSizeTon) / 10000).toFixed(1)); // 万元
@@ -100,8 +157,8 @@ export function calculateSpatialArbitrage(
           destId: dest.id,
           originName: origin.name,
           destName: dest.name,
-          originPrice: origin.basePrice,
-          destPrice: dest.basePrice,
+          originPrice: oPrice,
+          destPrice: dPrice,
           distanceKm: distance,
           transportCost,
           netProfit,
@@ -138,6 +195,7 @@ export function calculateSpatialArbitrage(
 
   return {
     routes,
+    aiStrategyReport: generateDetailedStrategyReport(routes, partName),
     totalOpportunities: routes.length,
     bestRouteProfit,
     bestRouteName,

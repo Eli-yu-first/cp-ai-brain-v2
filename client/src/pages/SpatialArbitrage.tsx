@@ -30,8 +30,9 @@ import {
   YAxis,
 } from "recharts";
 import { ComposableMap, Geographies, Geography, Marker, Line as MapLine } from "react-simple-maps";
+import chinaGeo from "@/data/china-geo.json";
 
-const geoUrl = "https://unpkg.com/world-atlas@2.0.2/countries-110m.json";
+const geoUrl = chinaGeo;
 
 function CustomBarTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
@@ -54,9 +55,10 @@ export default function SpatialArbitragePage() {
   const [minProfit, setMinProfit] = useState(1.0);
   const [batchSize, setBatchSize] = useState(500);
   const [originFilter, setOriginFilter] = useState("all");
+  const [partCode, setPartCode] = useState("carcass");
 
   const { data: simulation, isLoading: mapLoading } = trpc.platform.spatialArbitrageSimulate.useQuery(
-    { transportCostPerKmPerTon: transportCost, minProfitThreshold: minProfit, batchSizeTon: batchSize, originFilter },
+    { transportCostPerKmPerTon: transportCost, minProfitThreshold: minProfit, batchSizeTon: batchSize, originFilter, partCode },
     { keepPreviousData: true }
   );
 
@@ -157,7 +159,24 @@ export default function SpatialArbitragePage() {
                   </div>
                   <Slider min={100} max={2000} step={100} value={[batchSize]} onValueChange={v => setBatchSize(v[0]!)} />
                 </div>
-                {/* dropdown */}
+                
+                {/* dropdowns */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <label className="text-[13px] text-slate-400 font-medium">经营部位选择</label>
+                    <Select value={partCode} onValueChange={setPartCode}>
+                       <SelectTrigger className="w-full bg-[#081020] border-white/10 text-white shadow-none focus:ring-1 focus:ring-cyan-500/50 rounded-xl transition-all hover:bg-white/5">
+                          <SelectValue placeholder="选择部位" />
+                       </SelectTrigger>
+                       <SelectContent className="bg-[#081020] border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
+                          <SelectItem value="whole_hog" className="hover:bg-white/10 rounded-lg cursor-pointer">活体毛猪</SelectItem>
+                          <SelectItem value="carcass" className="hover:bg-white/10 rounded-lg cursor-pointer">核心白条</SelectItem>
+                          <SelectItem value="frozen_stock" className="hover:bg-white/10 rounded-lg cursor-pointer">冷冻库存</SelectItem>
+                          <SelectItem value="pork_belly" className="hover:bg-white/10 rounded-lg cursor-pointer">精选五花肉</SelectItem>
+                          <SelectItem value="ribs" className="hover:bg-white/10 rounded-lg cursor-pointer">肋排</SelectItem>
+                       </SelectContent>
+                    </Select>
+                  </div>
                 <div className="space-y-3">
                   <label className="text-[13px] text-slate-400 font-medium">产地选择</label>
                   <Select value={originFilter} onValueChange={setOriginFilter}>
@@ -192,29 +211,34 @@ export default function SpatialArbitragePage() {
              <div className="absolute inset-0 pt-16 pb-4 px-4 overflow-hidden pointer-events-none opacity-80">
                {typeof window !== "undefined" && (
                  <ComposableMap
-                   projection="geoMercator"
+                   projection="geoOrthographic"
                    projectionConfig={{
-                     scale: 650, // Zoom out slightly to cover regions better
-                     center: mapCenter, 
+                     scale: 680,
+                     rotate: [-104, -36, 0]
                    }}
                    width={800}
                    height={480}
                    style={{ width: "100%", height: "100%" }}
                  >
                    <Geographies geography={geoUrl}>
-                     {({ geographies }) =>
-                       geographies.map((geo) => {
-                         // Very basic style of map backing
+                     {({ geographies }: any) =>
+                       geographies.map((geo: any) => {
+                         const originColor = "rgba(16,185,129,0.18)";
+                         const destColor = "rgba(244,63,94,0.18)";
+                         const isOrigin = simulation?.nodes.some(n => n.name === geo.properties?.name && n.type === 'origin');
+                         const isDest = simulation?.nodes.some(n => n.name === geo.properties?.name && n.type === 'destination');
+                         
                          return (
                            <Geography
                              key={geo.rsmKey}
                              geography={geo}
-                             fill="#0c182c"
-                             stroke="#1e293b"
+                             fill={isOrigin ? originColor : isDest ? destColor : "rgba(15,23,42,0.6)"}
+                             stroke="rgba(56,189,248,0.25)"
                              strokeWidth={0.8}
+                             className="transition-colors duration-500"
                              style={{
                                default: { outline: "none" },
-                               hover: { outline: "none", fill: "#0f1e36" },
+                               hover: { outline: "none", fill: "rgba(56,189,248,0.2)" },
                                pressed: { outline: "none" },
                              }}
                            />
@@ -359,6 +383,60 @@ export default function SpatialArbitragePage() {
             </div>
          </TechPanel>
       </div>
+
+      {/* AI Strategy Report Block */}
+      {simulation?.aiStrategyReport && (
+        <TechPanel className="mb-8 rounded-[24px] p-6 lg:p-8 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.08),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(6,182,212,0.05),transparent_50%))]">
+          <div className="flex items-center gap-3 mb-6">
+             <div className="h-10 w-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
+               <BrainCircuit className="h-5 w-5 text-cyan-400" />
+             </div>
+             <div>
+               <h3 className="text-lg font-bold text-white tracking-wide">AI 时空维调拨策略深度解析</h3>
+               <p className="text-[12px] text-slate-400">结合价格极差、物流磨耗与热力网生成的行动方案</p>
+             </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="space-y-4 lg:col-span-1">
+               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-2"><Target className="w-8 h-8 text-white/[0.03]" /></div>
+                 <h4 className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-3 flex items-center gap-2"><Target className="w-3.5 h-3.5" />核心推荐路径</h4>
+                 <div className="space-y-2 relative z-10">
+                   {simulation.aiStrategyReport.corePathways.length > 0 ? simulation.aiStrategyReport.corePathways.map((path: string, idx: number) => (
+                     <div key={idx} className="text-sm font-semibold text-emerald-400 border-l-2 border-emerald-500/40 pl-3 py-1 bg-emerald-500/[0.03]">
+                       {path}
+                     </div>
+                   )) : <div className="text-sm text-slate-500">（无有效路径满足利润阈值）</div>}
+                 </div>
+               </div>
+               <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 flex justify-between items-center group overflow-hidden relative">
+                 <div className="absolute right-[-10px] bottom-[-10px] opacity-10 group-hover:opacity-20 transition-opacity"><TrendingUp className="w-16 h-16 text-rose-500" /></div>
+                 <div className="relative z-10">
+                   <h4 className="text-[11px] uppercase tracking-[0.2em] text-rose-400/80 mb-1">本期操作期望净收益</h4>
+                   <p className="text-2xl font-bold font-mono text-rose-300 drop-shadow-[0_0_10px_rgba(244,63,94,0.4)]">{simulation.aiStrategyReport.estimatedReturn}</p>
+                 </div>
+               </div>
+            </div>
+            
+            <div className="space-y-4 lg:col-span-2">
+               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 h-full relative">
+                 <h4 className="text-[11px] uppercase tracking-[0.2em] text-cyan-500 mb-4 flex items-center gap-2"><MapIcon className="w-3.5 h-3.5" />行情全景诊断纪要</h4>
+                 <p className="text-sm text-slate-300 leading-relaxed mb-4">
+                   {simulation.aiStrategyReport.marketAnalysis}
+                 </p>
+                 <div className="h-[1px] w-full bg-white/5 my-4"></div>
+                 <p className="text-sm text-slate-300 leading-relaxed mb-4">
+                   {simulation.aiStrategyReport.profitPrediction}
+                 </p>
+                 <div className="mt-4 p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-sm font-medium shadow-[0_0_15px_rgba(16,185,129,0.15)] flex items-start gap-2">
+                   <span className="shrink-0 text-xl">🎯</span> <span><strong className="text-emerald-200">执行建议：</strong>{simulation.aiStrategyReport.recommendedAction}</span>
+                 </div>
+               </div>
+            </div>
+          </div>
+        </TechPanel>
+      )}
 
       {/* AI Role Tasks */}
       <div className="mb-10">

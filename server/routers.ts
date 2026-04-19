@@ -250,7 +250,8 @@ export const appRouter = router({
           transportCostPerKmPerTon: z.number().min(0.1).max(5.0),
           minProfitThreshold: z.number().min(0.0).max(10.0),
           batchSizeTon: z.number().min(50).max(5000),
-          originFilter: z.string()
+          originFilter: z.string(),
+          partCode: z.string().optional()
         })
       )
       .query(({ input }) => {
@@ -258,7 +259,8 @@ export const appRouter = router({
           input.transportCostPerKmPerTon,
           input.minProfitThreshold,
           input.batchSizeTon,
-          input.originFilter
+          input.originFilter,
+          input.partCode
         );
       }),
     spatialAiDispatch: protectedProcedure

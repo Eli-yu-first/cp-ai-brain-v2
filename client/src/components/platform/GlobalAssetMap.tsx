@@ -10,13 +10,15 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Minus, Plus, Radar } from "lucide-react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
 import { categoryOrder, filterSitesByCategories, getCategoryCounts, globalSites as sites, type SiteCategory } from "./globalAssetMapData";
+import worldAtlas from "@/data/countries-110m.json";
 
-const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+// 本地化缓存：避免运行时依赖 CDN，提升内网部署可用性
+const geoUrl = worldAtlas as unknown;
 
-export function GlobalAssetMap() {
+function GlobalAssetMapInner() {
   const { language } = useLanguage();
   const [zoom, setZoom] = useState(1.08);
   const [center, setCenter] = useState<[number, number]>([100, 18]);
@@ -246,3 +248,6 @@ export function GlobalAssetMap() {
     </div>
   );
 }
+
+// React.memo 避免父级重渲染时开销（地图 TopoJSON 解析成本较高）
+export const GlobalAssetMap = memo(GlobalAssetMapInner);

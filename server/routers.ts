@@ -151,13 +151,19 @@ export const appRouter = router({
           spotPrice: z.number().min(1).max(40),
           futuresPrice: z.number().min(1).max(40),
           holdingCostPerMonth: z.number().min(0.01).max(2.0),
+          socialBreakevenCost: z.number().min(1).max(40).optional().default(12.0),
+          storageTons: z.number().min(50).max(50000).optional().default(1000),
+          startMonth: z.number().min(1).max(12).optional().default(4),
         })
       )
       .query(({ input }) => {
         return calculateArbitrage(
           input.spotPrice,
           input.futuresPrice,
-          input.holdingCostPerMonth
+          input.holdingCostPerMonth,
+          input.socialBreakevenCost,
+          input.storageTons,
+          input.startMonth,
         );
       }),
     arbitrageAiDecision: protectedProcedure
@@ -166,18 +172,27 @@ export const appRouter = router({
           spotPrice: z.number().min(1).max(40),
           futuresPrice: z.number().min(1).max(40),
           holdingCostPerMonth: z.number().min(0.01).max(2.0),
+          socialBreakevenCost: z.number().min(1).max(40).optional().default(12.0),
+          storageTons: z.number().min(50).max(50000).optional().default(1000),
+          startMonth: z.number().min(1).max(12).optional().default(4),
         })
       )
       .mutation(async ({ input }) => {
         const context = buildArbitrageDecisionContext(
           input.spotPrice,
           input.futuresPrice,
-          input.holdingCostPerMonth
+          input.holdingCostPerMonth,
+          input.socialBreakevenCost,
+          input.storageTons,
+          input.startMonth,
         );
         const fallback = buildArbitrageAgentDraft(
           input.spotPrice,
           input.futuresPrice,
-          input.holdingCostPerMonth
+          input.holdingCostPerMonth,
+          input.socialBreakevenCost,
+          input.storageTons,
+          input.startMonth,
         );
 
         try {

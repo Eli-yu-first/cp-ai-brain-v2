@@ -163,6 +163,7 @@ export default function PorkPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [crosshairX, setCrosshairX] = useState<number | null>(null);
+  const marketScrollerRef = useRef<HTMLDivElement | null>(null);
 
   const { setBadge, activeTabId } = useTabContext();
 
@@ -201,6 +202,10 @@ export default function PorkPage() {
       benchmarkEyebrow: "Today Benchmarks",
       benchmarkTitle: "毛猪、白条、冻品与原料今日基准",
       benchmarkDesc: "这里固定显示今日实时价格，不受下方历史区间切换影响。",
+      mergedMarketEyebrow: "Live Benchmarks",
+      mergedMarketTitle: "毛猪、白条、冻品、原料与实时输入一体行情带",
+      mergedMarketDesc: "把今日基准与实时输入合并为单行行情块，支持自动滚动与手动左右滑动，便于像期货区一样快速扫读关键价格。",
+      swipeHint: "自动滚动中，可手动左右滑动查看全部卡片",
       marketDynamics: "Market Dynamics",
       marketTitle: "23 部位与经营指标股票式图表",
       chartHint: "支持多选指标、十字光标、历史滚动、滚轮缩放与底部区间刷选。",
@@ -245,6 +250,7 @@ export default function PorkPage() {
       aiBoardDesc: "AI 建议下置，先看行情与区域差异，再统一查看批次动作建议与量化依据。",
       formulaHint: "量化依据：保本价 = 当前单位成本 + 未来持有总成本；若预计售价 - 保本价 > 阈值，则输出[持有]，否则输出[出售]。",
       openEngine: "打开量化套利决策引擎",
+      openAiDecision: "进入 AI 决策建议面板",
       inventory: "库存",
       cost: "成本",
       day: "天",
@@ -290,8 +296,12 @@ export default function PorkPage() {
       liveMarketTitle: "Live hog, corn and soybean meal input board",
       liveMarketDesc: "Spot and futures signals directly drive cost, mapped price and inventory actions.",
       benchmarkEyebrow: "Today Benchmarks",
-      benchmarkTitle: "Today's hog, carcass, frozen and feedstock benchmarks",
-      benchmarkDesc: "These cards always show the latest live benchmark and are not affected by the historical interval below.",
+      benchmarkTitle: "Today benchmarks for hogs, carcass, frozen and raw materials",
+      benchmarkDesc: "These tiles stay fixed to today's latest prices regardless of the history window below.",
+      mergedMarketEyebrow: "Live Benchmarks",
+      mergedMarketTitle: "Unified market tape for benchmarks and live inputs",
+      mergedMarketDesc: "Benchmarks and live inputs now share one scrollable single-row tape so traders can scan prices like a futures board.",
+      swipeHint: "Auto-scrolling enabled. You can also drag or swipe horizontally.",
       marketDynamics: "Market Dynamics",
       marketTitle: "Stock-style chart for 23 parts and operating metrics",
       chartHint: "Supports multi-metric overlay, crosshair, panning, wheel zoom and bottom brush selection.",
@@ -336,6 +346,7 @@ export default function PorkPage() {
       aiBoardDesc: "The AI section now sits below the market and region analysis so users can study the market first.",
       formulaHint: "Formula basis: break-even = current unit cost + future holding cost. If expected sell price - break-even exceeds the threshold, output Hold; otherwise output Sell.",
       openEngine: "Open Quant Arbitrage Engine",
+      openAiDecision: "Open AI Decision Panel",
       inventory: "Inventory",
       cost: "Cost",
       day: "days",
@@ -735,6 +746,37 @@ export default function PorkPage() {
     ];
   }, [copy, data]);
 
+  const mergedMarketCards = useMemo(() => {
+    const benchmarkCards = (data?.benchmarkQuotes ?? []).map(item => ({
+      code: item.code,
+      title: language === "zh" ? item.name : item.englishName,
+      value: item.price,
+      unit: item.unit,
+      changeRate: item.changeRate,
+      suffix: copy.todayPrice,
+    }));
+
+    return [...liveInputCards, ...benchmarkCards];
+  }, [copy.todayPrice, data?.benchmarkQuotes, language, liveInputCards]);
+
+  useEffect(() => {
+    const node = marketScrollerRef.current;
+    if (!node) return;
+
+    let direction = 1;
+    const id = window.setInterval(() => {
+      const el = marketScrollerRef.current;
+      if (!el) return;
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      if (maxScroll <= 0) return;
+      if (el.scrollLeft >= maxScroll - 8) direction = -1;
+      if (el.scrollLeft <= 8) direction = 1;
+      el.scrollBy({ left: 220 * direction, behavior: "smooth" });
+    }, 2600);
+
+    return () => window.clearInterval(id);
+  }, [mergedMarketCards.length]);
+
   // Region bar chart data
   const regionBarData = useMemo(() => {
     const regions = data?.regionQuotes ?? [];
@@ -806,38 +848,24 @@ export default function PorkPage() {
       <TickerTape items={tickerItems} />
 
       <div className="mt-5 space-y-5">
-        {/* ═══ LIVE INPUTS ═══ */}
+        {/* ═══ MERGED LIVE BENCHMARK TAPE ═══ */}
         <GlassPanel>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.liveMarketEyebrow}</p>
-            <h3 className="mt-1.5 text-lg font-bold tracking-tight text-white">{copy.liveMarketTitle}</h3>
-            <p className="mt-1.5 text-[12px] leading-[1.7] text-slate-400/80">{copy.liveMarketDesc}</p>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.mergedMarketEyebrow}</p>
+              <h3 className="mt-1.5 text-lg font-bold tracking-tight text-white">{copy.mergedMarketTitle}</h3>
+              <p className="mt-1.5 max-w-3xl text-[12px] leading-[1.7] text-slate-400/80">{copy.mergedMarketDesc}</p>
+            </div>
+            <Badge className="rounded-lg border-white/10 bg-white/[0.05] px-3 py-1.5 text-[10px] font-semibold text-slate-200">{copy.swipeHint}</Badge>
           </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {liveInputCards.map((item, index) => (
-              <LiveMetricCard key={item.code} {...item} delay={index} />
-            ))}
-          </div>
-        </GlassPanel>
-
-        {/* ═══ TODAY BENCHMARKS ═══ */}
-        <GlassPanel>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.benchmarkEyebrow}</p>
-            <h3 className="mt-1.5 text-lg font-bold tracking-tight text-white">{copy.benchmarkTitle}</h3>
-            <p className="mt-1.5 text-[12px] leading-[1.7] text-slate-400/80">{copy.benchmarkDesc}</p>
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {(data?.benchmarkQuotes ?? []).map((item, index) => (
-              <LiveMetricCard
-                key={item.code}
-                title={language === "zh" ? item.name : item.englishName}
-                value={item.price}
-                unit={item.unit}
-                changeRate={item.changeRate}
-                suffix={copy.todayPrice}
-                delay={index}
-              />
+          <div
+            ref={marketScrollerRef}
+            className="mt-5 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {mergedMarketCards.map((item, index) => (
+              <div key={`${item.code}-${index}`} className="min-w-[220px] max-w-[220px] flex-none snap-start">
+                <LiveMetricCard {...item} delay={index} />
+              </div>
             ))}
           </div>
         </GlassPanel>
@@ -1254,10 +1282,16 @@ export default function PorkPage() {
               </div>
             ))}
           </div>
-          <Button onClick={() => setLocation("/quant")} className="mt-4 w-full rounded-xl bg-[linear-gradient(135deg,rgba(56,189,248,0.12),rgba(56,152,255,0.08))] border border-cyan-400/20 text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.18),rgba(56,152,255,0.12))] transition-all">
-            {copy.openEngine}
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <Button onClick={() => setLocation("/ai")} className="w-full rounded-xl border border-cyan-400/25 bg-[linear-gradient(135deg,rgba(14,165,233,0.14),rgba(56,189,248,0.08))] text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(14,165,233,0.2),rgba(56,189,248,0.12))] transition-all">
+              {copy.openAiDecision}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+            <Button onClick={() => setLocation("/quant")} className="w-full rounded-xl bg-[linear-gradient(135deg,rgba(56,189,248,0.12),rgba(56,152,255,0.08))] border border-cyan-400/20 text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.18),rgba(56,152,255,0.12))] transition-all">
+              {copy.openEngine}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </GlassPanel>
 
         {/* ═══ RISK + MODULE ENTRY ═══ */}

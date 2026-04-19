@@ -107,7 +107,7 @@ export default function TenantsPage() {
   } as const;
 
   return (
-    <PlatformShell eyebrow={copy.eyebrow} title={copy.title}>
+    <PlatformShell eyebrow={copy.eyebrow} title={copy.title} pageId="tenants">
       <SectionHeader
         eyebrow={copy.sectionEyebrow}
         title={copy.sectionTitle}

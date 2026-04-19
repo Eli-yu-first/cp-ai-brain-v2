@@ -259,7 +259,7 @@ export default function QuantPage() {
   }, [data]);
 
   return (
-    <PlatformShell eyebrow={copy.eyebrow} title={copy.title}>
+    <PlatformShell eyebrow={copy.eyebrow} title={copy.title} pageId="quant">
       <SectionHeader
         eyebrow={copy.sectionEyebrow}
         title={copy.sectionTitle}

@@ -143,7 +143,7 @@ export default function AuditPage() {
   } as const;
 
   return (
-    <PlatformShell eyebrow={copy.eyebrow} title={copy.title}>
+    <PlatformShell eyebrow={copy.eyebrow} title={copy.title} pageId="audit">
       <SectionHeader
         eyebrow={copy.sectionEyebrow}
         title={copy.sectionTitle}

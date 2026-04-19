@@ -59,7 +59,7 @@ export default function SpatialArbitragePage() {
 
   const { data: simulation, isLoading: mapLoading } = trpc.platform.spatialArbitrageSimulate.useQuery(
     { transportCostPerKmPerTon: transportCost, minProfitThreshold: minProfit, batchSizeTon: batchSize, originFilter, partCode },
-    { keepPreviousData: true }
+    { placeholderData: (prev: any) => prev }
   );
 
   const { mutate: runAiDispatch, data: aiTasks, isPending: aiPending } = trpc.platform.spatialAiDispatch.useMutation();
@@ -197,6 +197,7 @@ export default function SpatialArbitragePage() {
                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span> 优质产地</div>
                <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span> 高价目标</div>
                <div className="flex items-center gap-1.5 border-t-2 border-dashed border-amber-500/80 w-6"></div> <span>套利连线</span>
+             </div>
              </div>
           </TechPanel>
         </div>

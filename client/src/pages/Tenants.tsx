@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader, NumberTicker } from "@/components/platform/PlatformPrimitives";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, Building2, ChevronRight, ShieldCheck, Sparkles } from "lucide-react";
@@ -115,6 +115,30 @@ export default function TenantsPage() {
         aside={<div className="data-chip text-[12px]">{copy.tenantStackDesc}</div>}
       />
 
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[
+          { label: copy.tenantStack, value: data?.tenantOptions?.length ?? 0, color: "text-white" },
+          { label: copy.roleBoundary, value: data?.roleProfiles?.length ?? 0, color: "text-emerald-300" },
+          { label: copy.auditable, value: data?.roleProfiles?.reduce((acc, r) => acc + (r.approvalRule ? 1 : 0), 0) ?? 0, color: "text-cyan-300" },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: i * 0.08, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            whileHover={{ y: -3, transition: { duration: 0.2 } }}
+          >
+            <TechPanel className="rounded-[18px] p-4 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500 relative">{stat.label}</p>
+              <p className={`mt-3 font-mono text-3xl font-bold relative ${stat.color}`}>
+                <NumberTicker value={stat.value} />
+              </p>
+            </TechPanel>
+          </motion.div>
+        ))}
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
         <TechPanel>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
@@ -132,8 +156,10 @@ export default function TenantsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.08 * index, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setLocation("/overview")}
-                className="group metric-orb rounded-[30px] p-5 text-left transition-all duration-300 hover:translate-y-[-2px] hover:border-cyan-300/20 hover:shadow-[0_12px_40px_rgba(56,189,248,0.06)]"
+                className="group metric-orb rounded-[30px] p-5 text-left transition-all duration-300 hover:border-cyan-300/20 hover:shadow-[0_12px_40px_rgba(56,189,248,0.06)]"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex h-13 w-13 items-center justify-center rounded-[20px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-200">

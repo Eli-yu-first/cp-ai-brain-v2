@@ -20,13 +20,14 @@ import {
   Factory,
   LineChart as LineChartIcon,
   Radar,
-  ShieldAlert,
   Siren,
   Truck,
   Warehouse,
+  Zap,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 import {
   Bar,
   BarChart,
@@ -400,20 +401,30 @@ const copy = {
   },
 } as const;
 
-function MetricCard({ label, value, suffix, icon: Icon }: { label: string; value: string; suffix?: string; icon: typeof Calculator }) {
+function MetricCard({ label, value, suffix, icon: Icon, pulse }: { label: string; value: string; suffix?: string; icon: typeof Calculator; pulse?: boolean }) {
   return (
-    <div className="rounded-[22px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015)),rgba(6,14,30,0.92)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_40px_rgba(0,0,0,0.24)]">
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      whileHover={{ y: -2, transition: { duration: 0.2 } }}
+      className="group rounded-[22px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015)),rgba(6,14,30,0.92)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_40px_rgba(0,0,0,0.24)] transition-all hover:border-cyan-400/15 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_40px_rgba(0,0,0,0.24),0_0_20px_rgba(56,189,248,0.08)]"
+    >
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200">
+        <motion.div
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200"
+          animate={pulse ? { scale: [1, 1.08, 1], boxShadow: ["0 0 0px rgba(56,189,248,0)", "0 0 12px rgba(56,189,248,0.2)", "0 0 0px rgba(56,189,248,0)"] } : {}}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        >
           <Icon className="h-4 w-4" />
-        </div>
+        </motion.div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">{label}</p>
       </div>
       <p className="mt-5 text-3xl font-bold tracking-tight text-white">
         {value}
         {suffix ? <span className="ml-2 text-sm font-medium text-slate-500">{suffix}</span> : null}
       </p>
-    </div>
+    </motion.div>
   );
 }
 
@@ -558,6 +569,17 @@ export default function AiDecisionPage() {
     };
   }, [language]);
 
+  const workspaceInput = {
+    batchCode,
+    forecastMonth: selectedMonthNumber,
+    scenarioMonth: Math.max(1, Math.min(3, scenarioMonthNumber)),
+    targetPrice: targetPrice ?? 15,
+    strategy: forecastStrategy,
+    basisAdjustment,
+    capacityAdjustment,
+    demandAdjustment,
+  };
+
   const queryInput = {
     batchCode,
     selectedMonth: Math.max(1, Math.min(3, scenarioMonthNumber)),
@@ -568,20 +590,15 @@ export default function AiDecisionPage() {
 
   const utils = trpc.useUtils();
   const { data: snapshot } = trpc.platform.snapshot.useQuery({ timeframe: "month" });
-  const { data, isLoading } = trpc.platform.aiForecast.useQuery(
-    { batchCode, selectedMonth: selectedMonthNumber, targetPrice, strategy: forecastStrategy, basisAdjustment },
-    { enabled: Boolean(batchCode) },
-  );
-  const { data: whatIfData, isLoading: whatIfLoading } = trpc.platform.aiWhatIf.useQuery(queryInput, { enabled: Boolean(batchCode) });
-  const { data: alertsData } = trpc.platform.aiAlerts.useQuery(queryInput, { enabled: Boolean(batchCode) });
-  const { data: dispatchData } = trpc.platform.aiDispatch.useQuery(queryInput, { enabled: Boolean(batchCode) });
-  const { data: dispatchHistory } = trpc.platform.aiDispatchHistory.useQuery(
-    { batchCode },
-    { enabled: Boolean(batchCode) },
-  );
+  const { data: workspace, isLoading: workspaceLoading } = trpc.platform.aiDecisionWorkspace.useQuery(workspaceInput, { enabled: Boolean(batchCode) });
+  const data = workspace?.forecast;
+  const whatIfData = workspace?.simulation;
+  const alertsData = workspace?.alertBoard;
+  const dispatchData = workspace?.dispatchBoard;
+  const dispatchHistory = workspace?.dispatchHistory;
   const persistDispatch = trpc.platform.persistAiDispatch.useMutation({
     onSuccess: async () => {
-      await utils.platform.aiDispatchHistory.invalidate({ batchCode });
+      await utils.platform.aiDecisionWorkspace.invalidate(workspaceInput);
       await utils.platform.auditLogs.invalidate();
       toast.success("派单已落库，并已触发通知链路。");
     },
@@ -591,7 +608,7 @@ export default function AiDecisionPage() {
   });
   const updateDispatchReceiptMutation = trpc.platform.updateAiDispatchReceipt.useMutation({
     onSuccess: async result => {
-      await utils.platform.aiDispatchHistory.invalidate({ batchCode });
+      await utils.platform.aiDecisionWorkspace.invalidate(workspaceInput);
       await utils.platform.auditLogs.invalidate();
       if (result.notifications.wecom === "sent" || result.notifications.sms === "sent") {
         toast.success("回执已更新，升级通知已发送。", { duration: 3500 });
@@ -765,7 +782,17 @@ export default function AiDecisionPage() {
               <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.workbench} · {current.chartTitle}</h4>
               <p className="mt-3 max-w-3xl text-[13px] leading-6 text-slate-400">{current.formulaHint}</p>
             </div>
-            <div className="grid min-w-[240px] gap-3 sm:grid-cols-2 xl:w-[360px]">
+            <div className="grid min-w-[240px] gap-3 sm:grid-cols-2 xl:w-[420px]">
+              <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-400/[0.06] px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Workflow stage</p>
+                <p className="mt-2 text-xl font-semibold text-white">{workspace?.lifecycle.stage ?? "decision"}</p>
+                <p className="mt-1 text-[12px] text-cyan-50/75">{workspace?.lifecycle.hasEscalation ? current.alertStatusRed : current.alertStatusGreen}</p>
+              </div>
+              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Dispatch closure</p>
+                <p className="mt-2 text-xl font-semibold text-white">{workspace?.executionSummary.closureRate ?? 0}%</p>
+                <p className="mt-1 text-[12px] text-slate-400">{workspace?.executionSummary.completedCount ?? 0}/{workspace?.executionSummary.totalOrders ?? 0} completed</p>
+              </div>
               <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-400/[0.06] px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">{current.currentMonth}</p>
                 <p className="mt-2 text-xl font-semibold text-white">{data?.selectedMonth ?? selectedMonthNumber} {current.monthUnit}</p>
@@ -909,7 +936,7 @@ export default function AiDecisionPage() {
               </div>
             </div>
           </div>
-          {isLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
+          {workspaceLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
         </div>
       </TechPanel>
 
@@ -922,15 +949,15 @@ export default function AiDecisionPage() {
               <p className="mt-3 text-[13px] leading-6 text-slate-400">{current.whatIfDesc}</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.scenarioMonth}</p><Select value={scenarioMonth} onValueChange={setScenarioMonth}><SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.scenarioMonth} /></SelectTrigger><SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">{[1, 2, 3].map(month => <SelectItem key={month} value={String(month)}>{month} {current.monthUnit}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p><Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></div>
-              <div className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.capacityAdjustment}</p><Input value={capacityAdjustmentInput} onChange={event => setCapacityAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></div>
-              <div className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.demandAdjustment}</p><Input value={demandAdjustmentInput} onChange={event => setDemandAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></div>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.4 }} className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.scenarioMonth}</p><Select value={scenarioMonth} onValueChange={setScenarioMonth}><SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.scenarioMonth} /></SelectTrigger><SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">{[1, 2, 3].map(month => <SelectItem key={month} value={String(month)}>{month} {current.monthUnit}</SelectItem>)}</SelectContent></Select></motion.div>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }} className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p><Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></motion.div>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.4 }} className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.capacityAdjustment}</p><Input value={capacityAdjustmentInput} onChange={event => setCapacityAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></motion.div>
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4 }} className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.demandAdjustment}</p><Input value={demandAdjustmentInput} onChange={event => setDemandAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></motion.div>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <MetricCard label={current.baselineProfit} value={`¥${whatIfData?.summary.baselineProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={Calculator} />
-              <MetricCard label={current.simulatedProfit} value={`¥${whatIfData?.summary.simulatedProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={LineChartIcon} />
-              <MetricCard label={current.incrementalProfit} value={`¥${whatIfData?.summary.incrementalProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={BrainCircuit} />
+              <MetricCard label={current.simulatedProfit} value={`¥${whatIfData?.summary.simulatedProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={LineChartIcon} pulse />
+              <MetricCard label={current.incrementalProfit} value={`¥${whatIfData?.summary.incrementalProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={BrainCircuit} pulse />
               <MetricCard label={current.expectedRevenue} value={`¥${whatIfData?.summary.expectedRevenue.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={Factory} />
             </div>
           </div>
@@ -959,7 +986,7 @@ export default function AiDecisionPage() {
             <div className="grid gap-4 md:grid-cols-3">
               {(whatIfData?.resources ?? []).map(resource => <div key={resource.month} className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{resource.month}{current.monthShort}</p><div className="mt-4 space-y-3 text-[13px] text-slate-400"><div className="flex items-center justify-between gap-3"><span>{current.slaughterHeads}</span><span className="font-medium text-slate-100">{resource.slaughterHeads.toLocaleString()}</span></div><div className="flex items-center justify-between gap-3"><span>{current.freezingTons}</span><span className="font-medium text-slate-100">{resource.freezingTons.toFixed(2)} t</span></div><div className="flex items-center justify-between gap-3"><span>{current.storageTons}</span><span className="font-medium text-slate-100">{resource.storageTons.toFixed(2)} t</span></div><div className="flex items-center justify-between gap-3"><span>{current.warehousePallets}</span><span className="font-medium text-slate-100">{resource.warehousePallets}</span></div><div className="flex items-center justify-between gap-3"><span>{current.coldChainTrips}</span><span className="font-medium text-slate-100">{resource.coldChainTrips}</span></div></div></div>)}
             </div>
-            {whatIfLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
+            {workspaceLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
           </div>
         </TechPanel>
       </div>
@@ -969,24 +996,115 @@ export default function AiDecisionPage() {
           <div className="flex h-full flex-col gap-5">
             <div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-violet-300/60">{current.agentEyebrow}</p><h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.agentTitle}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{current.agentDesc}</p></div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.overview}</p><p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.overview ?? current.agentDesc}</p></div>
-              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.coordinationSignal}</p><p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.coordinationSignal ?? current.nextPending}</p></div>
-              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.dispatchSummary}</p><p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.dispatchSummary ?? current.generateAgents}</p></div>
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.4 }}
+                className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"
+              >
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.overview}</p>
+                  {aiAgents.isPending && (
+                    <motion.span
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.2, repeat: Infinity }}
+                      className="h-1.5 w-1.5 rounded-full bg-violet-400"
+                    />
+                  )}
+                </div>
+                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.overview ?? current.agentDesc}</p>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.4 }}
+                className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"
+              >
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.coordinationSignal}</p>
+                  {aiAgents.isPending && (
+                    <motion.span
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.3 }}
+                      className="h-1.5 w-1.5 rounded-full bg-cyan-400"
+                    />
+                  )}
+                </div>
+                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.coordinationSignal ?? current.nextPending}</p>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3, duration: 0.4 }}
+                className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"
+              >
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.dispatchSummary}</p>
+                  {aiAgents.isPending && (
+                    <motion.span
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.6 }}
+                      className="h-1.5 w-1.5 rounded-full bg-emerald-400"
+                    />
+                  )}
+                </div>
+                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.dispatchSummary ?? current.generateAgents}</p>
+              </motion.div>
             </div>
-            <Button onClick={runAiAgents} disabled={aiAgents.isPending} className="h-12 rounded-2xl bg-violet-500/90 text-white hover:bg-violet-400">{aiAgents.isPending ? current.generatingAgents : current.generateAgents}</Button>
+            <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+              <Button onClick={runAiAgents} disabled={aiAgents.isPending} className="h-12 w-full rounded-2xl bg-violet-500/90 text-white hover:bg-violet-400">
+                {aiAgents.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <motion.span
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="inline-block"
+                    >
+                      <BrainCircuit className="h-4 w-4" />
+                    </motion.span>
+                    {current.generatingAgents}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Zap className="h-4 w-4" />
+                    {current.generateAgents}
+                  </span>
+                )}
+              </Button>
+            </motion.div>
           </div>
         </TechPanel>
 
         <div className="grid gap-6 xl:grid-cols-3">
-          {(aiAgents.data?.agents ?? []).map((agent: AgentCard) => (
-            <TechPanel key={agent.agentId} className="h-full">
-              <div className="flex h-full flex-col gap-4">
-                <div className="flex items-center justify-between gap-3"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/[0.08] text-violet-200">{agent.agentId === "global" ? <BrainCircuit className="h-5 w-5" /> : agent.agentId === "business" ? <Factory className="h-5 w-5" /> : <Truck className="h-5 w-5" />}</div><Badge className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-slate-200">{current.riskLevel} {agent.riskLevel}</Badge></div>
-                <div><h4 className="text-lg font-semibold text-white">{agent.agentName}</h4><div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400"><p><span className="font-semibold text-slate-200">{current.objective}：</span>{agent.objective}</p><p><span className="font-semibold text-slate-200">{current.recommendation}：</span>{agent.recommendation}</p><p><span className="font-semibold text-slate-200">{current.rationale}：</span>{agent.rationale}</p><p><span className="font-semibold text-slate-200">{current.nextAction}：</span>{agent.nextAction}</p></div></div>
-              </div>
-            </TechPanel>
+          {(aiAgents.data?.agents ?? []).map((agent: AgentCard, agentIndex: number) => (
+            <motion.div
+              key={agent.agentId}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: agentIndex * 0.15, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+            >
+              <TechPanel className="h-full">
+                <div className="flex h-full flex-col gap-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <motion.div
+                      className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/[0.08] text-violet-200"
+                      animate={{ boxShadow: ["0 0 0px rgba(139,92,246,0)", "0 0 16px rgba(139,92,246,0.15)", "0 0 0px rgba(139,92,246,0)"] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: agentIndex * 0.5 }}
+                    >
+                      {agent.agentId === "global" ? <BrainCircuit className="h-5 w-5" /> : agent.agentId === "business" ? <Factory className="h-5 w-5" /> : <Truck className="h-5 w-5" />}
+                    </motion.div>
+                    <Badge className={`rounded-full border px-3 py-1 text-[11px] ${
+                      agent.riskLevel === "高" ? "border-rose-400/20 bg-rose-400/10 text-rose-200" :
+                      agent.riskLevel === "中" ? "border-amber-400/20 bg-amber-400/10 text-amber-200" :
+                      "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                    }`}>{current.riskLevel} {agent.riskLevel}</Badge>
+                  </div>
+                  <div><h4 className="text-lg font-semibold text-white">{agent.agentName}</h4><div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400"><p><span className="font-semibold text-slate-200">{current.objective}：</span>{agent.objective}</p><p><span className="font-semibold text-slate-200">{current.recommendation}：</span>{agent.recommendation}</p><p><span className="font-semibold text-slate-200">{current.rationale}：</span>{agent.rationale}</p><p><span className="font-semibold text-slate-200">{current.nextAction}：</span>{agent.nextAction}</p></div></div>
+                </div>
+              </TechPanel>
+            </motion.div>
           ))}
-          {current.modules.map(module => { const Icon = module.icon; return <TechPanel key={module.title} className="h-full"><div className="flex h-full flex-col gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200"><Icon className="h-5 w-5" /></div><div><h4 className="text-lg font-semibold text-white">{module.title}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{module.desc}</p></div></div></TechPanel>; })}
         </div>
       </div>
       <div className="mt-6 grid gap-3 md:hidden">
@@ -1065,12 +1183,83 @@ export default function AiDecisionPage() {
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <TechPanel>
           <div className="flex h-full flex-col gap-5">
-            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-rose-300/60">{current.alertEyebrow}</p><h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.alertTitle}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{current.alertDesc}</p></div><div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] text-rose-200"><Siren className="h-5 w-5" /></div></div>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-rose-300/60">{current.alertEyebrow}</p>
+                <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.alertTitle}</h4>
+                <p className="mt-3 text-[13px] leading-6 text-slate-400">{current.alertDesc}</p>
+              </div>
+              <motion.div
+                className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] text-rose-200"
+                animate={{ boxShadow: ["0 0 0px rgba(251,113,133,0)", "0 0 20px rgba(251,113,133,0.2)", "0 0 0px rgba(251,113,133,0)"] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Siren className="h-5 w-5" />
+              </motion.div>
+            </div>
             <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.alertOverview}</p><p className="mt-3 text-sm leading-7 text-slate-300">{alertsData?.overview ?? current.closeHint}</p></div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Total orders</p>
+                <p className="mt-2 text-lg font-semibold text-white">{workspace?.executionSummary.totalOrders ?? 0}</p>
+              </div>
+              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">In progress</p>
+                <p className="mt-2 text-lg font-semibold text-white">{workspace?.executionSummary.inProgressCount ?? 0}</p>
+              </div>
+              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Completed</p>
+                <p className="mt-2 text-lg font-semibold text-white">{workspace?.executionSummary.completedCount ?? 0}</p>
+              </div>
+              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Escalated</p>
+                <p className="mt-2 text-lg font-semibold text-white">{workspace?.executionSummary.escalatedCount ?? 0}</p>
+              </div>
+            </div>
             <div className="grid gap-4 md:grid-cols-3">
-              {(alertsData?.items ?? []).slice(0, 3).map((alert: AlertCard) => {
+              {(alertsData?.items ?? []).slice(0, 3).map((alert: AlertCard, alertIndex: number) => {
                 const colors = getAlertColors(alert.status);
-                return <button key={alert.alertId} onClick={() => setActiveAlert(alert)} className={`rounded-[22px] border p-4 text-left transition-all hover:translate-y-[-2px] ${colors.panel}`}><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-white">{alert.title}</p><Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge></div><p className="mt-4 text-[12px] leading-6 text-slate-300">{alert.summary}</p></button>;
+                return (
+                  <motion.button
+                    key={alert.alertId}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: alertIndex * 0.1, duration: 0.4 }}
+                    onClick={() => setActiveAlert(alert)}
+                    whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`group relative rounded-[22px] border p-4 text-left transition-all ${colors.panel}`}
+                  >
+                    {alert.status === "red" && (
+                      <motion.div
+                        className="absolute inset-0 rounded-[22px] pointer-events-none"
+                        animate={{ boxShadow: ["0 0 0px rgba(251,113,133,0)", "0 0 24px rgba(251,113,133,0.15)", "0 0 0px rgba(251,113,133,0)"] }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                    )}
+                    {alert.status === "yellow" && (
+                      <motion.div
+                        className="absolute inset-0 rounded-[22px] pointer-events-none"
+                        animate={{ boxShadow: ["0 0 0px rgba(251,191,36,0)", "0 0 16px rgba(251,191,36,0.1)", "0 0 0px rgba(251,191,36,0)"] }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                    )}
+                    <div className="relative flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-white">{alert.title}</p>
+                      <div className="flex items-center gap-1.5">
+                        {alert.status === "red" && (
+                          <motion.span
+                            animate={{ opacity: [0.4, 1, 0.4] }}
+                            transition={{ duration: 1.2, repeat: Infinity }}
+                            className="h-2 w-2 rounded-full bg-rose-400"
+                          />
+                        )}
+                        <Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge>
+                      </div>
+                    </div>
+                    <p className="relative mt-4 text-[12px] leading-6 text-slate-300">{alert.summary}</p>
+                  </motion.button>
+                );
               })}
             </div>
           </div>
@@ -1078,9 +1267,32 @@ export default function AiDecisionPage() {
 
         <TechPanel>
           <div className="grid gap-4 md:grid-cols-3">
-            {(alertsData?.items ?? []).map((alert: AlertCard) => {
+            {(alertsData?.items ?? []).map((alert: AlertCard, alertIndex: number) => {
               const colors = getAlertColors(alert.status);
-              return <button key={alert.alertId} onClick={() => setActiveAlert(alert)} className={`rounded-[22px] border p-4 text-left transition-all hover:translate-y-[-2px] ${colors.panel}`}><div className="flex items-center justify-between gap-3"><p className="text-sm font-semibold text-white">{alert.title}</p><Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge></div><p className="mt-3 text-[12px] leading-6 text-slate-300">{alert.summary}</p><p className="mt-3 text-[12px] text-slate-400">{current.impactScope}：{alert.impactScope}</p><p className="mt-1 text-[12px] text-slate-400">{current.estimatedLoss}：¥{alert.estimatedLoss.toLocaleString()}</p></button>;
+              return (
+                <motion.button
+                  key={alert.alertId}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: alertIndex * 0.08, duration: 0.4 }}
+                  onClick={() => setActiveAlert(alert)}
+                  whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                  whileTap={{ scale: 0.97 }}
+                  className={`group relative rounded-[22px] border p-4 text-left transition-all ${colors.panel}`}
+                >
+                  {alert.status === "red" && (
+                    <motion.div
+                      className="absolute inset-0 rounded-[22px] pointer-events-none"
+                      animate={{ boxShadow: ["0 0 0px rgba(251,113,133,0)", "0 0 20px rgba(251,113,133,0.12)", "0 0 0px rgba(251,113,133,0)"] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: alertIndex * 0.3 }}
+                    />
+                  )}
+                  <div className="relative flex items-center justify-between gap-3"><p className="text-sm font-semibold text-white">{alert.title}</p><Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge></div>
+                  <p className="relative mt-3 text-[12px] leading-6 text-slate-300">{alert.summary}</p>
+                  <p className="relative mt-3 text-[12px] text-slate-400">{current.impactScope}：{alert.impactScope}</p>
+                  <p className="relative mt-1 text-[12px] text-slate-400">{current.estimatedLoss}：¥{alert.estimatedLoss.toLocaleString()}</p>
+                </motion.button>
+              );
             })}
           </div>
         </TechPanel>
@@ -1123,7 +1335,7 @@ export default function AiDecisionPage() {
                 <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">自动派单调度与执行反馈</h4>
                 <p className="mt-3 text-[13px] leading-6 text-slate-400">系统会把当前模拟结果转换成标准化 JSON 工单，并同步展示厂长、司机、仓储管理员三类角色的执行状态与超时升级信号。</p>
               </div>
-              <Badge className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${dispatchData?.escalation ? "border-rose-400/20 bg-rose-400/10 text-rose-100" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>{dispatchData?.escalation ? "已触发超时升级" : "执行链路正常"}</Badge>
+              <Badge className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${effectiveDispatchData?.escalation ? "border-rose-400/20 bg-rose-400/10 text-rose-100" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>{effectiveDispatchData?.escalation ? "已触发超时升级" : "执行链路正常"}</Badge>
             </div>
             <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1140,10 +1352,22 @@ export default function AiDecisionPage() {
                   {persistDispatch.isPending ? "正在落库与通知..." : "落库并通知负责人"}
                 </Button>
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
                 <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
                   <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Persistence</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{persistDispatch.data?.persistence.persisted ? "已写入数据库" : "待落库"}</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{persistDispatch.data?.persistence.persisted ? "已写入数据库" : workspace?.lifecycle.hasPersistedDispatch ? "历史已落库" : "待落库"}</p>
+                </div>
+                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Closure</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{workspace?.executionSummary.closureRate ?? 0}%</p>
+                </div>
+                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Completed</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{workspace?.executionSummary.completedCount ?? 0}</p>
+                </div>
+                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Escalated</p>
+                  <p className="mt-2 text-sm font-semibold text-white">{workspace?.executionSummary.escalatedCount ?? 0}</p>
                 </div>
                 <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
                   <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">WeCom</p>

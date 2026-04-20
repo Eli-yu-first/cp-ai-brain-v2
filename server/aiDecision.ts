@@ -108,11 +108,15 @@ export type AiAlertBoardResult = {
 
 export type DispatchWorkOrder = {
   orderId: string;
+  role: "厂长" | "司机" | "仓储管理员";
+  stage: "slaughter" | "cold-chain" | "warehouse";
   factory: string;
   quantity: number;
   scheduledTime: string;
   acceptanceStandard: string;
   priority: "P1" | "P2" | "P3";
+  operationRequirement: string;
+  escalationCondition: string;
   payload: Record<string, string | number>;
 };
 
@@ -128,6 +132,55 @@ export type DispatchBoardResult = {
   escalation: boolean;
   workOrders: DispatchWorkOrder[];
   feedback: DispatchFeedbackItem[];
+};
+
+export type DispatchExecutionSummary = {
+  totalOrders: number;
+  pendingCount: number;
+  acknowledgedCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  escalatedCount: number;
+  closureRate: number;
+  blockingExceptions: number;
+};
+
+export type DispatchHistoryOrder = {
+  orderId: string;
+  batchCode: string;
+  currentStatus: string;
+  priority: string;
+  receipts: Array<{
+    role: DispatchFeedbackItem["role"];
+    status: DispatchFeedbackItem["status"];
+    etaMinutes: number;
+    note: string;
+    acknowledgedBy: string | null;
+    receiptBy: string | null;
+  }>;
+};
+
+export type AiDecisionWorkspaceResult = {
+  forecast: AiForecastResult;
+  simulation: AiWhatIfResult;
+  agentDecision: AiAgentDecisionResult;
+  alertBoard: AiAlertBoardResult;
+  dispatchBoard: DispatchBoardResult;
+  executionSummary: DispatchExecutionSummary;
+  dispatchHistory: DispatchHistoryOrder[];
+  lifecycle: {
+    stage:
+      | "forecast"
+      | "simulation"
+      | "decision"
+      | "dispatch_preview"
+      | "dispatch_persisted"
+      | "execution_in_progress"
+      | "execution_completed"
+      | "escalated";
+    hasPersistedDispatch: boolean;
+    hasEscalation: boolean;
+  };
 };
 
 function clampMonth(month: number) {
@@ -436,9 +489,13 @@ export function buildAlertBoard(
     demandAdjustment,
   );
 
+  const selectedResource = simulation.resources[simulation.selectedMonth - 1] ?? simulation.resources[0]!;
   const maxStorage = Math.max(...simulation.resources.map(item => item.storageTons));
   const maxTrips = Math.max(...simulation.resources.map(item => item.coldChainTrips));
   const incrementalLoss = Math.max(0, -simulation.summary.incrementalProfit);
+  const priceGap = round(forecast.summary.projectedPrice - forecast.targetPrice);
+  const closurePressure = simulation.summary.utilizationRate > 112 || forecast.summary.profitPerKg < 0;
+  const exceptionExposure = Math.max(0, Math.round((incrementalLoss + maxTrips * 1200 + maxStorage * 2500) / 6000));
 
   const items: AiAlertItem[] = [
     {
@@ -453,8 +510,30 @@ export function buildAlertBoard(
       actionOwner: "CEO经营 Agent",
     },
     {
-      alertId: "utilization",
-      title: "产能利用率",
+      alertId: "price-reachability",
+      title: "价格目标可达性",
+      status: priceGap < -1.2 ? "red" : priceGap < -0.3 ? "yellow" : "green",
+      summary: `预测价格较目标价偏差 ${priceGap.toFixed(2)} 元/公斤。`,
+      impactScope: "价格策略 / 销售兑现节奏",
+      estimatedLoss: round(Math.max(0, -priceGap) * forecast.batch.weightKg * 0.18),
+      aiRecommendation: priceGap < 0 ? "缩短持有窗口并重新设定目标价，优先锁定可兑现渠道。" : "维持当前价格目标并按窗口推进兑现。",
+      rootCause: priceGap < 0 ? "预测价格恢复速度低于目标价格要求。" : "目标价格仍在当前预测区间内可达。",
+      actionOwner: "事业部利润 Agent",
+    },
+    {
+      alertId: "demand-volatility",
+      title: "需求波动",
+      status: demandAdjustment < -10 ? "red" : demandAdjustment < 0 || demandAdjustment > 20 ? "yellow" : "green",
+      summary: `当前需求调整 ${demandAdjustment.toFixed(2)}%。`,
+      impactScope: "销售兑现 / 区域去化节奏",
+      estimatedLoss: round(Math.abs(demandAdjustment) * 900),
+      aiRecommendation: "按区域节奏调整投放顺序，优先保障高周转渠道。",
+      rootCause: demandAdjustment < 0 ? "终端去化偏弱，回款与库存消化速度下降。" : "需求拉升需同步校准供给节奏。",
+      actionOwner: "事业部利润 Agent",
+    },
+    {
+      alertId: "capacity-load",
+      title: "产能负荷",
       status: simulation.summary.utilizationRate > 114 ? "red" : simulation.summary.utilizationRate > 105 ? "yellow" : "green",
       summary: `当前资源利用率 ${simulation.summary.utilizationRate.toFixed(2)}%。`,
       impactScope: "工厂班次 / 产线节拍",
@@ -462,6 +541,17 @@ export function buildAlertBoard(
       aiRecommendation: draft.agents[1]?.recommendation ?? "优化排产并平衡班次。",
       rootCause: simulation.summary.utilizationRate > 110 ? "产能调整幅度过大，导致生产峰值集中。" : "当前产能处于安全区间。",
       actionOwner: "生产编排 Agent",
+    },
+    {
+      alertId: "slaughter-rhythm",
+      title: "屠宰节奏",
+      status: selectedResource.slaughterHeads > 1900 ? "red" : selectedResource.slaughterHeads > 1500 ? "yellow" : "green",
+      summary: `当前窗口屠宰计划 ${selectedResource.slaughterHeads.toLocaleString()} 头。`,
+      impactScope: "屠宰产线 / 分割排班",
+      estimatedLoss: round(selectedResource.slaughterHeads * 4.5),
+      aiRecommendation: selectedResource.slaughterHeads > 1500 ? "提前锁定熟练工与分割班次，避免屠宰与分割脱节。" : "按标准节奏推进屠宰和分割。",
+      rootCause: selectedResource.slaughterHeads > 1500 ? "当前月需求与产能叠加导致屠宰高峰过于集中。" : "当前屠宰任务仍处于班次可吸收范围。",
+      actionOwner: "场长运营 Agent",
     },
     {
       alertId: "storage-pressure",
@@ -486,31 +576,31 @@ export function buildAlertBoard(
       actionOwner: "物流调度 Agent",
     },
     {
-      alertId: "demand-volatility",
-      title: "需求波动",
-      status: demandAdjustment < -10 ? "red" : demandAdjustment < 0 || demandAdjustment > 20 ? "yellow" : "green",
-      summary: `当前需求调整 ${demandAdjustment.toFixed(2)}%。`,
-      impactScope: "销售兑现 / 区域去化节奏",
-      estimatedLoss: round(Math.abs(demandAdjustment) * 900),
-      aiRecommendation: "按区域节奏调整投放顺序，优先保障高周转渠道。",
-      rootCause: demandAdjustment < 0 ? "终端去化偏弱，回款与库存消化速度下降。" : "需求拉升需同步校准供给节奏。",
-      actionOwner: "事业部利润 Agent",
+      alertId: "execution-closure",
+      title: "执行闭环率",
+      status: closurePressure ? "red" : simulation.summary.incrementalProfit < 5000 ? "yellow" : "green",
+      summary: `当前窗口每公斤利润 ${forecast.summary.profitPerKg.toFixed(2)} 元，执行闭环依赖高强度协同。`,
+      impactScope: "现场执行 / 回执闭环",
+      estimatedLoss: round(Math.max(0, -forecast.summary.profitPerKg) * 1200 + (closurePressure ? 5000 : 0)),
+      aiRecommendation: draft.agents[2]?.nextAction ?? "强化班前会和异常回传。",
+      rootCause: closurePressure ? "利润空间偏薄或产能超负荷，执行链路容错率下降。" : "当前执行节奏与利润目标基本一致。",
+      actionOwner: "现场执行 Agent",
     },
     {
-      alertId: "execution-rhythm",
-      title: "执行节奏",
-      status: forecast.summary.profitPerKg < -8 ? "red" : forecast.summary.profitPerKg < -3 ? "yellow" : "green",
-      summary: `当前预测窗口每公斤利润 ${forecast.summary.profitPerKg.toFixed(2)} 元。`,
-      impactScope: "现场执行 / 经营兑现",
-      estimatedLoss: round(Math.max(0, -forecast.summary.profitPerKg) * 1200),
-      aiRecommendation: draft.agents[2]?.nextAction ?? "强化班前会和异常回传。",
-      rootCause: forecast.summary.profitPerKg < 0 ? "价格恢复速度慢于持有成本累积速度。" : "执行节奏与利润目标基本一致。",
-      actionOwner: "现场执行 Agent",
+      alertId: "exception-backlog",
+      title: "升级异常积压",
+      status: exceptionExposure >= 3 ? "red" : exceptionExposure >= 1 ? "yellow" : "green",
+      summary: `当前异常暴露指数 ${exceptionExposure}。`,
+      impactScope: "升级队列 / 管理干预频次",
+      estimatedLoss: round(exceptionExposure * 6800),
+      aiRecommendation: exceptionExposure >= 1 ? "建立升级分流机制，并将高损失任务优先重定向到周边产能。" : "当前异常积压可控，维持标准升级流程。",
+      rootCause: exceptionExposure >= 1 ? "利润缺口、运力峰值和仓储压力叠加，导致异常处理队列上升。" : "暂无明显异常积压。",
+      actionOwner: "AI 战房协调 Agent",
     },
   ];
 
   return {
-    overview: `已生成 ${items.length} 个动态预警点，覆盖利润、产能、仓储、冷链、需求和执行节奏。`,
+    overview: `已生成 ${items.length} 个动态预警点，覆盖利润、价格、需求、产能、屠宰、仓储、冷链、执行闭环和升级异常。`,
     items,
   };
 }
@@ -543,11 +633,15 @@ export function buildDispatchBoard(
   const workOrders: DispatchWorkOrder[] = [
     {
       orderId: `${batchCode}-F-${selectedMonth}`,
+      role: "厂长",
+      stage: "slaughter",
       factory: "华东一厂",
       quantity: primaryResource?.slaughterHeads ?? 0,
       scheduledTime: `T+${selectedMonth} 06:30`,
       acceptanceStandard: "屠宰完成率≥98%，批次温控记录完整",
       priority: escalation ? "P1" : "P2",
+      operationRequirement: "根据套利模型执行屠宰与分割排班，并在班前会确认熟练工与设备窗口。",
+      escalationCondition: "若屠宰产能低于计划 90% 或分割班次未锁定，则立即升级。",
       payload: {
         batchCode,
         scenarioMonth: selectedMonth,
@@ -556,11 +650,15 @@ export function buildDispatchBoard(
     },
     {
       orderId: `${batchCode}-C-${selectedMonth}`,
+      role: "司机",
+      stage: "cold-chain",
       factory: "冷链调度中心",
       quantity: primaryResource?.coldChainTrips ?? 0,
       scheduledTime: `T+${selectedMonth} 09:20`,
       acceptanceStandard: "车辆准点率≥95%，在途温控异常为0",
       priority: escalation ? "P1" : "P2",
+      operationRequirement: "按指定冷链路线完成装车、运输与签收，维持全程温控。",
+      escalationCondition: "若车辆未按时到厂或温控异常，则立即升级。",
       payload: {
         batchCode,
         coldChainTrips: primaryResource?.coldChainTrips ?? 0,
@@ -569,11 +667,15 @@ export function buildDispatchBoard(
     },
     {
       orderId: `${batchCode}-W-${selectedMonth}`,
+      role: "仓储管理员",
+      stage: "warehouse",
       factory: "华东冷库",
       quantity: primaryResource?.warehousePallets ?? 0,
       scheduledTime: `T+${selectedMonth} 11:00`,
       acceptanceStandard: "托盘位预留完成，入库扫码准确率100%",
       priority: highRiskCount > 0 ? "P1" : "P3",
+      operationRequirement: "提前预留 A 级库位，完成批次绑定、库龄标签和 FEFO 入库校验。",
+      escalationCondition: "若库位不足或入库超过计划时点，则立即升级。",
       payload: {
         batchCode,
         storageTons: primaryResource?.storageTons ?? 0,
@@ -608,5 +710,111 @@ export function buildDispatchBoard(
     escalation,
     workOrders,
     feedback,
+  };
+}
+
+export function buildDispatchExecutionSummary(
+  dispatchBoard: DispatchBoardResult,
+  dispatchHistory: DispatchHistoryOrder[] = [],
+): DispatchExecutionSummary {
+  const statuses =
+    dispatchHistory.length > 0
+      ? dispatchHistory.flatMap(order => {
+          const latest = order.receipts[0];
+          return latest ? [latest.status] : [order.currentStatus as DispatchFeedbackItem["status"]];
+        })
+      : dispatchBoard.feedback.map(item => item.status);
+
+  const totalOrders = Math.max(dispatchBoard.workOrders.length, statuses.length);
+  const pendingCount = statuses.filter(status => status === "待确认").length;
+  const acknowledgedCount = statuses.filter(status => status === "已接单").length;
+  const inProgressCount = statuses.filter(status => status === "执行中").length;
+  const completedCount = statuses.filter(status => status === "已完成").length;
+  const escalatedCount = statuses.filter(status => status === "超时升级").length;
+  const closureRate = totalOrders === 0 ? 0 : round((completedCount / totalOrders) * 100);
+
+  return {
+    totalOrders,
+    pendingCount,
+    acknowledgedCount,
+    inProgressCount,
+    completedCount,
+    escalatedCount,
+    closureRate,
+    blockingExceptions: escalatedCount,
+  };
+}
+
+export function buildAiDecisionWorkspace(
+  batchCode: string,
+  selectedMonth: number,
+  targetPrice: number,
+  capacityAdjustment: number,
+  demandAdjustment: number,
+  dispatchHistory: DispatchHistoryOrder[] = [],
+): AiDecisionWorkspaceResult {
+  const forecast = buildAiForecast(batchCode, selectedMonth, targetPrice);
+  const simulation = buildWhatIfSimulation(
+    batchCode,
+    Math.max(1, Math.min(3, selectedMonth)),
+    targetPrice,
+    capacityAdjustment,
+    demandAdjustment,
+  );
+  const agentDecision = buildAgentDecisionDraft(
+    batchCode,
+    selectedMonth,
+    targetPrice,
+    capacityAdjustment,
+    demandAdjustment,
+  );
+  const alertBoard = buildAlertBoard(
+    batchCode,
+    selectedMonth,
+    targetPrice,
+    capacityAdjustment,
+    demandAdjustment,
+  );
+  const dispatchBoard = buildDispatchBoard(
+    batchCode,
+    selectedMonth,
+    targetPrice,
+    capacityAdjustment,
+    demandAdjustment,
+  );
+  const executionSummary = buildDispatchExecutionSummary(dispatchBoard, dispatchHistory);
+  const hasPersistedDispatch = dispatchHistory.length > 0;
+  const hasEscalation = dispatchBoard.escalation || executionSummary.escalatedCount > 0 || alertBoard.items.some(item => item.status === "red");
+
+  let stage: AiDecisionWorkspaceResult["lifecycle"]["stage"] = "dispatch_preview";
+  if (!hasPersistedDispatch && executionSummary.completedCount === 0 && executionSummary.inProgressCount === 0) {
+    stage = "decision";
+  }
+  if (hasPersistedDispatch) {
+    stage = "dispatch_persisted";
+  }
+  if (executionSummary.inProgressCount > 0 || executionSummary.acknowledgedCount > 0) {
+    stage = "execution_in_progress";
+  }
+  if (executionSummary.completedCount === executionSummary.totalOrders && executionSummary.totalOrders > 0) {
+    stage = "execution_completed";
+  }
+  if (hasEscalation) {
+    stage = "escalated";
+  }
+
+  return {
+    forecast,
+    simulation,
+    agentDecision,
+    alertBoard,
+    dispatchBoard,
+    executionSummary,
+    dispatchHistory,
+    lifecycle: {
+      stage,
+      hasPersistedDispatch,
+      hasEscalation,
+    },
   };
 }

@@ -1257,8 +1257,22 @@ export default function PorkPage() {
               <h3 className="text-base font-semibold text-white">{copy.riskTitle}</h3>
             </div>
             <div className="mt-3 space-y-2">
-              {data?.inventoryBatches.map(batch => (
-                <div key={batch.batchCode} className="rounded-[14px] border border-white/[0.06] bg-white/[0.02] p-3 text-[12px] text-slate-300">
+              {data?.inventoryBatches.map((batch, index) => (
+                <motion.div
+                  key={batch.batchCode}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.06 * index, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  whileHover={{ x: 4, transition: { duration: 0.15 } }}
+                  className="rounded-[14px] border border-white/[0.06] bg-white/[0.02] p-3 text-[12px] text-slate-300 relative overflow-hidden"
+                >
+                  {batch.ageDays > 45 && (
+                    <motion.div
+                      className="absolute inset-0 pointer-events-none"
+                      animate={{ boxShadow: ["0 0 0px rgba(251,191,36,0)", "0 0 12px rgba(251,191,36,0.06)", "0 0 0px rgba(251,191,36,0)"] }}
+                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                    />
+                  )}
                   <div className="flex items-center justify-between gap-2">
                     <span>{batch.warehouse}</span>
                     <span className="text-cyan-200">{copy.concentration} {batch.concentration}%</span>
@@ -1267,7 +1281,7 @@ export default function PorkPage() {
                     <span>{copy.spotPrice} ¥{batch.currentSpotPrice.toFixed(2)}</span>
                     <span>{copy.mappedPrice} ¥{batch.futuresMappedPrice.toFixed(2)}</span>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           </TechPanel>
@@ -1300,9 +1314,13 @@ export default function PorkPage() {
         <TechPanel>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
+              <motion.div
+                className="flex h-10 w-10 items-center justify-center rounded-[14px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100"
+                animate={{ boxShadow: ["0 0 0px rgba(56,189,248,0)", "0 0 14px rgba(56,189,248,0.12)", "0 0 0px rgba(56,189,248,0)"] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              >
                 <BrainCircuit className="h-5 w-5" />
-              </div>
+              </motion.div>
               <div>
                 <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">{copy.aiPanel}</p>
                 <h3 className="mt-1 text-lg font-semibold text-white">{copy.aiTitle}</h3>
@@ -1311,8 +1329,16 @@ export default function PorkPage() {
           </div>
           <div className="mt-4 grid gap-3 xl:grid-cols-3">
             {data?.inventoryBatches.map((batch, index) => (
-              <div key={batch.batchCode} className="rounded-[16px] border border-white/[0.06] bg-[linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-4">
-                <div className="flex items-center justify-between gap-2">
+              <motion.div
+                key={batch.batchCode}
+                initial={{ opacity: 0, y: 12, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: 0.08 * index, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                className="rounded-[16px] border border-white/[0.06] bg-[linear-gradient(135deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))] p-4 relative overflow-hidden"
+              >
+                <div className="absolute right-0 top-0 h-20 w-20 rounded-full bg-cyan-400/5 blur-2xl" />
+                <div className="relative flex items-center justify-between gap-2">
                   <div>
                     <p className="text-[13px] font-medium text-white">{batch.partName}</p>
                     <p className="mt-0.5 text-[10px] text-slate-500">{batch.batchCode}</p>
@@ -1325,23 +1351,27 @@ export default function PorkPage() {
                     }>{copy.agePrefix} {batch.ageDays} {copy.day}</Badge>
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-[12px] text-slate-300">
+                <div className="relative mt-3 grid grid-cols-2 gap-2 text-[12px] text-slate-300">
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">{copy.inventory} {batch.weightKg.toLocaleString()} kg</div>
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">{copy.cost} ¥{batch.unitCost}/kg</div>
                 </div>
-                <div className="mt-3 rounded-xl border border-cyan-400/10 bg-cyan-400/[0.04] p-2.5 text-[11px] leading-relaxed text-cyan-50/80">{copy.formulaHint}</div>
-              </div>
+                <div className="relative mt-3 rounded-xl border border-cyan-400/10 bg-cyan-400/[0.04] p-2.5 text-[11px] leading-relaxed text-cyan-50/80">{copy.formulaHint}</div>
+              </motion.div>
             ))}
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Button onClick={() => setLocation("/ai")} className="w-full rounded-xl border border-cyan-400/25 bg-[linear-gradient(135deg,rgba(14,165,233,0.14),rgba(56,189,248,0.08))] text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(14,165,233,0.2),rgba(56,189,248,0.12))] transition-all">
-              {copy.openAiDecision}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Button onClick={() => setLocation("/quant")} className="w-full rounded-xl bg-[linear-gradient(135deg,rgba(56,189,248,0.12),rgba(56,152,255,0.08))] border border-cyan-400/20 text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.18),rgba(56,152,255,0.12))] transition-all">
-              {copy.openEngine}
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button onClick={() => setLocation("/ai")} className="w-full rounded-xl border border-cyan-400/25 bg-[linear-gradient(135deg,rgba(14,165,233,0.14),rgba(56,189,248,0.08))] text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(14,165,233,0.2),rgba(56,189,248,0.12))] transition-all">
+                {copy.openAiDecision}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <Button onClick={() => setLocation("/quant")} className="w-full rounded-xl bg-[linear-gradient(135deg,rgba(56,189,248,0.12),rgba(56,152,255,0.08))] border border-cyan-400/20 text-cyan-100 font-semibold hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.18),rgba(56,152,255,0.12))] transition-all">
+                {copy.openEngine}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </motion.div>
           </div>
         </TechPanel>
       </div>

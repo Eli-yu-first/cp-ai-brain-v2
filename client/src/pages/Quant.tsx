@@ -1,5 +1,5 @@
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader, NumberTicker } from "@/components/platform/PlatformPrimitives";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,8 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, CircleAlert, Sigma, ShieldAlert, Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
+import { CheckCircle2, CircleAlert, Sigma, ShieldAlert, Sparkles, Zap } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -316,17 +316,31 @@ export default function QuantPage() {
 
           <TechPanel>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">
+              <motion.div
+                className="flex h-12 w-12 items-center justify-center rounded-[18px] border border-cyan-400/20 bg-cyan-400/10 text-cyan-100"
+                animate={{ boxShadow: ["0 0 0px rgba(56,189,248,0)", "0 0 16px rgba(56,189,248,0.15)", "0 0 0px rgba(56,189,248,0)"] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              >
                 <Sigma className="h-4.5 w-4.5" />
-              </div>
+              </motion.div>
               <div>
                 <p className="text-base font-semibold text-white">{copy.formulaTitle}</p>
                 <p className="text-sm text-slate-400">{copy.formulaDesc}</p>
               </div>
             </div>
-            <div className="mt-5 rounded-[24px] border border-cyan-400/10 bg-cyan-400/5 p-4 text-sm leading-7 text-cyan-50/90">
-              {copy.formulaBody}
-            </div>
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              transition={{ duration: 0.6, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-5 rounded-[24px] border border-cyan-400/10 bg-cyan-400/5 p-4 text-sm leading-7 text-cyan-50/90 relative overflow-hidden"
+            >
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-400/5 to-transparent"
+                animate={{ x: ["-100%", "100%"] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+              />
+              <p className="relative">{copy.formulaBody}</p>
+            </motion.div>
           </TechPanel>
 
           <TechPanel>
@@ -347,20 +361,37 @@ export default function QuantPage() {
           <div className="grid gap-5 md:grid-cols-3">
             {data?.scenarios.map((scenario, index) => {
               const isRecommended = recommendedScenario?.scenarioId === scenario.scenarioId;
+              const isHighRisk = scenario.riskLevel === "高";
               return (
                 <motion.div
                   key={scenario.scenarioId}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.08 * index, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ delay: 0.1 * index, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                  whileHover={{ y: -4, transition: { duration: 0.2 } }}
                   className={`group relative overflow-hidden rounded-[32px] border p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_80px_rgba(3,7,18,0.52)] transition-all duration-300 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_80px_rgba(3,7,18,0.52),0_0_30px_rgba(56,189,248,0.06)] ${
                     isRecommended
                       ? "border-cyan-300/20 bg-[radial-gradient(circle_at_top,_rgba(75,215,255,0.18),_transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.018)),linear-gradient(180deg,rgba(9,17,31,0.94),rgba(7,12,22,0.92))]"
                       : "border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015)),linear-gradient(180deg,rgba(8,14,24,0.92),rgba(7,12,22,0.9))]"
                   }`}
                 >
+                  {isRecommended && (
+                    <motion.div
+                      className="absolute inset-0 rounded-[32px] pointer-events-none"
+                      animate={{ boxShadow: ["0 0 0px rgba(56,189,248,0)", "0 0 30px rgba(56,189,248,0.08)", "0 0 0px rgba(56,189,248,0)"] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    />
+                  )}
+                  {isHighRisk && (
+                    <motion.div
+                      className="absolute inset-0 rounded-[32px] pointer-events-none"
+                      animate={{ boxShadow: ["0 0 0px rgba(251,113,133,0)", "0 0 20px rgba(251,113,133,0.08)", "0 0 0px rgba(251,113,133,0)"] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                    />
+                  )}
                   {isRecommended ? (
                     <Badge className="absolute right-4 top-4 rounded-full border-cyan-300/20 bg-cyan-400/12 text-cyan-50">
+                      <Zap className="mr-1 h-3 w-3" />
                       {copy.recommended}
                     </Badge>
                   ) : null}
@@ -378,23 +409,68 @@ export default function QuantPage() {
                     </div>
 
                     <div className="mt-5 space-y-3 text-sm text-slate-300">
-                      <div className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"><span className="text-[13px] text-slate-400">{copy.breakEven}</span><span className="num-display font-semibold text-white">¥{scenario.breakEvenPrice.toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"><span className="text-[13px] text-slate-400">{copy.expectedSell}</span><span className="num-display font-semibold text-white">¥{scenario.expectedSellPrice.toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"><span className="text-[13px] text-slate-400">{copy.netProfit}</span><span className={scenario.netProfitPerKg > 0 ? "num-display font-semibold text-emerald-300" : "num-display font-semibold text-rose-300"}>¥{scenario.netProfitPerKg.toFixed(2)}</span></div>
-                      <div className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"><span className="text-[13px] text-slate-400">{copy.risk}</span><span className="text-[13px] font-medium text-slate-200">{riskMap[scenario.riskLevel]?.[language] ?? scenario.riskLevel} · {scenario.riskScore}</span></div>
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.15 * index + 0.1, duration: 0.4 }}
+                        className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"
+                      >
+                        <span className="text-[13px] text-slate-400">{copy.breakEven}</span>
+                        <span className="num-display font-semibold text-white">¥{scenario.breakEvenPrice.toFixed(2)}</span>
+                      </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.15 * index + 0.2, duration: 0.4 }}
+                        className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"
+                      >
+                        <span className="text-[13px] text-slate-400">{copy.expectedSell}</span>
+                        <span className="num-display font-semibold text-white">¥{scenario.expectedSellPrice.toFixed(2)}</span>
+                      </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.15 * index + 0.3, duration: 0.4 }}
+                        className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"
+                      >
+                        <span className="text-[13px] text-slate-400">{copy.netProfit}</span>
+                        <span className={scenario.netProfitPerKg > 0 ? "num-display font-semibold text-emerald-300" : "num-display font-semibold text-rose-300"}>
+                          ¥<NumberTicker value={scenario.netProfitPerKg} decimals={2} />
+                        </span>
+                      </motion.div>
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.15 * index + 0.4, duration: 0.4 }}
+                        className="flex items-center justify-between rounded-[20px] border border-white/[0.05] bg-white/[0.03] px-4 py-3"
+                      >
+                        <span className="text-[13px] text-slate-400">{copy.risk}</span>
+                        <span className="text-[13px] font-medium text-slate-200 flex items-center gap-1.5">
+                          {isHighRisk && (
+                            <motion.span
+                              animate={{ opacity: [0.4, 1, 0.4] }}
+                              transition={{ duration: 1.2, repeat: Infinity }}
+                              className="h-1.5 w-1.5 rounded-full bg-rose-400"
+                            />
+                          )}
+                          {riskMap[scenario.riskLevel]?.[language] ?? scenario.riskLevel} · {scenario.riskScore}
+                        </span>
+                      </motion.div>
                     </div>
 
                     <p className="mt-4 text-sm leading-6 text-slate-400">{scenario.reason}</p>
-                    <Button
-                      onClick={() => setPendingScenarioId(scenario.scenarioId)}
-                      className={`mt-5 w-full rounded-xl font-semibold transition-all duration-300 ${
-                        isRecommended
-                          ? "bg-[linear-gradient(135deg,rgba(56,189,248,0.15),rgba(56,152,255,0.1))] border border-cyan-400/20 text-cyan-100 hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.2),rgba(56,152,255,0.15))] hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(56,189,248,0.1)]"
-                          : "bg-white/[0.06] border border-white/[0.08] text-slate-200 hover:bg-white/[0.1] hover:border-white/[0.12]"
-                      }`}
-                    >
-                      {copy.confirmAction} {actionMap[scenario.action]?.[language] ?? scenario.action}
-                    </Button>
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                      <Button
+                        onClick={() => setPendingScenarioId(scenario.scenarioId)}
+                        className={`mt-5 w-full rounded-xl font-semibold transition-all duration-300 ${
+                          isRecommended
+                            ? "bg-[linear-gradient(135deg,rgba(56,189,248,0.15),rgba(56,152,255,0.1))] border border-cyan-400/20 text-cyan-100 hover:bg-[linear-gradient(135deg,rgba(56,189,248,0.2),rgba(56,152,255,0.15))] hover:border-cyan-400/30 hover:shadow-[0_0_20px_rgba(56,189,248,0.1)]"
+                            : "bg-white/[0.06] border border-white/[0.08] text-slate-200 hover:bg-white/[0.1] hover:border-white/[0.12]"
+                        }`}
+                      >
+                        {copy.confirmAction} {actionMap[scenario.action]?.[language] ?? scenario.action}
+                      </Button>
+                    </motion.div>
                   </div>
                 </motion.div>
               );
@@ -404,14 +480,42 @@ export default function QuantPage() {
           <TechPanel>
             <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{copy.aiExplanation}</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="metric-orb rounded-[24px] p-4 text-sm leading-7 text-slate-300">
-                <div className="flex items-center gap-3 text-white"><CheckCircle2 className="h-4 w-4 text-emerald-300" />{copy.clearConclusion}</div>
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.4 }}
+                whileHover={{ y: -2, transition: { duration: 0.2 } }}
+                className="metric-orb rounded-[24px] p-4 text-sm leading-7 text-slate-300"
+              >
+                <div className="flex items-center gap-3 text-white">
+                  <motion.div
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                  </motion.div>
+                  {copy.clearConclusion}
+                </div>
                 <p className="mt-3">{copy.clearConclusionDesc}</p>
-              </div>
-              <div className="metric-orb rounded-[24px] p-4 text-sm leading-7 text-slate-300">
-                <div className="flex items-center gap-3 text-white"><ShieldAlert className="h-4 w-4 text-amber-300" />{copy.governance}</div>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.4 }}
+                whileHover={{ y: -2, transition: { duration: 0.2 } }}
+                className="metric-orb rounded-[24px] p-4 text-sm leading-7 text-slate-300"
+              >
+                <div className="flex items-center gap-3 text-white">
+                  <motion.div
+                    animate={{ scale: [1, 1.15, 1] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <ShieldAlert className="h-4 w-4 text-amber-300" />
+                  </motion.div>
+                  {copy.governance}
+                </div>
                 <p className="mt-3">{copy.governanceDesc}</p>
-              </div>
+              </motion.div>
             </div>
           </TechPanel>
         </div>

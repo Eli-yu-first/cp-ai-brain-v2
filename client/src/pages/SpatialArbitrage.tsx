@@ -1,11 +1,11 @@
-import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader, NumberTicker } from "@/components/platform/PlatformPrimitives";
 import { PlatformShell } from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BrainCircuit,
   Map as MapIcon,
@@ -132,30 +132,57 @@ export default function SpatialArbitragePage() {
       {/* Top Value Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         {[
-          { label: t("spatialArbitrage.statTotal"), value: `${simulation?.totalOpportunities ?? 0} 条`, desc: "扫描全国动态路网" },
-          { label: t("spatialArbitrage.statBest"), value: `+${simulation?.bestRouteProfit.toFixed(2) ?? "0.00"} 元/kg`, desc: simulation?.bestRouteName ?? "-" },
-          { label: "调度总净利", value: `${simulation?.scheduleSummary?.totalNetProfit ?? 0} 万元`, desc: `${simulation?.scheduleSummary?.totalShippedTon ?? 0} 吨已分配` },
-          { label: "入储/深加工", value: `${(simulation?.scheduleSummary?.storageTon ?? 0) + (simulation?.scheduleSummary?.deepProcessingTon ?? 0)} 吨`, desc: `触发 ${simulation?.scheduleSummary?.storageOpenedRoutes ?? 0} 条时间套利` }
+          { label: t("spatialArbitrage.statTotal"), value: simulation?.totalOpportunities ?? 0, suffix: " 条", desc: "扫描全国动态路网", color: "text-cyan-400", pulse: (simulation?.totalOpportunities ?? 0) > 0 },
+          { label: t("spatialArbitrage.statBest"), value: simulation?.bestRouteProfit ?? 0, suffix: " 元/kg", prefix: "+", desc: simulation?.bestRouteName ?? "-", color: "text-emerald-400", pulse: (simulation?.bestRouteProfit ?? 0) > 1 },
+          { label: "调度总净利", value: simulation?.scheduleSummary?.totalNetProfit ?? 0, suffix: " 万元", desc: `${simulation?.scheduleSummary?.totalShippedTon ?? 0} 吨已分配`, color: "text-emerald-300", pulse: (simulation?.scheduleSummary?.totalNetProfit ?? 0) > 0 },
+          { label: "入储/深加工", value: (simulation?.scheduleSummary?.storageTon ?? 0) + (simulation?.scheduleSummary?.deepProcessingTon ?? 0), suffix: " 吨", desc: `触发 ${simulation?.scheduleSummary?.storageOpenedRoutes ?? 0} 条时间套利`, color: "text-cyan-300", pulse: false }
         ].map((stat, i) => (
-          <TechPanel key={i} className="p-4 rounded-[20px] relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">{stat.label}</p>
-            <p className="font-mono text-2xl font-bold text-white tracking-tight">{stat.value}</p>
-            <p className="text-[12px] text-slate-400 mt-2">{stat.desc}</p>
-          </TechPanel>
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: i * 0.08, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            whileHover={{ y: -3, transition: { duration: 0.2 } }}
+          >
+            <TechPanel className="p-4 rounded-[20px] relative overflow-hidden group">
+              {stat.pulse && (
+                <motion.div
+                  className="absolute inset-0 pointer-events-none"
+                  animate={{ boxShadow: ["0 0 0px rgba(16,185,129,0)", "0 0 14px rgba(16,185,129,0.06)", "0 0 0px rgba(16,185,129,0)"] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">{stat.label}</p>
+              <p className={`font-mono text-2xl font-bold tracking-tight ${stat.color}`}>
+                {stat.prefix ?? ""}<NumberTicker value={stat.value} decimals={2} />{stat.suffix}
+              </p>
+              <p className="text-[12px] text-slate-400 mt-2">{stat.desc}</p>
+            </TechPanel>
+          </motion.div>
         ))}
       </div>
 
       {/* AI Overview Banner */}
-      <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.05] p-3 shadow-[0_0_20px_rgba(16,185,129,0.05)] backdrop-blur flex gap-3 items-center">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.05] p-3 shadow-[0_0_20px_rgba(16,185,129,0.05)] backdrop-blur flex gap-3 items-center relative overflow-hidden"
+      >
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          animate={{ background: ["linear-gradient(90deg, transparent, rgba(16,185,129,0.03), transparent)", "linear-gradient(90deg, transparent, rgba(16,185,129,0.06), transparent)", "linear-gradient(90deg, transparent, rgba(16,185,129,0.03), transparent)"] }}
+          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        />
          <span className="relative flex h-2.5 w-2.5 ml-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70"></span>
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
          </span>
-         <p className="text-sm font-medium text-emerald-100">
+         <p className="text-sm font-medium text-emerald-100 relative">
            {simulation?.aiDecisionOverview ?? "正在加载区域数据与测算路由..."}
          </p>
-      </div>
+      </motion.div>
 
       {/* Excel-derived pork chain constraints */}
       <TechPanel className="mb-6 rounded-[24px] p-5">
@@ -169,22 +196,32 @@ export default function SpatialArbitragePage() {
           </Badge>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-          {simulation?.chainFactors?.map((factor: any) => (
-            <div key={factor.code} className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-              <div className="mb-2 flex items-center justify-between gap-2">
+          {simulation?.chainFactors?.map((factor: any, fi: number) => (
+            <motion.div
+              key={factor.code}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.06 * fi, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -2, transition: { duration: 0.2 } }}
+              className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 relative overflow-hidden"
+            >
+              <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-cyan-400/5 blur-2xl" />
+              <div className="relative mb-2 flex items-center justify-between gap-2">
                 <p className="text-[12px] font-semibold text-white">{factor.stage}</p>
                 <span className="font-mono text-[10px] text-cyan-300">{factor.timeNode}</span>
               </div>
-              <p className="font-mono text-lg font-bold text-slate-100">{factor.actual.toLocaleString()} <span className="text-[11px] text-slate-500">{factor.unit}</span></p>
-              <p className="mt-1 text-[11px] text-slate-400">目标 {factor.target.toLocaleString()}，缺口 {factor.gap.toLocaleString()}</p>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div
+              <p className="relative font-mono text-lg font-bold text-slate-100">{factor.actual.toLocaleString()} <span className="text-[11px] text-slate-500">{factor.unit}</span></p>
+              <p className="relative mt-1 text-[11px] text-slate-400">目标 {factor.target.toLocaleString()}，缺口 {factor.gap.toLocaleString()}</p>
+              <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <motion.div
                   className="h-full rounded-full bg-cyan-400"
-                  style={{ width: `${Math.max(4, Math.min(100, factor.utilization))}%` }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.max(4, Math.min(100, factor.utilization))}%` }}
+                  transition={{ duration: 0.8, delay: 0.1 * fi, ease: [0.16, 1, 0.3, 1] }}
                 />
               </div>
-              <p className="mt-2 text-[11px] text-slate-500">{factor.optimization}</p>
-            </div>
+              <p className="relative mt-2 text-[11px] text-slate-500">{factor.optimization}</p>
+            </motion.div>
           ))}
         </div>
       </TechPanel>
@@ -740,76 +777,144 @@ export default function SpatialArbitragePage() {
          </h4>
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
              {/* Purchasing */}
-             <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,25,50,0.9))] border-t-cyan-500/30">
-               <div className="flex items-center gap-3 mb-4">
-                 <div className="h-10 w-10 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 font-bold border border-cyan-500/20">采</div>
-                 <div>
-                   <p className="text-sm font-bold text-white">采购经理</p>
-                   <p className="text-[10px] uppercase tracking-wider text-slate-500">供应链负责人</p>
+             <motion.div
+               initial={{ opacity: 0, y: 16 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ delay: 0.05, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+               whileHover={{ y: -3, transition: { duration: 0.2 } }}
+             >
+               <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,25,50,0.9))] border-t-cyan-500/30">
+                 <div className="flex items-center gap-3 mb-4">
+                   <motion.div
+                     className="h-10 w-10 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 font-bold border border-cyan-500/20"
+                     animate={{ boxShadow: ["0 0 0px rgba(56,189,248,0)", "0 0 10px rgba(56,189,248,0.1)", "0 0 0px rgba(56,189,248,0)"] }}
+                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                   >采</motion.div>
+                   <div>
+                     <p className="text-sm font-bold text-white">采购经理</p>
+                     <p className="text-[10px] uppercase tracking-wider text-slate-500">供应链负责人</p>
+                   </div>
                  </div>
-               </div>
-               <div className="space-y-3">
-                 {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.purchasing.map((t, i) => (
-                   <p key={i} className="text-[12px] text-slate-300 flex items-start gap-2">
-                     <span className="text-cyan-500 shrink-0">→</span> {t}
-                   </p>
-                 ))}
-               </div>
-             </TechPanel>
+                 <div className="space-y-3">
+                   {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.purchasing.map((t, i) => (
+                     <motion.p
+                       key={i}
+                       initial={{ opacity: 0, x: -6 }}
+                       animate={{ opacity: 1, x: 0 }}
+                       transition={{ delay: 0.05 * i, duration: 0.3 }}
+                       className="text-[12px] text-slate-300 flex items-start gap-2"
+                     >
+                       <span className="text-cyan-500 shrink-0">→</span> {t}
+                     </motion.p>
+                   ))}
+                 </div>
+               </TechPanel>
+             </motion.div>
 
              {/* Logistics */}
-             <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,35,30,0.9))] border-t-emerald-500/30">
-               <div className="flex items-center gap-3 mb-4">
-                 <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/20">调</div>
-                 <div>
-                   <p className="text-sm font-bold text-white">物流调度</p>
-                   <p className="text-[10px] uppercase tracking-wider text-slate-500">运输网络管理</p>
+             <motion.div
+               initial={{ opacity: 0, y: 16 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ delay: 0.1, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+               whileHover={{ y: -3, transition: { duration: 0.2 } }}
+             >
+               <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,35,30,0.9))] border-t-emerald-500/30">
+                 <div className="flex items-center gap-3 mb-4">
+                   <motion.div
+                     className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/20"
+                     animate={{ boxShadow: ["0 0 0px rgba(16,185,129,0)", "0 0 10px rgba(16,185,129,0.1)", "0 0 0px rgba(16,185,129,0)"] }}
+                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                   >调</motion.div>
+                   <div>
+                     <p className="text-sm font-bold text-white">物流调度</p>
+                     <p className="text-[10px] uppercase tracking-wider text-slate-500">运输网络管理</p>
+                   </div>
                  </div>
-               </div>
-               <div className="space-y-3">
-                 {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.logistics.map((t, i) => (
-                   <p key={i} className="text-[12px] text-slate-300 flex items-start gap-2">
-                     <span className="text-emerald-500 shrink-0">→</span> {t}
-                   </p>
-                 ))}
-               </div>
-             </TechPanel>
+                 <div className="space-y-3">
+                   {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.logistics.map((t, i) => (
+                     <motion.p
+                       key={i}
+                       initial={{ opacity: 0, x: -6 }}
+                       animate={{ opacity: 1, x: 0 }}
+                       transition={{ delay: 0.05 * i, duration: 0.3 }}
+                       className="text-[12px] text-slate-300 flex items-start gap-2"
+                     >
+                       <span className="text-emerald-500 shrink-0">→</span> {t}
+                     </motion.p>
+                   ))}
+                 </div>
+               </TechPanel>
+             </motion.div>
 
              {/* Sales */}
-             <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,25,10,0.9))] border-t-amber-500/30">
-               <div className="flex items-center gap-3 mb-4">
-                 <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 font-bold border border-amber-500/20">销</div>
-                 <div>
-                   <p className="text-sm font-bold text-white">销售团队</p>
-                   <p className="text-[10px] uppercase tracking-wider text-slate-500">目的地市场开拓</p>
+             <motion.div
+               initial={{ opacity: 0, y: 16 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ delay: 0.15, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+               whileHover={{ y: -3, transition: { duration: 0.2 } }}
+             >
+               <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,25,10,0.9))] border-t-amber-500/30">
+                 <div className="flex items-center gap-3 mb-4">
+                   <motion.div
+                     className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 font-bold border border-amber-500/20"
+                     animate={{ boxShadow: ["0 0 0px rgba(251,191,36,0)", "0 0 10px rgba(251,191,36,0.1)", "0 0 0px rgba(251,191,36,0)"] }}
+                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                   >销</motion.div>
+                   <div>
+                     <p className="text-sm font-bold text-white">销售团队</p>
+                     <p className="text-[10px] uppercase tracking-wider text-slate-500">目的地市场开拓</p>
+                   </div>
                  </div>
-               </div>
-               <div className="space-y-3">
-                 {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.sales.map((t, i) => (
-                   <p key={i} className="text-[12px] text-slate-300 flex items-start gap-2">
-                     <span className="text-amber-500 shrink-0">→</span> {t}
-                   </p>
-                 ))}
-               </div>
-             </TechPanel>
+                 <div className="space-y-3">
+                   {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.sales.map((t, i) => (
+                     <motion.p
+                       key={i}
+                       initial={{ opacity: 0, x: -6 }}
+                       animate={{ opacity: 1, x: 0 }}
+                       transition={{ delay: 0.05 * i, duration: 0.3 }}
+                       className="text-[12px] text-slate-300 flex items-start gap-2"
+                     >
+                       <span className="text-amber-500 shrink-0">→</span> {t}
+                     </motion.p>
+                   ))}
+                 </div>
+               </TechPanel>
+             </motion.div>
 
              {/* Risk */}
-             <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,10,20,0.9))] border-t-rose-500/30">
-               <div className="flex items-center gap-3 mb-4">
-                 <div className="h-10 w-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 font-bold border border-rose-500/20">控</div>
-                 <div>
-                   <p className="text-sm font-bold text-white">风控&数据</p>
-                   <p className="text-[10px] uppercase tracking-wider text-slate-500">AI支持中心</p>
+             <motion.div
+               initial={{ opacity: 0, y: 16 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ delay: 0.2, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+               whileHover={{ y: -3, transition: { duration: 0.2 } }}
+             >
+               <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,10,20,0.9))] border-t-rose-500/30">
+                 <div className="flex items-center gap-3 mb-4">
+                   <motion.div
+                     className="h-10 w-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 font-bold border border-rose-500/20"
+                     animate={{ boxShadow: ["0 0 0px rgba(244,63,94,0)", "0 0 10px rgba(244,63,94,0.1)", "0 0 0px rgba(244,63,94,0)"] }}
+                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
+                   >控</motion.div>
+                   <div>
+                     <p className="text-sm font-bold text-white">风控&数据</p>
+                     <p className="text-[10px] uppercase tracking-wider text-slate-500">AI支持中心</p>
+                   </div>
                  </div>
-               </div>
-               <div className="space-y-3">
-                 {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.risk.map((t, i) => (
-                   <p key={i} className="text-[12px] text-slate-300 flex items-start gap-2">
-                     <span className="text-rose-500 shrink-0">→</span> {t}
-                   </p>
-                 ))}
-               </div>
-             </TechPanel>
+                 <div className="space-y-3">
+                   {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.risk.map((t, i) => (
+                     <motion.p
+                       key={i}
+                       initial={{ opacity: 0, x: -6 }}
+                       animate={{ opacity: 1, x: 0 }}
+                       transition={{ delay: 0.05 * i, duration: 0.3 }}
+                       className="text-[12px] text-slate-300 flex items-start gap-2"
+                     >
+                       <span className="text-rose-500 shrink-0">→</span> {t}
+                     </motion.p>
+                   ))}
+                 </div>
+               </TechPanel>
+             </motion.div>
          </div>
       </div>
     </PlatformShell>

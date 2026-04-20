@@ -1,11 +1,11 @@
-import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader, NumberTicker } from "@/components/platform/PlatformPrimitives";
 import { PlatformShell } from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BrainCircuit,
   CalendarDays,
@@ -22,6 +22,7 @@ import {
   Warehouse,
   Package,
   Trash2,
+  Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -297,45 +298,69 @@ export default function TimeArbitragePage() {
           {[
             {
               label: "套利窗口月数",
-              value: `${stats.arbitrageCount} 个月`,
+              value: stats.arbitrageCount,
+              suffix: " 个月",
               sub: arbitrageWindow ? `${windowStartLabel} → ${windowEndLabel}` : "无有效窗口",
               color: "text-cyan-400",
               icon: <CalendarDays className="h-4 w-4 text-cyan-400" />,
+              pulse: stats.arbitrageCount > 0,
             },
             {
               label: "最佳出货月",
-              value: `${stats.maxProfitMonth} 月`,
+              value: stats.maxProfitMonth,
+              suffix: " 月",
               sub: `价差 +${stats.maxProfit.toFixed(2)} 元/kg`,
               color: "text-emerald-400",
               icon: <TrendingUp className="h-4 w-4 text-emerald-400" />,
+              pulse: false,
             },
             {
               label: "最大总利润",
-              value: `${stats.maxTotalProfit > 0 ? "+" : ""}${stats.maxTotalProfit} 万元`,
+              value: stats.maxTotalProfit,
+              suffix: " 万元",
+              prefix: stats.maxTotalProfit > 0 ? "+" : "",
               sub: `按 ${storageTons} 吨计算`,
               color: stats.maxTotalProfit > 0 ? "text-emerald-400" : "text-rose-400",
               icon: <LineChartIcon className="h-4 w-4 text-emerald-400" />,
+              pulse: stats.maxTotalProfit > 0,
             },
             {
               label: "预估资金占用",
-              value: `${stats.capitalRequired} 万元`,
+              value: stats.capitalRequired,
+              suffix: " 万元",
               sub: `现货价 ¥${spotPrice.toFixed(2)}/kg`,
               color: "text-amber-400",
               icon: <Package className="h-4 w-4 text-amber-400" />,
+              pulse: false,
             },
           ].map((item, i) => (
             <motion.div
               key={item.label}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06 }}
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: i * 0.08, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ y: -3, transition: { duration: 0.2 } }}
             >
-              <TechPanel className="p-4 rounded-[16px]">
+              <TechPanel className="p-4 rounded-[16px] relative overflow-hidden">
+                {item.pulse && (
+                  <motion.div
+                    className="absolute inset-0 pointer-events-none"
+                    animate={{ boxShadow: ["0 0 0px rgba(16,185,129,0)", "0 0 16px rgba(16,185,129,0.06)", "0 0 0px rgba(16,185,129,0)"] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                )}
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] text-slate-400 uppercase tracking-wider">{item.label}</span>
-                  {item.icon}
+                  <motion.div
+                    animate={item.pulse ? { scale: [1, 1.1, 1] } : {}}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    {item.icon}
+                  </motion.div>
                 </div>
-                <p className={`font-mono text-xl font-bold ${item.color}`}>{item.value}</p>
+                <p className={`font-mono text-xl font-bold ${item.color}`}>
+                  {item.prefix ?? ""}<NumberTicker value={item.value} decimals={0} />{item.suffix}
+                </p>
                 <p className="text-[11px] text-slate-500 mt-1">{item.sub}</p>
               </TechPanel>
             </motion.div>
@@ -345,34 +370,47 @@ export default function TimeArbitragePage() {
 
       {/* 已保存方案标签栏 */}
       {savedPlans.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="mb-4 flex flex-wrap items-center gap-2"
+        >
           <span className="text-[11px] text-slate-500 uppercase tracking-wider mr-2">
             <LayersIcon className="inline h-3.5 w-3.5 mr-1 text-slate-400" />
             多方案对比
           </span>
-          {savedPlans.map((plan) => (
-            <div
-              key={plan.id}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-medium"
-              style={{
-                borderColor: `${plan.color}55`,
-                backgroundColor: `${plan.color}15`,
-                color: plan.color,
-              }}
-            >
-              <span className="font-semibold">{plan.label}</span>
-              <span className="font-mono text-slate-400">
-                现价¥{plan.params.spotPrice.toFixed(1)} / {plan.params.storageDuration}月
-              </span>
-              <button
-                onClick={() => handleRemovePlan(plan.id)}
-                className="text-slate-500 hover:text-rose-400"
+          <AnimatePresence>
+            {savedPlans.map((plan) => (
+              <motion.div
+                key={plan.id}
+                initial={{ opacity: 0, scale: 0.8, x: -10 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.8, x: 10 }}
+                transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                whileHover={{ y: -1, transition: { duration: 0.15 } }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-[11px] font-medium cursor-default"
+                style={{
+                  borderColor: `${plan.color}55`,
+                  backgroundColor: `${plan.color}15`,
+                  color: plan.color,
+                }}
               >
-                <Trash2 className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-        </div>
+                <span className="font-semibold">{plan.label}</span>
+                <span className="font-mono text-slate-400">
+                  现价¥{plan.params.spotPrice.toFixed(1)} / {plan.params.storageDuration}月
+                </span>
+                <motion.button
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => handleRemovePlan(plan.id)}
+                  className="text-slate-500 hover:text-rose-400 transition-colors"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </motion.button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       )}
 
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -380,8 +418,18 @@ export default function TimeArbitragePage() {
         <div className="lg:col-span-4 space-y-4">
           <TechPanel className="relative overflow-hidden p-6 rounded-[24px]">
             <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-cyan-400 to-blue-600 rounded-l-[24px]" />
+            <motion.div
+              className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-cyan-400 to-blue-600 rounded-l-[24px]"
+              animate={{ opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            />
             <h4 className="mb-5 flex items-center gap-2 text-sm font-semibold tracking-wide text-white uppercase opacity-90">
-              <SlidersHorizontal className="h-4 w-4 text-cyan-400" />
+              <motion.div
+                animate={{ rotate: [0, 180, 360] }}
+                transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+              >
+                <SlidersHorizontal className="h-4 w-4 text-cyan-400" />
+              </motion.div>
               {t("timeArbitrage.paramSetting")}
             </h4>
 
@@ -690,17 +738,43 @@ export default function TimeArbitragePage() {
 
       {/* AI 决策推理（格式化四宫格展示） */}
       <div className="mb-8">
-        <TechPanel className="p-6 rounded-[24px]">
-          <h4 className="text-sm font-semibold tracking-wide text-white mb-5 flex items-center gap-2">
-            <BrainCircuit className="h-4 w-4 text-violet-400" />
+        <TechPanel className="p-6 rounded-[24px] relative overflow-hidden">
+          <motion.div
+            className="absolute inset-0 pointer-events-none"
+            animate={{
+              background: [
+                "radial-gradient(circle at 20% 50%, rgba(139,92,246,0.03), transparent 50%)",
+                "radial-gradient(circle at 80% 50%, rgba(139,92,246,0.03), transparent 50%)",
+                "radial-gradient(circle at 20% 50%, rgba(139,92,246,0.03), transparent 50%)",
+              ],
+            }}
+            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <h4 className="text-sm font-semibold tracking-wide text-white mb-5 flex items-center gap-2 relative">
+            <motion.div
+              animate={{ scale: [1, 1.15, 1] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <BrainCircuit className="h-4 w-4 text-violet-400" />
+            </motion.div>
             {t("timeArbitrage.aiReasoning")}
           </h4>
 
           <div className="relative">
             {isPredicting ? (
               <div className="flex flex-col items-center justify-center gap-3 py-12">
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-                <p className="text-xs text-slate-400 animate-pulse">Running quantitative arbitrage model...</p>
+                <motion.div
+                  className="h-8 w-8 rounded-full border-2 border-violet-500 border-t-transparent"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                />
+                <motion.p
+                  className="text-xs text-slate-400"
+                  animate={{ opacity: [0.4, 1, 0.4] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  Running quantitative arbitrage model...
+                </motion.p>
               </div>
             ) : aiDecision ? (
               <motion.div
@@ -708,8 +782,13 @@ export default function TimeArbitragePage() {
                 animate={{ opacity: 1 }}
                 className="grid grid-cols-1 gap-4 md:grid-cols-2"
               >
-                {/* 市场分析 */}
-                <div className="rounded-[16px] border border-cyan-500/20 bg-cyan-500/5 p-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05, duration: 0.4 }}
+                  whileHover={{ y: -2, transition: { duration: 0.2 } }}
+                  className="rounded-[16px] border border-cyan-500/20 bg-cyan-500/5 p-4"
+                >
                   <div className="flex items-center gap-2 mb-3">
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/20">
                       <TrendingUp className="h-4 w-4 text-cyan-400" />
@@ -717,10 +796,15 @@ export default function TimeArbitragePage() {
                     <span className="text-[13px] font-semibold text-cyan-300">{t("timeArbitrage.marketAnalysis")}</span>
                   </div>
                   <p className="text-[12.5px] leading-relaxed text-slate-300">{aiDecision.marketAnalysis}</p>
-                </div>
+                </motion.div>
 
-                {/* 成本建议 */}
-                <div className="rounded-[16px] border border-amber-500/20 bg-amber-500/5 p-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1, duration: 0.4 }}
+                  whileHover={{ y: -2, transition: { duration: 0.2 } }}
+                  className="rounded-[16px] border border-amber-500/20 bg-amber-500/5 p-4"
+                >
                   <div className="flex items-center gap-2 mb-3">
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/20">
                       <Target className="h-4 w-4 text-amber-400" />
@@ -728,10 +812,15 @@ export default function TimeArbitragePage() {
                     <span className="text-[13px] font-semibold text-amber-300">{t("timeArbitrage.costRecommendation")}</span>
                   </div>
                   <p className="text-[12.5px] leading-relaxed text-slate-300">{aiDecision.costRecommendation}</p>
-                </div>
+                </motion.div>
 
-                {/* 决策信号 */}
-                <div className="rounded-[16px] border border-emerald-500/20 bg-emerald-500/5 p-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15, duration: 0.4 }}
+                  whileHover={{ y: -2, transition: { duration: 0.2 } }}
+                  className="rounded-[16px] border border-emerald-500/20 bg-emerald-500/5 p-4"
+                >
                   <div className="flex items-center gap-2 mb-3">
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/20">
                       <BrainCircuit className="h-4 w-4 text-emerald-400" />
@@ -740,10 +829,16 @@ export default function TimeArbitragePage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {aiDecision.decision && aiDecision.decision.length > 0 ? (
-                      aiDecision.decision.map((d: string) => (
-                        <span key={d} className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-medium">
+                      aiDecision.decision.map((d: string, di: number) => (
+                        <motion.span
+                          key={d}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: 0.2 + di * 0.06, duration: 0.3 }}
+                          className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-xs font-medium"
+                        >
                           {d}
-                        </span>
+                        </motion.span>
                       ))
                     ) : (
                       <span className="px-2.5 py-1 bg-slate-500/20 text-slate-300 border border-slate-500/30 rounded-full text-xs font-medium">
@@ -751,10 +846,15 @@ export default function TimeArbitragePage() {
                       </span>
                     )}
                   </div>
-                </div>
+                </motion.div>
 
-                {/* 风险警示 */}
-                <div className="rounded-[16px] border border-rose-500/20 bg-rose-500/5 p-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.4 }}
+                  whileHover={{ y: -2, transition: { duration: 0.2 } }}
+                  className="rounded-[16px] border border-rose-500/20 bg-rose-500/5 p-4"
+                >
                   <div className="flex items-center gap-2 mb-3">
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/20">
                       <ShieldAlert className="h-4 w-4 text-rose-400" />
@@ -762,7 +862,7 @@ export default function TimeArbitragePage() {
                     <span className="text-[13px] font-semibold text-rose-300">{t("timeArbitrage.riskWarning")}</span>
                   </div>
                   <p className="text-[12.5px] leading-relaxed text-rose-200/80">{aiDecision.riskWarning}</p>
-                </div>
+                </motion.div>
               </motion.div>
             ) : null}
           </div>

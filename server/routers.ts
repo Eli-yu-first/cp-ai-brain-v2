@@ -15,9 +15,11 @@ import { buildLiveDecisionScenarios, buildPorkMarketSnapshot } from "./marketDat
 import {
   buildAgentDecisionContext,
   buildAgentDecisionDraft,
+  buildAiDecisionWorkspace,
   buildAiForecast,
   buildAlertBoard,
   buildDispatchBoard,
+  buildDispatchExecutionSummary,
   buildWhatIfSimulation,
 } from "./aiDecision";
 import {
@@ -126,6 +128,59 @@ export const appRouter = router({
       )
       .query(async ({ input }) => {
         return buildLiveDecisionScenarios(input.batchCode, input.regionCode ?? "national");
+      }),
+    aiDecisionWorkspace: protectedProcedure
+      .input(
+        z.object({
+          batchCode: z.string(),
+          forecastMonth: z.number().int().min(1).max(8),
+          scenarioMonth: z.number().int().min(1).max(3),
+          targetPrice: z.number().min(1).max(40),
+          strategy: z.enum(["steady", "balanced", "aggressive"]).optional(),
+          basisAdjustment: z.number().min(-4).max(4).optional(),
+          capacityAdjustment: z.number().min(-60).max(120),
+          demandAdjustment: z.number().min(-60).max(120),
+        }),
+      )
+      .query(async ({ input }) => {
+        const dispatchHistoryRows = await listDispatchReceiptsByBatch(input.batchCode);
+        const dispatchHistory = dispatchHistoryRows.map(order => ({
+          orderId: order.orderId,
+          batchCode: order.batchCode,
+          currentStatus: order.currentStatus,
+          priority: order.priority,
+          receipts: order.receipts.map(receipt => ({
+            role: receipt.role,
+            status: receipt.status,
+            etaMinutes: receipt.etaMinutes,
+            note: receipt.note,
+            acknowledgedBy: receipt.acknowledgedBy,
+            receiptBy: receipt.receiptBy,
+          })),
+        }));
+
+        const workspace = buildAiDecisionWorkspace(
+          input.batchCode,
+          input.scenarioMonth,
+          input.targetPrice,
+          input.capacityAdjustment,
+          input.demandAdjustment,
+          dispatchHistory,
+        );
+
+        const forecast = buildAiForecast(
+          input.batchCode,
+          input.forecastMonth,
+          input.targetPrice,
+          input.strategy ?? "balanced",
+          input.basisAdjustment ?? 0,
+        );
+
+        return {
+          ...workspace,
+          forecast,
+          executionSummary: buildDispatchExecutionSummary(workspace.dispatchBoard, dispatchHistory),
+        };
       }),
     aiForecast: protectedProcedure
       .input(
@@ -685,11 +740,15 @@ export const appRouter = router({
             workOrders: [
               {
                 orderId: order.orderId,
+                role: input.role,
+                stage: input.role === "厂长" ? "slaughter" : input.role === "司机" ? "cold-chain" : "warehouse",
                 factory: order.factory,
                 quantity: order.quantity,
                 priority: order.priority,
                 scheduledTime: order.scheduledLabel,
                 acceptanceStandard: order.acceptanceStandard,
+                operationRequirement: input.note,
+                escalationCondition: "执行回执超时或关键节点未闭环时立即升级。",
                 payload,
               },
             ],

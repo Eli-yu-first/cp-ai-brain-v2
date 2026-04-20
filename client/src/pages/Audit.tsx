@@ -1,5 +1,5 @@
 import { PlatformShell } from "@/components/platform/PlatformShell";
-import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
+import { TechPanel, SectionHeader, NumberTicker } from "@/components/platform/PlatformPrimitives";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
@@ -164,7 +164,21 @@ export default function AuditPage() {
             <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">{copy.controlDeck}</p>
             <h3 className="mt-2 text-xl font-bold tracking-tight text-white">{copy.latestBoard}</h3>
           </div>
-          <Badge className="rounded-lg border-emerald-400/15 bg-emerald-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-emerald-200/80">{copy.compliance}</Badge>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-2">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">日志条数</p>
+              <p className="font-mono text-lg font-bold text-white ml-2">
+                <NumberTicker value={logs?.length ?? 0} />
+              </p>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-2">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">套利记录</p>
+              <p className="font-mono text-lg font-bold text-violet-300 ml-2">
+                <NumberTicker value={arbitrageRecords?.length ?? 0} />
+              </p>
+            </div>
+            <Badge className="rounded-lg border-emerald-400/15 bg-emerald-400/[0.06] px-3.5 py-2 text-[11px] font-semibold text-emerald-200/80">{copy.compliance}</Badge>
+          </div>
         </div>
       </TechPanel>
 
@@ -217,8 +231,17 @@ export default function AuditPage() {
               </div>
             </div>
             <div className="mt-5 space-y-3">
-              {[copy.checkpoint1, copy.checkpoint2, copy.checkpoint3].map(item => (
-                <div key={item} className="metric-orb rounded-[22px] p-4 text-sm leading-6 text-slate-300">{item}</div>
+              {[copy.checkpoint1, copy.checkpoint2, copy.checkpoint3].map((item, i) => (
+                <motion.div
+                  key={item}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.08 * i, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                  whileHover={{ x: 4, transition: { duration: 0.15 } }}
+                  className="metric-orb rounded-[22px] p-4 text-sm leading-6 text-slate-300"
+                >
+                  {item}
+                </motion.div>
               ))}
             </div>
           </TechPanel>

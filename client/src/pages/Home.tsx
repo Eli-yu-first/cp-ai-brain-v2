@@ -291,6 +291,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.3 + i * 0.1 }}
+                  whileHover={{ y: -3, transition: { duration: 0.2 } }}
                   className="group rounded-xl border border-white/[0.05] bg-[linear-gradient(180deg,rgba(255,255,255,0.025),rgba(255,255,255,0.008)),rgba(6,14,28,0.9)] p-4 transition-all hover:border-cyan-400/15 hover:bg-[rgba(56,152,255,0.03)]"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/[0.06] text-cyan-300 transition-all group-hover:bg-cyan-400/[0.1] group-hover:shadow-[0_0_16px_rgba(56,180,255,0.12)]">
@@ -366,13 +367,15 @@ export default function Home() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 + i * 0.1 }}
-              className="holo-card glow-border p-5"
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+              className="holo-card glow-border p-5 group relative overflow-hidden"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/[0.06] text-cyan-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-400/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/[0.06] text-cyan-300 transition-all group-hover:bg-cyan-400/[0.1] group-hover:shadow-[0_0_16px_rgba(56,180,255,0.12)]">
                 <item.icon className="h-4.5 w-4.5" />
               </div>
-              <h4 className="mt-4 text-[15px] font-bold text-white">{item.title}</h4>
-              <p className="mt-2.5 text-[12.5px] leading-[1.7] text-slate-400/80">{item.desc}</p>
+              <h4 className="relative mt-4 text-[15px] font-bold text-white">{item.title}</h4>
+              <p className="relative mt-2.5 text-[12.5px] leading-[1.7] text-slate-400/80">{item.desc}</p>
             </motion.div>
           ))}
         </motion.section>

@@ -58,6 +58,27 @@ function createContext(): TrpcContext {
 }
 
 describe("platform quant engine", () => {
+  it("returns aggregated AI decision workspace with nine-grid alerts and execution summary", async () => {
+    const ctx = createContext();
+    const caller = appRouter.createCaller(ctx);
+    const workspace = await caller.platform.aiDecisionWorkspace({
+      batchCode: "CP-PK-240418-A1",
+      forecastMonth: 4,
+      scenarioMonth: 2,
+      targetPrice: 15.8,
+      strategy: "balanced",
+      basisAdjustment: 0.2,
+      capacityAdjustment: 12,
+      demandAdjustment: 8,
+    });
+
+    expect(workspace.forecast.selectedMonth).toBe(4);
+    expect(workspace.alertBoard.items).toHaveLength(9);
+    expect(workspace.dispatchBoard.workOrders).toHaveLength(3);
+    expect(workspace.executionSummary.totalOrders).toBeGreaterThan(0);
+    expect(workspace.lifecycle.stage).toBeDefined();
+  });
+
   it("returns an explicit hold or sell action from formulas", () => {
     const scenario = calculateDecision(inventoryBatches[0]!, 1);
 

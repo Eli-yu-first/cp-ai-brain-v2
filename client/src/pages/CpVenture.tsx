@@ -1,4 +1,4 @@
-import { SectionHeader, TechPanel } from "@/components/platform/PlatformPrimitives";
+import { SectionHeader, TechPanel, NumberTicker } from "@/components/platform/PlatformPrimitives";
 import { PlatformShell } from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -13,7 +13,7 @@ import {
   type VentureDomain,
   type VentureStage,
 } from "@shared/cpVenture";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Building2, GitBranch, Layers3, Network, Search, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -106,28 +106,29 @@ export default function CpVenturePage() {
       />
 
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-4">
-        <TechPanel className="rounded-[18px] p-4">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">企业节点</p>
-          <p className="mt-3 font-mono text-3xl font-bold text-white">{filteredCompanies.length}</p>
-          <p className="mt-2 text-[12px] text-slate-400">支持按领域、阶段和关键词筛选。</p>
-        </TechPanel>
-        <TechPanel className="rounded-[18px] p-4">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">关系连线</p>
-          <p className="mt-3 font-mono text-3xl font-bold text-white">{visibleLinks.length}</p>
-          <p className="mt-2 text-[12px] text-slate-400">包含控股、子公司、生态和战略投资。</p>
-        </TechPanel>
-        <TechPanel className="rounded-[18px] p-4">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">最高参与深度</p>
-          <p className="mt-3 font-mono text-3xl font-bold text-emerald-300">{Math.max(...filteredCompanies.map(item => item.depth))}</p>
-          <p className="mt-2 text-[12px] text-slate-400">越高表示正大参与越深。</p>
-        </TechPanel>
-        <TechPanel className="rounded-[18px] p-4">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">覆盖领域</p>
-          <p className="mt-3 font-mono text-3xl font-bold text-cyan-300">
-            {new Set(filteredCompanies.map(item => item.domain)).size}
-          </p>
-          <p className="mt-2 text-[12px] text-slate-400">跨产业协同是正大投资版图的核心。</p>
-        </TechPanel>
+        {[
+          { label: "企业节点", value: filteredCompanies.length, suffix: "", desc: "支持按领域、阶段和关键词筛选。", color: "text-white" },
+          { label: "关系连线", value: visibleLinks.length, suffix: "", desc: "包含控股、子公司、生态和战略投资。", color: "text-white" },
+          { label: "最高参与深度", value: Math.max(...filteredCompanies.map(item => item.depth)), suffix: "", desc: "越高表示正大参与越深。", color: "text-emerald-300" },
+          { label: "覆盖领域", value: new Set(filteredCompanies.map(item => item.domain)).size, suffix: "", desc: "跨产业协同是正大投资版图的核心。", color: "text-cyan-300" },
+        ].map((stat, i) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: i * 0.08, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            whileHover={{ y: -3, transition: { duration: 0.2 } }}
+          >
+            <TechPanel className="rounded-[18px] p-4 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500 relative">{stat.label}</p>
+              <p className={`mt-3 font-mono text-3xl font-bold relative ${stat.color}`}>
+                <NumberTicker value={stat.value} />
+              </p>
+              <p className="mt-2 text-[12px] text-slate-400 relative">{stat.desc}</p>
+            </TechPanel>
+          </motion.div>
+        ))}
       </div>
 
       <TechPanel className="mb-6 rounded-[24px] p-5">
@@ -253,7 +254,17 @@ export default function CpVenturePage() {
           </div>
         </TechPanel>
 
-        <CompanyDetail company={selected} />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={selected.id}
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <CompanyDetail company={selected} />
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       <TechPanel className="mb-8 rounded-[24px] p-5">
@@ -295,16 +306,20 @@ export default function CpVenturePage() {
           本页当前是公开资料可核实的核心样本图谱，并非法律意义上的全部股权穿透表。后续可接入工商数据、年报、公告和内部投资台账，扩展为完整“正大创投知识图谱”。
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {sources.map(source => (
-            <a
+          {sources.map((source, i) => (
+            <motion.a
               key={source.url}
               href={source.url}
               target="_blank"
               rel="noreferrer"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 * i, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ x: 4, transition: { duration: 0.15 } }}
               className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 text-[12px] text-cyan-200 transition-colors hover:border-cyan-400/40 hover:bg-cyan-400/[0.06]"
             >
               {source.label}
-            </a>
+            </motion.a>
           ))}
         </div>
       </TechPanel>
@@ -343,20 +358,45 @@ function CompanyDetail({ company }: { company: VentureCompany }) {
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-3">
-        <InfoPill label="领域" value={domain.label} />
-        <InfoPill label="参与深度" value={`${company.depth}/100`} />
-        <InfoPill label="关系" value={company.relation} />
-        <InfoPill label="地域" value={company.geography} />
+        {[
+          { label: "领域", value: domain.label },
+          { label: "参与深度", value: `${company.depth}/100` },
+          { label: "关系", value: company.relation },
+          { label: "地域", value: company.geography },
+        ].map((pill, i) => (
+          <motion.div
+            key={pill.label}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 * i, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3"
+          >
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{pill.label}</p>
+            <p className="mt-1 text-[12px] font-semibold text-white">{pill.value}</p>
+          </motion.div>
+        ))}
       </div>
 
       <div className="space-y-4">
-        {company.ownershipSummary && <DetailBlock title="股权/关系口径" text={company.ownershipSummary} />}
-        {company.boardRole && <DetailBlock title="董事会/治理参与" text={company.boardRole} />}
-        <DetailBlock title="正大如何参与" text={company.participation} />
-        <DetailBlock title="正大角色" text={company.cpRole} />
-        <DetailBlock title="主营业务" text={company.business} />
-        <DetailBlock title="协同逻辑" text={company.synergy} />
-        <DetailBlock title="依据" text={company.evidence} />
+        {[
+          company.ownershipSummary ? { title: "股权/关系口径", text: company.ownershipSummary } : null,
+          company.boardRole ? { title: "董事会/治理参与", text: company.boardRole } : null,
+          { title: "正大如何参与", text: company.participation },
+          { title: "正大角色", text: company.cpRole },
+          { title: "主营业务", text: company.business },
+          { title: "协同逻辑", text: company.synergy },
+          { title: "依据", text: company.evidence },
+        ].filter((b): b is { title: string; text: string } => b !== null).map((block, i) => (
+          <motion.div
+            key={block.title}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.04 * i, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <p className="mb-1 text-[11px] uppercase tracking-[0.2em] text-slate-500">{block.title}</p>
+            <p className="text-[13px] leading-6 text-slate-300">{block.text}</p>
+          </motion.div>
+        ))}
       </div>
 
       <a
@@ -368,24 +408,6 @@ function CompanyDetail({ company }: { company: VentureCompany }) {
         查看公开来源
       </a>
     </TechPanel>
-  );
-}
-
-function InfoPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
-      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{label}</p>
-      <p className="mt-1 text-[12px] font-semibold text-white">{value}</p>
-    </div>
-  );
-}
-
-function DetailBlock({ title, text }: { title: string; text: string }) {
-  return (
-    <div>
-      <p className="mb-1 text-[11px] uppercase tracking-[0.2em] text-slate-500">{title}</p>
-      <p className="text-[13px] leading-6 text-slate-300">{text}</p>
-    </div>
   );
 }
 
@@ -414,10 +436,15 @@ function StageRow({
       </div>
       {domainOrder.map(domain => (
         <div key={`${stage}-${domain}`} className="min-h-[120px] rounded-xl border border-white/[0.06] bg-white/[0.02] p-2">
-          {(byDomain.get(domain) ?? []).map(company => (
-            <button
+          {(byDomain.get(domain) ?? []).map((company, ci) => (
+            <motion.button
               key={company.id}
               onClick={() => onSelect(company.id)}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.03 * ci, duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ scale: 1.03, transition: { duration: 0.15 } }}
+              whileTap={{ scale: 0.97 }}
               className={cn(
                 "mb-2 w-full rounded-lg border px-2 py-2 text-left transition-all",
                 selectedId === company.id
@@ -430,9 +457,15 @@ function StageRow({
                 <span className="font-mono text-[10px] text-slate-500">{company.depth}</span>
               </div>
               <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full" style={{ width: `${company.depth}%`, background: ventureDomains[company.domain].color }} />
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: ventureDomains[company.domain].color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${company.depth}%` }}
+                  transition={{ duration: 0.6, delay: 0.05 * ci, ease: [0.16, 1, 0.3, 1] }}
+                />
               </div>
-            </button>
+            </motion.button>
           ))}
         </div>
       ))}

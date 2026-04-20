@@ -74,6 +74,27 @@ describe("dispatch receipt workflow", () => {
     });
   });
 
+  it("records plant manager acknowledgement before execution progresses", async () => {
+    const caller = appRouter.createCaller(createContext());
+    const result = await caller.platform.updateAiDispatchReceipt({
+      orderId: "dispatch-001",
+      role: "厂长",
+      status: "已接单",
+      etaMinutes: 25,
+      note: "厂长已确认接单并锁定排班。",
+      acknowledgedBy: "厂长-现场确认",
+    });
+
+    expect(updateDispatchReceiptMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: "dispatch-001",
+        role: "厂长",
+        status: "已接单",
+      }),
+    );
+    expect(result.notifications).toEqual({ wecom: "skipped", sms: "skipped", owner: "skipped" });
+  });
+
   it("records driver receipt completion without escalation notifications", async () => {
     const caller = appRouter.createCaller(createContext());
     const result = await caller.platform.updateAiDispatchReceipt({

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentDecisionDraft, buildAiForecast, buildAlertBoard, buildDispatchBoard, buildWhatIfSimulation } from "./aiDecision";
+import {
+  buildAgentDecisionDraft,
+  buildAiDecisionWorkspace,
+  buildAiForecast,
+  buildAlertBoard,
+  buildDispatchBoard,
+  buildDispatchExecutionSummary,
+  buildWhatIfSimulation,
+} from "./aiDecision";
 
 describe("buildAiForecast", () => {
   it("returns eight forecast points, six actual history points, and clamps selected month into range", () => {
@@ -82,11 +90,11 @@ describe("buildAgentDecisionDraft", () => {
 });
 
 describe("buildAlertBoard", () => {
-  it("returns six dynamic alerts with detail fields for root-cause dialogs", () => {
+  it("returns nine dynamic alerts with detail fields for root-cause dialogs", () => {
     const result = buildAlertBoard("CP-PK-240418-A1", 2, 15.5, 12, 8);
 
-    expect(result.items).toHaveLength(6);
-    expect(result.overview).toContain("6");
+    expect(result.items).toHaveLength(9);
+    expect(result.overview).toContain("9");
     expect(result.items[0]).toMatchObject({
       alertId: expect.any(String),
       title: expect.any(String),
@@ -111,27 +119,56 @@ describe("buildAlertBoard", () => {
   });
 });
 
-describe("buildDispatchBoard", () => {
-  it("returns standardized work orders and role feedback states", () => {
-    const result = buildDispatchBoard("CP-PK-240418-A1", 2, 15.5, 12, 8);
+describe("workspace composition", () => {
+  it("builds a workspace with lifecycle and execution summary", () => {
+    const workspace = buildAiDecisionWorkspace("CP-PK-240418-A1", 2, 15.5, 12, 8);
 
-    expect(result.workOrders).toHaveLength(3);
-    expect(result.feedback.map(item => item.role)).toEqual(["厂长", "司机", "仓储管理员"]);
-    expect(result.workOrders[0]).toMatchObject({
-      orderId: expect.any(String),
-      factory: expect.any(String),
-      quantity: expect.any(Number),
-      scheduledTime: expect.any(String),
-      acceptanceStandard: expect.any(String),
-      priority: expect.any(String),
-    });
+    expect(workspace.forecast.selectedMonth).toBeGreaterThan(0);
+    expect(workspace.alertBoard.items).toHaveLength(9);
+    expect(workspace.dispatchBoard.workOrders).toHaveLength(3);
+    expect(workspace.executionSummary.totalOrders).toBe(3);
+    expect(workspace.lifecycle.stage).toBeDefined();
   });
 
-  it("marks escalation when risk is high enough", () => {
-    const stable = buildDispatchBoard("CP-PK-240418-A1", 1, 16.5, 0, 5);
-    const stressed = buildDispatchBoard("CP-PK-240418-A1", 3, 12.5, 80, -20);
+  it("derives execution summary from persisted history when available", () => {
+    const dispatch = buildDispatchBoard("CP-PK-240418-A1", 2, 15.5, 12, 8);
+    const summary = buildDispatchExecutionSummary(dispatch, [
+      {
+        orderId: "dispatch-001",
+        batchCode: "CP-PK-240418-A1",
+        currentStatus: "已完成",
+        priority: "P1",
+        receipts: [
+          {
+            role: "厂长",
+            status: "已完成",
+            etaMinutes: 0,
+            note: "done",
+            acknowledgedBy: "现场确认",
+            receiptBy: "回执人",
+          },
+        ],
+      },
+      {
+        orderId: "dispatch-002",
+        batchCode: "CP-PK-240418-A1",
+        currentStatus: "超时升级",
+        priority: "P1",
+        receipts: [
+          {
+            role: "司机",
+            status: "超时升级",
+            etaMinutes: 90,
+            note: "late",
+            acknowledgedBy: "司机",
+            receiptBy: null,
+          },
+        ],
+      },
+    ]);
 
-    expect(stressed.escalation || stressed.feedback.some(item => item.status === "超时升级")).toBe(true);
-    expect(stable.workOrders.length).toBe(3);
+    expect(summary.completedCount).toBe(1);
+    expect(summary.escalatedCount).toBe(1);
+    expect(summary.totalOrders).toBe(3);
   });
 });

@@ -10,6 +10,7 @@ import { TabProvider, useTabContext } from "./contexts/TabContext";
 import AuditPage from "./pages/Audit";
 import AiDecisionPage from "./pages/AiDecision";
 import CpVenturePage from "./pages/CpVenture";
+import DeepArbitragePage from "./pages/DeepArbitrage";
 import Home from "./pages/Home";
 import OverviewPage from "./pages/Overview";
 import PorkPage from "./pages/Pork";
@@ -37,6 +38,7 @@ function PlatformRouter() {
     { id: "ai", href: "/ai", Component: AiDecisionPage },
     { id: "time-arbitrage", href: "/time-arbitrage", Component: TimeArbitragePage },
     { id: "spatial-arbitrage", href: "/spatial-arbitrage", Component: SpatialArbitragePage },
+    { id: "deep-arbitrage", href: "/deep-arbitrage", Component: DeepArbitragePage },
     { id: "audit", href: "/audit", Component: AuditPage },
     { id: "cp-venture", href: "/cp-venture", Component: CpVenturePage },
   ];

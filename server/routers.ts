@@ -30,6 +30,12 @@ import {
   generateRoleTasksDraft,
 } from "./spatialArbitrage";
 import {
+  analyzeAllDeepArbitrages,
+  buildIntegratedArbitrageAnalysis,
+  buildCoreMetrics,
+  type DeepArbitrageInput,
+} from "./deepArbitrage";
+import {
   createAuditLog,
   createArbitrageRecord,
   getDispatchOrderByOrderId,
@@ -839,6 +845,173 @@ ${scenarios
         const content = result.choices?.[0]?.message?.content ?? "AI 暂时无法响应，请稍后重试。";
 
         return { content };
+      }),
+    deepArbitrageAnalysis: protectedProcedure
+      .input(
+        z.object({
+          cornPrice: z.number().min(1500).max(3500).optional().default(2386),
+          soybeanMealPrice: z.number().min(2500).max(4500).optional().default(3115),
+          liveHogPrice: z.number().min(5).max(25).optional().default(14.5),
+          sowStock: z.number().min(3000).max(6000).optional().default(4200),
+          capacityUtilization: z.number().min(30).max(120).optional().default(72),
+          inventoryAge90Plus: z.number().min(0).max(100).optional().default(8),
+          coldChainCost: z.number().min(0.5).max(5).optional().default(1.2),
+          storageCost: z.number().min(100).max(500).optional().default(225),
+          capitalCost: z.number().min(2).max(10).optional().default(3.8),
+          liveHogSpot: z.number().min(5).max(25).optional().default(14.5),
+          futuresPrice: z.number().min(10).max(30).optional().default(16.2),
+          cornSpot: z.number().min(1500).max(3500).optional().default(2386),
+          soymealSpot: z.number().min(2500).max(4500).optional().default(3115),
+          inventoryTurnover: z.number().min(0).max(100).optional().default(85),
+          executionRate: z.number().min(50).max(100).optional().default(92),
+          lossRate: z.number().min(0).max(5).optional().default(0.9),
+        }),
+      )
+      .query(({ input }) => {
+        const deepInput: DeepArbitrageInput = {
+          cornPrice: input.cornPrice,
+          soybeanMealPrice: input.soybeanMealPrice,
+          liveHogPrice: input.liveHogPrice,
+          porkPartPrices: Object.fromEntries(
+            PORK_PARTS.slice(0, 8).map(p => [p.code, p.yieldRate * 100 + 20])
+          ),
+          sowStock: input.sowStock,
+          capacityUtilization: input.capacityUtilization,
+          inventoryAgeDistribution: { "0-30": 45, "30-60": 28, "60-90": 19, "90+": input.inventoryAge90Plus },
+          coldChainCost: input.coldChainCost,
+          storageCost: input.storageCost,
+          capitalCost: input.capitalCost,
+          regionalPriceSpread: {
+            "东北": { "华南": 3.2, "华东": 2.8 },
+            "华北": { "华南": 2.6, "华东": 1.9 },
+            "华中": { "华南": 1.8, "华东": 1.2 },
+          },
+          policySignals: input.liveHogPrice < 13.8 ? ["启动冻肉收储", "养殖补贴"] : [],
+          brandCertification: ["绿色食品", "地理标志"],
+        };
+
+        const timeResult = {
+          spotPrice: input.liveHogSpot,
+          futuresPrice: input.futuresPrice,
+          basis: input.futuresPrice - input.liveHogSpot,
+          holdingDays: 120,
+          expectedReturn: (input.futuresPrice - input.liveHogSpot - input.storageCost * 4 / 1000) * 1000,
+          sharpeRatio: 1.2,
+        };
+
+        const spaceResult = {
+          originPrice: input.liveHogSpot,
+          destPrice: input.liveHogSpot * 1.22,
+          transportCost: input.coldChainCost * 800 / 1000,
+          netProfitPerKg: input.liveHogSpot * 0.22 - input.coldChainCost * 800 / 1000,
+          bestRoute: "东北→华南",
+          totalCapacity: 8500,
+        };
+
+        const entityResult = {
+          freshProfitPerKg: input.liveHogSpot * 0.15,
+          frozenProfitPerKg: input.liveHogSpot * 0.22,
+          processingProfitPerKg: input.liveHogSpot * 0.35,
+          bestChannel: "深加工",
+          premiumRate: 0.35,
+        };
+
+        const financialResult = {
+          spotPrice: input.liveHogSpot,
+          futuresPrice: input.futuresPrice,
+          basisSpread: input.futuresPrice - input.liveHogSpot,
+          hedgeRatio: 0.6,
+          fundingCostSaving: (input.capitalCost / 100 - 2.8 / 100) * 4,
+        };
+
+        return buildIntegratedArbitrageAnalysis(timeResult, spaceResult, entityResult, financialResult, deepInput);
+      }),
+    coreMetrics: protectedProcedure
+      .input(
+        z.object({
+          cornPrice: z.number().min(1500).max(3500).optional().default(2386),
+          soybeanMealPrice: z.number().min(2500).max(4500).optional().default(3115),
+          liveHogPrice: z.number().min(5).max(25).optional().default(14.5),
+          liveHogSpot: z.number().min(5).max(25).optional().default(14.5),
+          futuresPrice: z.number().min(10).max(30).optional().default(16.2),
+          cornSpot: z.number().min(1500).max(3500).optional().default(2386),
+          soymealSpot: z.number().min(2500).max(4500).optional().default(3115),
+          sowStock: z.number().min(3000).max(6000).optional().default(4200),
+          capacityUtilization: z.number().min(30).max(120).optional().default(72),
+          inventoryTurnover: z.number().min(0).max(100).optional().default(85),
+          executionRate: z.number().min(50).max(100).optional().default(92),
+          lossRate: z.number().min(0).max(5).optional().default(0.9),
+        }),
+      )
+      .query(({ input }) => {
+        const deepInput: DeepArbitrageInput & {
+          liveHogSpot: number;
+          futuresPrice: number;
+          cornSpot: number;
+          soymealSpot: number;
+          inventoryTurnover: number;
+          capacityUtilization: number;
+          executionRate: number;
+          lossRate: number;
+        } = {
+          cornPrice: input.cornPrice,
+          soybeanMealPrice: input.soybeanMealPrice,
+          liveHogPrice: input.liveHogPrice,
+          porkPartPrices: Object.fromEntries(
+            PORK_PARTS.slice(0, 8).map(p => [p.code, p.yieldRate * 100 + 20])
+          ),
+          sowStock: input.sowStock,
+          capacityUtilization: input.capacityUtilization,
+          inventoryAgeDistribution: { "0-30": 45, "30-60": 28, "60-90": 19, "90+": 8 },
+          coldChainCost: 1.2,
+          storageCost: 225,
+          capitalCost: 3.8,
+          regionalPriceSpread: {},
+          policySignals: [],
+          brandCertification: [],
+          liveHogSpot: input.liveHogSpot,
+          futuresPrice: input.futuresPrice,
+          cornSpot: input.cornSpot,
+          soymealSpot: input.soymealSpot,
+          inventoryTurnover: input.inventoryTurnover,
+          executionRate: input.executionRate,
+          lossRate: input.lossRate,
+        };
+        return buildCoreMetrics(deepInput);
+      }),
+    deepArbitrageList: protectedProcedure
+      .input(
+        z.object({
+          cornPrice: z.number().min(1500).max(3500).optional().default(2386),
+          soybeanMealPrice: z.number().min(2500).max(4500).optional().default(3115),
+          liveHogPrice: z.number().min(5).max(25).optional().default(14.5),
+          sowStock: z.number().min(3000).max(6000).optional().default(4200),
+          capacityUtilization: z.number().min(30).max(120).optional().default(72),
+        }),
+      )
+      .query(({ input }) => {
+        const deepInput: DeepArbitrageInput = {
+          cornPrice: input.cornPrice,
+          soybeanMealPrice: input.soybeanMealPrice,
+          liveHogPrice: input.liveHogPrice,
+          porkPartPrices: Object.fromEntries(
+            PORK_PARTS.map(p => [p.code, p.yieldRate * 100 + 20])
+          ),
+          sowStock: input.sowStock,
+          capacityUtilization: input.capacityUtilization,
+          inventoryAgeDistribution: { "0-30": 45, "30-60": 28, "60-90": 19, "90+": 8 },
+          coldChainCost: 1.2,
+          storageCost: 225,
+          capitalCost: 3.8,
+          regionalPriceSpread: {
+            "东北": { "华南": 3.2, "华东": 2.8 },
+            "华北": { "华南": 2.6, "华东": 1.9 },
+            "华中": { "华南": 1.8, "华东": 1.2 },
+          },
+          policySignals: input.liveHogPrice < 13.8 ? ["启动冻肉收储", "养殖补贴"] : [],
+          brandCertification: ["绿色食品"],
+        };
+        return analyzeAllDeepArbitrages(deepInput);
       }),
   }),
 });

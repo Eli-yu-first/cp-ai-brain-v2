@@ -10,19 +10,51 @@ import {
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Minus, Plus, Radar } from "lucide-react";
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
 import { categoryOrder, filterSitesByCategories, getCategoryCounts, globalSites as sites, type SiteCategory } from "./globalAssetMapData";
-import worldAtlas from "@/data/countries-110m.json";
 
-// 本地化缓存：避免运行时依赖 CDN，提升内网部署可用性
-const geoUrl = worldAtlas as unknown;
+const WORLD_MAP_CDN_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+
+type Topology = {
+  type: string;
+  objects: {
+    countries: {
+      type: string;
+      geometries: Array<{
+        type: string;
+        arcs: number[][] | number[][][];
+        id: string;
+        properties?: { name?: string };
+      }>;
+    };
+  };
+  arcs: number[][][];
+};
 
 function GlobalAssetMapInner() {
   const { language } = useLanguage();
   const [zoom, setZoom] = useState(1.08);
   const [center, setCenter] = useState<[number, number]>([100, 18]);
   const [selectedCategories, setSelectedCategories] = useState<SiteCategory[]>(categoryOrder);
+  const [topologyData, setTopologyData] = useState<Topology | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(WORLD_MAP_CDN_URL)
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to fetch world map: ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        setTopologyData(data);
+        setMapError(null);
+      })
+      .catch(err => {
+        console.error("Failed to load world map:", err);
+        setMapError(err.message);
+      });
+  }, []);
 
   const copy = {
     zh: {
@@ -41,6 +73,8 @@ function GlobalAssetMapInner() {
         feed: "饲料厂",
         slaughter: "屠宰加工",
       },
+      loading: "地图加载中...",
+      error: "地图加载失败",
     },
     en: {
       eyebrow: "Global Ops Map",
@@ -58,6 +92,8 @@ function GlobalAssetMapInner() {
         feed: "Feed",
         slaughter: "Processing",
       },
+      loading: "Loading map...",
+      error: "Map load failed",
     },
     ja: {
       eyebrow: "Global Ops Map",
@@ -75,6 +111,8 @@ function GlobalAssetMapInner() {
         feed: "飼料工場",
         slaughter: "と畜加工",
       },
+      loading: "マップ読み込み中...",
+      error: "マップ読み込み失敗",
     },
     th: {
       eyebrow: "Global Ops Map",
@@ -92,6 +130,8 @@ function GlobalAssetMapInner() {
         feed: "โรงงานอาหารสัตว์",
         slaughter: "ชำแหละแปรรูป",
       },
+      loading: "กำลังโหลดแผนที่...",
+      error: "โหลดแผนที่ล้มเหลว",
     },
   }[language];
 
@@ -178,44 +218,57 @@ function GlobalAssetMapInner() {
         </div>
 
         <div className="relative h-[230px]">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.15),transparent_46%)]" />
-          <ComposableMap projection="geoEqualEarth" className="h-full w-full">
-            <ZoomableGroup
-              center={center}
-              zoom={zoom}
-              onMoveEnd={({ coordinates, zoom: nextZoom }: { coordinates: [number, number]; zoom: number }) => {
-                setCenter(coordinates);
-                setZoom(Number(nextZoom.toFixed(2)));
-              }}
-            >
-              <Geographies geography={geoUrl}>
-                {({ geographies }: { geographies: Array<{ rsmKey: string }> }) =>
-                  geographies.map((geo: { rsmKey: string }) => (
-                    <Geography
-                      key={geo.rsmKey}
-                      geography={geo}
-                      className="fill-slate-900 stroke-[0.4] stroke-cyan-300/25 outline-none"
-                      style={{
-                        default: { fill: "rgba(8, 24, 45, 0.98)", outline: "none" },
-                        hover: { fill: "rgba(14, 62, 95, 0.98)", outline: "none" },
-                        pressed: { fill: "rgba(14, 62, 95, 0.98)", outline: "none" },
-                      }}
-                    />
-                  ))
-                }
-              </Geographies>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.15),transparent_46%)" />
+          {!topologyData && !mapError && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+              <span className="ml-2 text-sm text-slate-400">{copy.loading}</span>
+            </div>
+          )}
+          {mapError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
+              <span className="text-sm text-rose-400">{copy.error}: {mapError}</span>
+            </div>
+          )}
+          {topologyData && (
+            <ComposableMap projection="geoEqualEarth" className="h-full w-full">
+              <ZoomableGroup
+                center={center}
+                zoom={zoom}
+                onMoveEnd={({ coordinates, zoom: nextZoom }: { coordinates: [number, number]; zoom: number }) => {
+                  setCenter(coordinates);
+                  setZoom(Number(nextZoom.toFixed(2)));
+                }}
+              >
+                <Geographies geography={topologyData}>
+                  {({ geographies }: { geographies: Array<{ rsmKey: string }> }) =>
+                    geographies.map((geo: { rsmKey: string }) => (
+                      <Geography
+                        key={geo.rsmKey}
+                        geography={geo}
+                        className="fill-slate-900 stroke-[0.4] stroke-cyan-300/25 outline-none"
+                        style={{
+                          default: { fill: "rgba(8, 24, 45, 0.98)", outline: "none" },
+                          hover: { fill: "rgba(14, 62, 95, 0.98)", outline: "none" },
+                          pressed: { fill: "rgba(14, 62, 95, 0.98)", outline: "none" },
+                        }}
+                      />
+                    ))
+                  }
+                </Geographies>
 
-              {visibleSites.map(site => (
-                <Marker key={site.id} coordinates={site.coordinates}>
-                  <g>
-                    <circle r={9} fill={site.accent} fillOpacity={0.14} className="animate-ping-slow" />
-                    <circle r={4.2} fill={site.accent} className="drop-shadow-[0_0_8px_rgba(65,224,255,0.8)]" />
-                    <circle r={1.8} fill="#e2fbff" />
-                  </g>
-                </Marker>
-              ))}
-            </ZoomableGroup>
-          </ComposableMap>
+                {visibleSites.map(site => (
+                  <Marker key={site.id} coordinates={site.coordinates}>
+                    <g>
+                      <circle r={9} fill={site.accent} fillOpacity={0.14} className="animate-ping-slow" />
+                      <circle r={4.2} fill={site.accent} className="drop-shadow-[0_0_8px_rgba(65,224,255,0.8)]" />
+                      <circle r={1.8} fill="#e2fbff" />
+                    </g>
+                  </Marker>
+                ))}
+              </ZoomableGroup>
+            </ComposableMap>
+          )}
         </div>
       </div>
 
@@ -249,5 +302,4 @@ function GlobalAssetMapInner() {
   );
 }
 
-// React.memo 避免父级重渲染时开销（地图 TopoJSON 解析成本较高）
 export const GlobalAssetMap = memo(GlobalAssetMapInner);

@@ -6,13 +6,36 @@ import { Lock, Unlock, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
-import chinaGeo from "@/data/china-geo.json";
 import { trpc } from "@/lib/trpc";
 import { Factory, MapPinned, Route, Sparkles, Warehouse } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
 
-const chinaGeoUrl = chinaGeo;
+type ChinaGeoFeature = {
+  type: string;
+  properties: {
+    adcode: number;
+    name: string;
+    center?: [number, number];
+    centroid?: [number, number];
+    childrenNum?: number;
+    level?: string;
+    parent?: { adcode: number };
+    subFeatureIndex?: number;
+    acroutes?: number[];
+  };
+  geometry: {
+    type: string;
+    coordinates: number[][][][];
+  };
+};
+
+type ChinaGeoData = {
+  type: string;
+  features: ChinaGeoFeature[];
+};
+
+const CHINA_GEO_CDN_URL = "https://cdn.jsdelivr.net/npm/d3-geo-map@1.0.0/data/china.geojson";
 
 type MetricKey = "hogPrice" | "cornPrice" | "soymealPrice";
 type ScenarioKey = "margin" | "logistics" | "balanced";
@@ -55,6 +78,8 @@ const copy = {
     warehouseDesc: "现有批次库存会叠加显示在地图上，便于把仓储位置与跨区机会联动查看。",
     unitKg: "kg",
     unitYuanKg: "元/公斤",
+    loading: "地图加载中...",
+    error: "地图加载失败",
   },
   en: {
     eyebrow: "Pork Geo Intelligence",
@@ -93,6 +118,8 @@ const copy = {
     warehouseDesc: "Existing cold-storage batches are rendered on the map so spatial routes can be matched with live inventory.",
     unitKg: "kg",
     unitYuanKg: "yuan/kg",
+    loading: "Loading map...",
+    error: "Map load failed",
   },
   ja: {
     eyebrow: "Pork Geo Intelligence",
@@ -113,7 +140,7 @@ const copy = {
     highConfidence: "高信頼",
     avgMargin: "平均利益指数",
     mapPanel: "中国地図態勢",
-    mapDesc: "点が明るいほど裁定シグナルが強く、白い四角は倉庫ノードを示します。",
+    mapDesc: "点が明るいほど裁定シグナルが強く，白い四角は倉庫ノードを示します。",
     warehouseNodes: "倉庫ノード",
     marketNodes: "市場ノード",
     selectedProvince: "注目省域",
@@ -128,9 +155,11 @@ const copy = {
     confidence: "信頼度",
     reason: "AI 判断",
     warehousePanel: "在庫倉庫ノード",
-    warehouseDesc: "既存バッチ在庫を地図へ重ね、在庫位置と広域機会を連動して確認できます。",
+    warehouseDesc: "既存バッチ在庫を地図へ重ね，在庫位置と広域機会を連動して確認できます。",
     unitKg: "kg",
     unitYuanKg: "元/kg",
+    loading: "マップ読み込み中...",
+    error: "マップ読み込み失敗",
   },
   th: {
     eyebrow: "Pork Geo Intelligence",
@@ -169,6 +198,8 @@ const copy = {
     warehouseDesc: "สต็อกจริงในคลังเย็นจะถูกแสดงทับบนแผนที่เพื่อจับคู่ตำแหน่งสต็อกกับโอกาสเชิงพื้นที่",
     unitKg: "kg",
     unitYuanKg: "หยวน/กก.",
+    loading: "กำลังโหลดแผนที่...",
+    error: "โหลดแผนที่ล้มเหลว",
   },
 };
 
@@ -201,7 +232,29 @@ export default function PorkMapPage() {
   const [scenario, setScenario] = useState<ScenarioKey>("balanced");
   const [isMapLocked, setIsMapLocked] = useState(false);
   const [activeLayers, setActiveLayers] = useState(["pig"]);
+  const [chinaGeoData, setChinaGeoData] = useState<ChinaGeoData | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
+
   const { data, isLoading } = trpc.platform.porkMap.useQuery({ metric, scenario });
+
+  useEffect(() => {
+    fetch(CHINA_GEO_CDN_URL)
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to fetch China geo data: ${res.status}`);
+        return res.json();
+      })
+      .then((geoData: ChinaGeoData) => {
+        setChinaGeoData(geoData);
+        setMapError(null);
+      })
+      .catch(err => {
+        console.error("Failed to load China geo data:", err);
+        setMapError(err.message);
+        import("@/data/china-geo.json")
+          .then(mod => setChinaGeoData(mod.default as ChinaGeoData))
+          .catch(() => {});
+      });
+  }, []);
 
   const selectedNode = useMemo(() => {
     if (!data?.nodes.length) return null;
@@ -307,35 +360,50 @@ export default function PorkMapPage() {
                 </div>
               </div>
               <div className="relative h-[420px]">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(65,224,255,0.12),transparent_44%)]" />
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(65,224,255,0.12),transparent_44%)" />
+                {!chinaGeoData && !mapError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60 z-10">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+                      <span className="text-sm text-slate-400">{current.loading}</span>
+                    </div>
+                  </div>
+                )}
+                {mapError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 z-10">
+                    <span className="text-sm text-rose-400">{current.error}: {mapError}</span>
+                  </div>
+                )}
                 <ComposableMap projection="geoOrthographic" projectionConfig={{ scale: 660, rotate: [-104, -36, 0] }} className="h-full w-full">
                   <ZoomableGroup center={[104, 36]} zoom={1} filterZoomEvent={() => !isMapLocked} filterPanEvent={() => !isMapLocked}>
-                    <Geographies geography={chinaGeoUrl}>
-                      {({ geographies }: { geographies: Array<{ rsmKey: string; properties?: { name?: string } }> }) =>
-                        geographies.map(geo => {
-                          const region = data?.nodes.find(item => item.regionName === geo.properties?.name);
-                          const fill = region
-                            ? region.arbitrageSignal === "机会"
-                              ? "rgba(34,197,94,0.28)"
-                              : region.arbitrageSignal === "关注"
-                                ? "rgba(250,204,21,0.26)"
-                                : "rgba(56,189,248,0.18)"
-                            : "rgba(8,24,45,0.94)";
-                          return (
-                            <Geography
-                              key={geo.rsmKey}
-                              geography={geo}
-                              className="stroke-[0.4] stroke-cyan-300/25 outline-none"
-                              style={{
-                                default: { fill, outline: "none" },
-                                hover: { fill: "rgba(22,78,99,0.92)", outline: "none" },
-                                pressed: { fill: "rgba(22,78,99,0.92)", outline: "none" },
-                              }}
-                            />
-                          );
-                        })
-                      }
-                    </Geographies>
+                    {chinaGeoData && (
+                      <Geographies geography={chinaGeoData}>
+                        {({ geographies }: { geographies: ChinaGeoFeature[] }) =>
+                          geographies.map(geo => {
+                            const region = data?.nodes.find(item => item.regionName === geo.properties?.name);
+                            const fill = region
+                              ? region.arbitrageSignal === "机会"
+                                ? "rgba(34,197,94,0.28)"
+                                : region.arbitrageSignal === "关注"
+                                  ? "rgba(250,204,21,0.26)"
+                                  : "rgba(56,189,248,0.18)"
+                              : "rgba(8,24,45,0.94)";
+                            return (
+                              <Geography
+                                key={geo.properties?.adcode ?? Math.random()}
+                                geography={geo}
+                                className="stroke-[0.4] stroke-cyan-300/25 outline-none"
+                                style={{
+                                  default: { fill, outline: "none" },
+                                  hover: { fill: "rgba(22,78,99,0.92)", outline: "none" },
+                                  pressed: { fill: "rgba(22,78,99,0.92)", outline: "none" },
+                                }}
+                              />
+                            );
+                          })
+                        }
+                      </Geographies>
+                    )}
                     {(data?.nodes ?? []).map(node => {
                       const metricValue = getMetricValue(node, metric);
                       const size = node.arbitrageSignal === "机会" ? 10 : node.arbitrageSignal === "关注" ? 8 : 6;
@@ -356,7 +424,6 @@ export default function PorkMapPage() {
                       );
                     })}
 
-                    {/* CP Assets Nodes Overlay */}
                     {cpAssets.filter(a => activeLayers.includes(a.type)).map((asset, i) => {
                       const colorMap: Record<string, string> = { pig: "#fbbf24", poultry: "#e879f9", feed: "#34d399", slaughter: "#f87171" };
                       const color = colorMap[asset.type] ?? "#ffffff";
@@ -386,8 +453,8 @@ export default function PorkMapPage() {
                   </ZoomableGroup>
                 </ComposableMap>
                 {isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-slate-950/40 text-sm text-slate-300">
-                    Loading map data...
+                  <div className="absolute inset-0 flex items-center justify-center bg-slate-950/40">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
                   </div>
                 )}
               </div>

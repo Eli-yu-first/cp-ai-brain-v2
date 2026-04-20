@@ -1,16 +1,33 @@
 import { partQuotes } from "./platformData";
 import { calculateArbitrage } from "./timeArbitrage";
 
+export type NetworkOptimizationInput = {
+  breedingHeadsPerDay?: number;
+  slaughterHeadsPerDay?: number;
+  cuttingHeadsPerDay?: number;
+  freezingTonsPerDay?: number;
+  storageTonsCapacity?: number;
+  deepProcessingTonsPerDay?: number;
+  salesFreshTonsPerDay?: number;
+  salesFrozenTonsPerMonth?: number;
+  salesProcessedTonsPerDay?: number;
+  breedingCostPerHead?: number;
+  slaughterCostPerHead?: number;
+  cuttingCostPerHead?: number;
+  freezingCostPerTon?: number;
+  storageCostPerTonMonth?: number;
+  deepProcessingCostPerTon?: number;
+  salesCostPerTon?: number;
+};
+
 export type GeoNode = {
   id: string;
   name: string;
   lat: number;
   lng: number;
   type: "origin" | "destination";
-  basePrice: number; // 基础参考售价或收购价
-  /** 产地最大可处理产能（吨） */
+  basePrice: number;
   capacity?: number;
-  /** 目的地最大可消化需求（吨） */
   demand?: number;
 };
 
@@ -192,6 +209,11 @@ export type SchedulePlanItem = {
   netProfitPerKg: number;
   /** 该条线总净利（万元） */
   netProfitTotal: number;
+  breedingHeads: number;
+  slaughterHeads: number;
+  cuttingHeads: number;
+  freezingTons: number;
+  storageManagedTons: number;
   freshSalesTon: number;
   storageTon: number;
   deepProcessingTon: number;
@@ -203,11 +225,15 @@ export type SchedulePlanItem = {
   chainUtilization: {
     dailyInputTon: number;
     hogHeadsPerDay: number;
+    breeding: number;
     slaughter: number;
     cutting: number;
     freezing: number;
     storage: number;
+    deepProcessing: number;
+    sales: number;
   };
+  optimizationScore: number;
   /** 车型明细（便于前端展示） */
   tripBreakdown: Array<{ vehicleCode: VehicleType["code"]; vehicleName: string; count: number; tonPerTrip: number }>;
 };
@@ -329,6 +355,7 @@ export type SpatialArbitrageOptions = {
   reserveSalesTonPerMonth?: number;
   deepProcessingTonPerDay?: number;
   rentedStorageTon?: number;
+  optimization?: NetworkOptimizationInput;
 };
 
 function round(value: number, digits = 2) {
@@ -504,6 +531,7 @@ export function calculateSpatialArbitrage(
     reserveSalesTonPerMonth = 5000,
     deepProcessingTonPerDay = 260,
     rentedStorageTon = 0,
+    optimization,
   } = options;
 
   // 获取部位溢价系数
@@ -568,10 +596,18 @@ export function calculateSpatialArbitrage(
       : Math.min(totalCapacity, totalDemand);
   const effectivePlanningDays = Math.max(1, Math.min(30, Math.round(planningDays)));
   const chainFactors = buildChainFactors(rentedStorageTon);
-  let remainingFreshSales = Math.max(0, freshSalesTonPerDay) * effectivePlanningDays;
-  let remainingStorage = Math.max(0, PORK_CHAIN_FACTORS.storage.actualStorageTon + rentedStorageTon);
-  let remainingDeepProcessing = Math.max(0, deepProcessingTonPerDay) * effectivePlanningDays;
-  const remainingReserveSales = Math.max(0, reserveSalesTonPerMonth) * Math.max(1, Math.round(storageDurationMonths));
+  const breedingHeadsPerDay = optimization?.breedingHeadsPerDay ?? PORK_CHAIN_FACTORS.farm.actualHeadsPerDay;
+  const slaughterHeadsPerDay = optimization?.slaughterHeadsPerDay ?? PORK_CHAIN_FACTORS.slaughter.actualHeadsPerDay;
+  const cuttingHeadsPerDay = optimization?.cuttingHeadsPerDay ?? PORK_CHAIN_FACTORS.cutting.actualHeadsPerDay;
+  const freezingTonsPerDay = optimization?.freezingTonsPerDay ?? PORK_CHAIN_FACTORS.freezing.actualKgPerDay / 1000;
+  const storageCapacityTon = optimization?.storageTonsCapacity ?? PORK_CHAIN_FACTORS.storage.actualStorageTon + rentedStorageTon;
+  const deepProcessingTonsCapacity = optimization?.deepProcessingTonsPerDay ?? deepProcessingTonPerDay;
+  const freshSalesTonsCapacity = optimization?.salesFreshTonsPerDay ?? freshSalesTonPerDay;
+  const processedSalesTonsCapacity = optimization?.salesProcessedTonsPerDay ?? deepProcessingTonPerDay;
+  let remainingFreshSales = Math.max(0, freshSalesTonsCapacity) * effectivePlanningDays;
+  let remainingStorage = Math.max(0, storageCapacityTon);
+  let remainingDeepProcessing = Math.max(0, deepProcessingTonsCapacity) * effectivePlanningDays;
+  const remainingReserveSales = Math.max(0, optimization?.salesFrozenTonsPerMonth ?? reserveSalesTonPerMonth) * Math.max(1, Math.round(storageDurationMonths));
   remainingStorage = Math.min(remainingStorage, remainingReserveSales);
 
   const schedulePlan: SchedulePlanItem[] = [];
@@ -616,6 +652,15 @@ export function calculateSpatialArbitrage(
       ship,
       startMonth,
       storageDurationMonths,
+      {
+        breedingHeadsPerDay,
+        slaughterHeadsPerDay,
+        cuttingHeadsPerDay,
+        freezingTonsPerDay,
+        storageTonsCapacity: storageCapacityTon,
+        deepProcessingTonsPerDay: deepProcessingTonsCapacity,
+        salesTonsPerDay: freshSalesTonsCapacity,
+      },
     );
     const timeArbitrageTriggered =
       timeStoragePolicy === "force" ||
@@ -652,7 +697,16 @@ export function calculateSpatialArbitrage(
       remainingDeepProcessing -= laneAllocation.deepProcessingTon;
       const dailyInputTon = shippedTon / effectivePlanningDays;
       const hogHeadsPerDay = (dailyInputTon * 1000) / PORK_CHAIN_FACTORS.freezing.yieldKgPerHead;
+      const breedingHeads = round((laneAllocation.allocatedTon * 1000) / PORK_CHAIN_FACTORS.freezing.yieldKgPerHead);
+      const slaughterHeads = breedingHeads;
+      const cuttingHeads = Math.min(breedingHeads, cuttingHeadsPerDay * effectivePlanningDays);
+      const freezingTons = round(Math.min(laneAllocation.allocatedTon, freezingTonsPerDay * effectivePlanningDays));
       const storageUsed = laneAllocation.storageTon + laneAllocation.deepProcessingTon;
+      const optimizationScore = round(
+        netProfitPerKg * 14 +
+        timeArbitrage.optimizationPlan.summary.serviceLevel * 0.15 -
+        Math.max(0, timeArbitrage.optimizationPlan.summary.averageUtilization - 88) * 0.18,
+      );
       schedulePlan.push({
         originId: r.originId,
         destId: r.destId,
@@ -674,6 +728,11 @@ export function calculateSpatialArbitrage(
         freightPerKg,
         netProfitPerKg,
         netProfitTotal,
+        breedingHeads,
+        slaughterHeads,
+        cuttingHeads,
+        freezingTons,
+        storageManagedTons: storageUsed,
         freshSalesTon: laneAllocation.freshSalesTon,
         storageTon: laneAllocation.storageTon,
         deepProcessingTon: laneAllocation.deepProcessingTon,
@@ -685,11 +744,15 @@ export function calculateSpatialArbitrage(
         chainUtilization: {
           dailyInputTon: round(dailyInputTon),
           hogHeadsPerDay: round(hogHeadsPerDay),
-          slaughter: round((hogHeadsPerDay / PORK_CHAIN_FACTORS.slaughter.actualHeadsPerDay) * 100),
-          cutting: round((hogHeadsPerDay / PORK_CHAIN_FACTORS.cutting.actualHeadsPerDay) * 100),
-          freezing: round((dailyInputTon / (PORK_CHAIN_FACTORS.freezing.actualKgPerDay / 1000)) * 100),
-          storage: round((storageUsed / Math.max(1, PORK_CHAIN_FACTORS.storage.actualStorageTon + rentedStorageTon)) * 100),
+          breeding: round((hogHeadsPerDay / breedingHeadsPerDay) * 100),
+          slaughter: round((hogHeadsPerDay / slaughterHeadsPerDay) * 100),
+          cutting: round((hogHeadsPerDay / cuttingHeadsPerDay) * 100),
+          freezing: round((dailyInputTon / freezingTonsPerDay) * 100),
+          storage: round((storageUsed / Math.max(1, storageCapacityTon)) * 100),
+          deepProcessing: round((laneAllocation.deepProcessingTon / Math.max(1, deepProcessingTonsCapacity * effectivePlanningDays)) * 100),
+          sales: round((laneAllocation.freshSalesTon / Math.max(1, freshSalesTonsCapacity * effectivePlanningDays)) * 100),
         },
+        optimizationScore,
         tripBreakdown: Object.values(tripBreakdownMap),
       });
     } else {
@@ -716,10 +779,13 @@ export function calculateSpatialArbitrage(
               (sum, p) =>
                 sum +
                 Math.max(
+                  p.chainUtilization.breeding,
                   p.chainUtilization.slaughter,
                   p.chainUtilization.cutting,
                   p.chainUtilization.freezing,
                   p.chainUtilization.storage,
+                  p.chainUtilization.deepProcessing,
+                  p.chainUtilization.sales,
                 ),
               0,
             ) / schedulePlan.length

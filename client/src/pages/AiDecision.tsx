@@ -1180,6 +1180,62 @@ export default function AiDecisionPage() {
         </TechPanel>
       </div>
 
+      <div className="mt-6 grid gap-4 xl:grid-cols-2">
+        <TechPanel className="p-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Time Optimization Snapshot</p>
+          <h4 className="mt-3 text-xl font-bold tracking-tight text-white">时间套利优化快照</h4>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">推荐储备量</p>
+              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.recommendedStorageTons ?? 0} 吨</p>
+            </div>
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">推荐释放月</p>
+              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.recommendedReleaseMonth ?? 0} 月</p>
+            </div>
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">服务水平</p>
+              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.serviceLevel ?? 0}%</p>
+            </div>
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">平均利用率</p>
+              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.averageUtilization ?? 0}%</p>
+            </div>
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4 sm:col-span-2">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">约束瓶颈</p>
+              <p className="mt-2 text-sm font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.constrainedBy?.join("、") || "暂无"}</p>
+            </div>
+          </div>
+        </TechPanel>
+
+        <TechPanel className="p-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Spatial Optimization Snapshot</p>
+          <h4 className="mt-3 text-xl font-bold tracking-tight text-white">空间套利优化快照</h4>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">总发运量</p>
+              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.spatialOptimization.totalShippedTon ?? 0} 吨</p>
+            </div>
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">总净利</p>
+              <p className="mt-2 text-lg font-semibold text-white">¥{workspace?.optimizationSnapshot.spatialOptimization.totalNetProfit?.toLocaleString?.() ?? 0} 万</p>
+            </div>
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">平均链路利用率</p>
+              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.spatialOptimization.averageChainUtilization ?? 0}%</p>
+            </div>
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">开仓路线</p>
+              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.spatialOptimization.storageOpenedRoutes ?? 0}</p>
+            </div>
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4 sm:col-span-2">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">瓶颈阶段 / 车辆结构</p>
+              <p className="mt-2 text-sm font-semibold text-white">{workspace?.optimizationSnapshot.spatialOptimization.bottleneckStage ?? "暂无"} · {workspace?.optimizationSnapshot.spatialOptimization.vehicleMix ? Object.entries(workspace.optimizationSnapshot.spatialOptimization.vehicleMix).map(([key, value]) => `${key}:${value}`).join(" / ") : "无"}</p>
+            </div>
+          </div>
+        </TechPanel>
+      </div>
+
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <TechPanel>
           <div className="flex h-full flex-col gap-5">

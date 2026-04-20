@@ -1,4 +1,5 @@
 import { TechPanel, SectionHeader, NumberTicker } from "@/components/platform/PlatformPrimitives";
+import { ArbitrageControlSlider } from "@/components/platform/ArbitrageControlSlider";
 import { PlatformShell } from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
@@ -51,6 +52,44 @@ function CustomBarTooltip({ active, payload, label }: any) {
   );
 }
 
+type OptimizationConfig = {
+  breedingHeadsPerDay: number;
+  slaughterHeadsPerDay: number;
+  cuttingHeadsPerDay: number;
+  freezingTonsPerDay: number;
+  storageTonsCapacity: number;
+  deepProcessingTonsPerDay: number;
+  salesFreshTonsPerDay: number;
+  salesFrozenTonsPerMonth: number;
+  salesProcessedTonsPerDay: number;
+  breedingCostPerHead: number;
+  slaughterCostPerHead: number;
+  cuttingCostPerHead: number;
+  freezingCostPerTon: number;
+  storageCostPerTonMonth: number;
+  deepProcessingCostPerTon: number;
+  salesCostPerTon: number;
+};
+
+const DEFAULT_OPTIMIZATION: OptimizationConfig = {
+  breedingHeadsPerDay: 40000,
+  slaughterHeadsPerDay: 22000,
+  cuttingHeadsPerDay: 9000,
+  freezingTonsPerDay: 520,
+  storageTonsCapacity: 5000,
+  deepProcessingTonsPerDay: 260,
+  salesFreshTonsPerDay: 900,
+  salesFrozenTonsPerMonth: 5000,
+  salesProcessedTonsPerDay: 260,
+  breedingCostPerHead: 0.18,
+  slaughterCostPerHead: 0.42,
+  cuttingCostPerHead: 0.33,
+  freezingCostPerTon: 86,
+  storageCostPerTonMonth: 42,
+  deepProcessingCostPerTon: 120,
+  salesCostPerTon: 35,
+};
+
 export default function SpatialArbitragePage() {
   const { t } = useLanguage();
   const [transportCost, setTransportCost] = useState(0.8);
@@ -71,6 +110,7 @@ export default function SpatialArbitragePage() {
   const [reserveSalesTonPerMonth, setReserveSalesTonPerMonth] = useState(5000);
   const [deepProcessingTonPerDay, setDeepProcessingTonPerDay] = useState(260);
   const [rentedStorageTon, setRentedStorageTon] = useState(0);
+  const [optimization, setOptimization] = useState<OptimizationConfig>(DEFAULT_OPTIMIZATION);
 
   const { data: simulation, isLoading: mapLoading } = trpc.platform.spatialArbitrageSimulate.useQuery(
     {
@@ -92,6 +132,7 @@ export default function SpatialArbitragePage() {
       reserveSalesTonPerMonth,
       deepProcessingTonPerDay,
       rentedStorageTon,
+      optimization,
     },
     { placeholderData: (prev: any) => prev }
   );
@@ -194,6 +235,24 @@ export default function SpatialArbitragePage() {
           <Badge className="border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
             瓶颈：{simulation?.scheduleSummary?.bottleneckStage ?? "计算中"}
           </Badge>
+        </div>
+        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">优化得分均值</p>
+            <p className="mt-2 font-mono text-xl font-bold text-white">{simulation?.schedulePlan?.length ? (simulation.schedulePlan.reduce((sum, item) => sum + item.optimizationScore, 0) / simulation.schedulePlan.length).toFixed(2) : "0.00"}</p>
+          </div>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">养殖利用率</p>
+            <p className="mt-2 font-mono text-xl font-bold text-white">{simulation?.schedulePlan?.[0]?.chainUtilization.breeding?.toFixed?.(2) ?? simulation?.schedulePlan?.[0]?.chainUtilization.breeding ?? 0}%</p>
+          </div>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">深加工利用率</p>
+            <p className="mt-2 font-mono text-xl font-bold text-white">{simulation?.schedulePlan?.[0]?.chainUtilization.deepProcessing?.toFixed?.(2) ?? simulation?.schedulePlan?.[0]?.chainUtilization.deepProcessing ?? 0}%</p>
+          </div>
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">销售利用率</p>
+            <p className="mt-2 font-mono text-xl font-bold text-white">{simulation?.schedulePlan?.[0]?.chainUtilization.sales?.toFixed?.(2) ?? simulation?.schedulePlan?.[0]?.chainUtilization.sales ?? 0}%</p>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
           {simulation?.chainFactors?.map((factor: any, fi: number) => (
@@ -327,18 +386,24 @@ export default function SpatialArbitragePage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <ControlSlider label="计划天数" value={planningDays} suffix="天" min={1} max={30} step={1} onChange={setPlanningDays} />
-                  <ControlSlider label="起始月份" value={startMonth} suffix="月" min={1} max={12} step={1} onChange={setStartMonth} />
-                  <ControlSlider label="储备周期" value={storageDurationMonths} suffix="月" min={1} max={10} step={1} onChange={setStorageDurationMonths} />
-                  <ControlSlider label="持有成本" value={holdingCostPerMonth} suffix="元/kg/月" min={0.05} max={1.2} step={0.05} onChange={setHoldingCostPerMonth} />
-                  <ControlSlider label="社会成本线" value={socialBreakevenCost} suffix="元/kg" min={8} max={18} step={0.1} onChange={setSocialBreakevenCost} />
-                  <ControlSlider label="外租库容" value={rentedStorageTon} suffix="吨" min={0} max={50000} step={1000} onChange={setRentedStorageTon} />
+                  <ArbitrageControlSlider label="计划天数" value={planningDays} suffix="天" min={1} max={30} step={1} onChange={setPlanningDays} />
+                  <ArbitrageControlSlider label="起始月份" value={startMonth} suffix="月" min={1} max={12} step={1} onChange={setStartMonth} />
+                  <ArbitrageControlSlider label="储备周期" value={storageDurationMonths} suffix="月" min={1} max={10} step={1} onChange={setStorageDurationMonths} />
+                  <ArbitrageControlSlider label="持有成本" value={holdingCostPerMonth} suffix="元/kg/月" min={0.05} max={1.2} step={0.05} onChange={setHoldingCostPerMonth} />
+                  <ArbitrageControlSlider label="社会成本线" value={socialBreakevenCost} suffix="元/kg" min={8} max={18} step={0.1} onChange={setSocialBreakevenCost} />
+                  <ArbitrageControlSlider label="外租库容" value={rentedStorageTon} suffix="吨" min={0} max={50000} step={1000} onChange={setRentedStorageTon} />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
-                  <ControlSlider label="当期鲜销能力" value={freshSalesTonPerDay} suffix="吨/天" min={0} max={5000} step={100} onChange={setFreshSalesTonPerDay} />
-                  <ControlSlider label="未来冻品销售能力" value={reserveSalesTonPerMonth} suffix="吨/月" min={0} max={50000} step={500} onChange={setReserveSalesTonPerMonth} />
-                  <ControlSlider label="深加工原料消化" value={deepProcessingTonPerDay} suffix="吨/天" min={0} max={3000} step={50} onChange={setDeepProcessingTonPerDay} />
+                  <ArbitrageControlSlider label="养殖能力" value={optimization.breedingHeadsPerDay} suffix="头/天" min={10000} max={120000} step={1000} onChange={value => setOptimization(prev => ({ ...prev, breedingHeadsPerDay: value }))} />
+                  <ArbitrageControlSlider label="屠宰能力" value={optimization.slaughterHeadsPerDay} suffix="头/天" min={5000} max={80000} step={1000} onChange={value => setOptimization(prev => ({ ...prev, slaughterHeadsPerDay: value }))} />
+                  <ArbitrageControlSlider label="分割能力" value={optimization.cuttingHeadsPerDay} suffix="头/天" min={3000} max={60000} step={1000} onChange={value => setOptimization(prev => ({ ...prev, cuttingHeadsPerDay: value }))} />
+                  <ArbitrageControlSlider label="速冻能力" value={optimization.freezingTonsPerDay} suffix="吨/天" min={50} max={3000} step={10} onChange={value => setOptimization(prev => ({ ...prev, freezingTonsPerDay: value }))} />
+                  <ArbitrageControlSlider label="冷藏容量" value={optimization.storageTonsCapacity} suffix="吨" min={500} max={50000} step={100} onChange={value => setOptimization(prev => ({ ...prev, storageTonsCapacity: value }))} />
+                  <ArbitrageControlSlider label="深加工能力" value={optimization.deepProcessingTonsPerDay} suffix="吨/天" min={0} max={3000} step={10} onChange={value => setOptimization(prev => ({ ...prev, deepProcessingTonsPerDay: value }))} />
+                  <ArbitrageControlSlider label="鲜销能力" value={optimization.salesFreshTonsPerDay} suffix="吨/天" min={0} max={5000} step={50} onChange={value => setOptimization(prev => ({ ...prev, salesFreshTonsPerDay: value }))} />
+                  <ArbitrageControlSlider label="冻品销售能力" value={optimization.salesFrozenTonsPerMonth} suffix="吨/月" min={0} max={50000} step={500} onChange={value => setOptimization(prev => ({ ...prev, salesFrozenTonsPerMonth: value }))} />
+                  <ArbitrageControlSlider label="加工品销售能力" value={optimization.salesProcessedTonsPerDay} suffix="吨/天" min={0} max={3000} step={20} onChange={value => setOptimization(prev => ({ ...prev, salesProcessedTonsPerDay: value }))} />
                 </div>
 
                 {/* dropdowns */}
@@ -393,10 +458,10 @@ export default function SpatialArbitragePage() {
              <div className="absolute inset-0 pt-16 pb-4 px-4 overflow-hidden pointer-events-none opacity-80">
                {typeof window !== "undefined" && (
                  <ComposableMap
-                   projection="geoOrthographic"
+                   projection="geoMercator"
                    projectionConfig={{
-                     scale: 680,
-                     rotate: [-104, -36, 0]
+                     scale: 600,
+                     center: [105, 36]
                    }}
                    width={800}
                    height={480}

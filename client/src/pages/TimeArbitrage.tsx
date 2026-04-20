@@ -1,4 +1,5 @@
 import { TechPanel, SectionHeader, NumberTicker } from "@/components/platform/PlatformPrimitives";
+import { ArbitrageControlSlider } from "@/components/platform/ArbitrageControlSlider";
 import { PlatformShell } from "@/components/platform/PlatformShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,40 @@ type PlanSnapshot = {
   };
 };
 
+type OptimizationConfig = {
+  breedingHeadsPerDay: number;
+  slaughterHeadsPerDay: number;
+  cuttingHeadsPerDay: number;
+  freezingTonsPerDay: number;
+  storageTonsCapacity: number;
+  deepProcessingTonsPerDay: number;
+  salesTonsPerDay: number;
+  breedingCostPerHead: number;
+  slaughterCostPerHead: number;
+  cuttingCostPerHead: number;
+  freezingCostPerTon: number;
+  storageCostPerTonMonth: number;
+  deepProcessingCostPerTon: number;
+  salesCostPerTon: number;
+};
+
+const DEFAULT_OPTIMIZATION: OptimizationConfig = {
+  breedingHeadsPerDay: 40000,
+  slaughterHeadsPerDay: 22000,
+  cuttingHeadsPerDay: 9000,
+  freezingTonsPerDay: 520,
+  storageTonsCapacity: 2400,
+  deepProcessingTonsPerDay: 210,
+  salesTonsPerDay: 180,
+  breedingCostPerHead: 0.18,
+  slaughterCostPerHead: 0.42,
+  cuttingCostPerHead: 0.33,
+  freezingCostPerTon: 86,
+  storageCostPerTonMonth: 42,
+  deepProcessingCostPerTon: 120,
+  salesCostPerTon: 35,
+};
+
 const PLAN_COLORS = ["#06b6d4", "#a78bfa", "#f59e0b"];
 
 function CustomTooltip({ active, payload, label }: any) {
@@ -99,6 +134,7 @@ export default function TimeArbitragePage() {
 
   // 多方案对比
   const [savedPlans, setSavedPlans] = useState<PlanSnapshot[]>([]);
+  const [optimization, setOptimization] = useState<OptimizationConfig>(DEFAULT_OPTIMIZATION);
 
   const endMonth = ((startMonth - 1 + storageDuration - 1) % 12) + 1;
 
@@ -110,6 +146,7 @@ export default function TimeArbitragePage() {
       storageTons,
       startMonth,
       storageDurationMonths: storageDuration,
+      optimization,
     },
     { placeholderData: (prev: any) => prev }
   );
@@ -135,10 +172,11 @@ export default function TimeArbitragePage() {
         storageTons,
         startMonth,
         storageDurationMonths: storageDuration,
+        optimization,
       });
     }, 600);
     return () => clearTimeout(handler);
-  }, [spotPrice, holdingCost, socialCost, storageTons, startMonth, storageDuration, fetchDecision]);
+  }, [spotPrice, holdingCost, socialCost, storageTons, startMonth, storageDuration, optimization, fetchDecision]);
 
   // 查询其他已保存方案的曲线数据
   const planQueries = savedPlans.map((plan) =>
@@ -416,24 +454,24 @@ export default function TimeArbitragePage() {
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* 参数控制面板 */}
         <div className="lg:col-span-4 space-y-4">
-          <TechPanel className="relative overflow-hidden p-6 rounded-[24px]">
-            <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-cyan-400 to-blue-600 rounded-l-[24px]" />
-            <motion.div
-              className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-cyan-400 to-blue-600 rounded-l-[24px]"
-              animate={{ opacity: [0.6, 1, 0.6] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <h4 className="mb-5 flex items-center gap-2 text-sm font-semibold tracking-wide text-white uppercase opacity-90">
+            <TechPanel className="relative overflow-hidden p-6 rounded-[24px]">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-cyan-400 to-blue-600 rounded-l-[24px]" />
               <motion.div
-                animate={{ rotate: [0, 180, 360] }}
-                transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-              >
-                <SlidersHorizontal className="h-4 w-4 text-cyan-400" />
-              </motion.div>
-              {t("timeArbitrage.paramSetting")}
-            </h4>
+                className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-cyan-400 to-blue-600 rounded-l-[24px]"
+                animate={{ opacity: [0.6, 1, 0.6] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <h4 className="mb-5 flex items-center gap-2 text-sm font-semibold tracking-wide text-white uppercase opacity-90">
+                <motion.div
+                  animate={{ rotate: [0, 180, 360] }}
+                  transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                >
+                  <SlidersHorizontal className="h-4 w-4 text-cyan-400" />
+                </motion.div>
+                {t("timeArbitrage.paramSetting")}
+              </h4>
 
-            <div className="space-y-6">
+              <div className="space-y-6">
               {/* 当前毛猪价 */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -533,11 +571,24 @@ export default function TimeArbitragePage() {
                   {MONTH_NAMES[startMonth]} → {MONTH_NAMES[endMonth]}（共 {storageDuration} 个月）
                 </p>
               </div>
+
+              <div className="mt-8 pt-6 border-t border-white/10">
+                <h5 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-violet-400" /> 七环节产能优化参数
+                </h5>
+                <div className="grid grid-cols-1 gap-4">
+                  <ArbitrageControlSlider label="养殖能力" value={optimization.breedingHeadsPerDay} suffix="头/天" min={10000} max={120000} step={1000} onChange={value => setOptimization(prev => ({ ...prev, breedingHeadsPerDay: value }))} />
+                  <ArbitrageControlSlider label="屠宰能力" value={optimization.slaughterHeadsPerDay} suffix="头/天" min={5000} max={80000} step={1000} onChange={value => setOptimization(prev => ({ ...prev, slaughterHeadsPerDay: value }))} />
+                  <ArbitrageControlSlider label="分割能力" value={optimization.cuttingHeadsPerDay} suffix="头/天" min={3000} max={60000} step={1000} onChange={value => setOptimization(prev => ({ ...prev, cuttingHeadsPerDay: value }))} />
+                  <ArbitrageControlSlider label="速冻能力" value={optimization.freezingTonsPerDay} suffix="吨/天" min={50} max={3000} step={10} onChange={value => setOptimization(prev => ({ ...prev, freezingTonsPerDay: value }))} />
+                  <ArbitrageControlSlider label="冷藏容量" value={optimization.storageTonsCapacity} suffix="吨" min={500} max={50000} step={100} onChange={value => setOptimization(prev => ({ ...prev, storageTonsCapacity: value }))} />
+                  <ArbitrageControlSlider label="深加工能力" value={optimization.deepProcessingTonsPerDay} suffix="吨/天" min={0} max={2000} step={10} onChange={value => setOptimization(prev => ({ ...prev, deepProcessingTonsPerDay: value }))} />
+                  <ArbitrageControlSlider label="销售能力" value={optimization.salesTonsPerDay} suffix="吨/天" min={50} max={3000} step={10} onChange={value => setOptimization(prev => ({ ...prev, salesTonsPerDay: value }))} />
+                </div>
+              </div>
             </div>
           </TechPanel>
         </div>
-
-        {/* 多指标价格曲线图 */}
         <div className="lg:col-span-8 space-y-4">
           <TechPanel className="p-6 flex flex-col relative rounded-[24px] h-[560px]">
             <div className="mb-4 flex items-center justify-between">
@@ -869,5 +920,36 @@ export default function TimeArbitragePage() {
         </TechPanel>
       </div>
     </PlatformShell>
+  );
+}
+
+function ControlSlider({
+  label,
+  value,
+  suffix,
+  min,
+  max,
+  step,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  suffix: string;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+}) {
+  const display = Number.isInteger(step) ? value.toFixed(0) : value.toFixed(2);
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-[12px] text-slate-400 font-medium">{label}</label>
+        <span className="font-mono text-slate-300 font-bold bg-white/10 px-2 py-0.5 rounded text-[11px]">
+          {display} {suffix}
+        </span>
+      </div>
+      <Slider min={min} max={max} step={step} value={[value]} onValueChange={v => onChange(v[0] ?? value)} />
+    </div>
   );
 }

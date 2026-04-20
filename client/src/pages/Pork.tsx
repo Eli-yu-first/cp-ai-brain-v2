@@ -207,7 +207,7 @@ export default function PorkPage() {
       mergedMarketDesc: "把今日基准与实时输入合并为单行行情块，支持自动滚动与手动左右滑动，便于像期货区一样快速扫读关键价格。",
       swipeHint: "自动滚动中，可手动左右滑动查看全部卡片",
       marketDynamics: "Market Dynamics",
-      marketTitle: "23 部位与经营指标股票式图表",
+      marketTitle: "经营指标图",
       chartHint: "支持多选指标、十字光标、历史滚动、滚轮缩放与底部区间刷选。",
       currentPart: "当前品类",
       todayPrice: "今日现货",
@@ -1053,8 +1053,8 @@ export default function PorkPage() {
                   <LineChart data={visibleSeries} margin={{ top: 12, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
                     <XAxis dataKey="label" stroke="rgba(148,163,184,0.5)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-                    <YAxis yAxisId="left" stroke="rgba(148,163,184,0.5)" tickLine={false} axisLine={false} width={50} tick={{ fontSize: 10 }} />
-                    <YAxis yAxisId="right" orientation="right" stroke="rgba(251,191,36,0.5)" tickLine={false} axisLine={false} width={50} tick={{ fontSize: 10 }} />
+                    <YAxis yAxisId="left" domain={["auto", "auto"]} stroke="rgba(148,163,184,0.5)" tickLine={false} axisLine={false} width={50} tick={{ fontSize: 10 }} />
+                    <YAxis yAxisId="right" orientation="right" domain={["auto", "auto"]} stroke="rgba(251,191,36,0.5)" tickLine={false} axisLine={false} width={50} tick={{ fontSize: 10 }} />
                     <Tooltip content={<StockTooltip metricLabels={metricLabels} />} />
                     <ReferenceLine yAxisId="left" y={selectedPart?.spotPrice} stroke="rgba(56,189,248,0.3)" strokeDasharray="4 4" />
                     {selectedMetrics.map(metric => (

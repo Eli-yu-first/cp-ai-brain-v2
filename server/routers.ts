@@ -56,6 +56,42 @@ const timeframeSchema = z.enum(["day", "week", "month", "quarter", "halfYear", "
 const roleSchema = z.enum(["admin", "strategist", "executor"]);
 const marketSortSchema = z.enum(["hogPrice", "cornPrice", "soymealPrice", "hogChange"]);
 
+const timeOptimizationSchema = z.object({
+  breedingHeadsPerDay: z.number().min(1000).max(200000).optional(),
+  slaughterHeadsPerDay: z.number().min(1000).max(200000).optional(),
+  cuttingHeadsPerDay: z.number().min(1000).max(200000).optional(),
+  freezingTonsPerDay: z.number().min(10).max(10000).optional(),
+  storageTonsCapacity: z.number().min(10).max(500000).optional(),
+  deepProcessingTonsPerDay: z.number().min(0).max(10000).optional(),
+  salesTonsPerDay: z.number().min(0).max(10000).optional(),
+  breedingCostPerHead: z.number().min(0).max(1000).optional(),
+  slaughterCostPerHead: z.number().min(0).max(1000).optional(),
+  cuttingCostPerHead: z.number().min(0).max(1000).optional(),
+  freezingCostPerTon: z.number().min(0).max(5000).optional(),
+  storageCostPerTonMonth: z.number().min(0).max(5000).optional(),
+  deepProcessingCostPerTon: z.number().min(0).max(5000).optional(),
+  salesCostPerTon: z.number().min(0).max(5000).optional(),
+}).optional();
+
+const networkOptimizationSchema = z.object({
+  breedingHeadsPerDay: z.number().min(1000).max(200000).optional(),
+  slaughterHeadsPerDay: z.number().min(1000).max(200000).optional(),
+  cuttingHeadsPerDay: z.number().min(1000).max(200000).optional(),
+  freezingTonsPerDay: z.number().min(10).max(10000).optional(),
+  storageTonsCapacity: z.number().min(10).max(500000).optional(),
+  deepProcessingTonsPerDay: z.number().min(0).max(10000).optional(),
+  salesFreshTonsPerDay: z.number().min(0).max(10000).optional(),
+  salesFrozenTonsPerMonth: z.number().min(0).max(500000).optional(),
+  salesProcessedTonsPerDay: z.number().min(0).max(10000).optional(),
+  breedingCostPerHead: z.number().min(0).max(1000).optional(),
+  slaughterCostPerHead: z.number().min(0).max(1000).optional(),
+  cuttingCostPerHead: z.number().min(0).max(1000).optional(),
+  freezingCostPerTon: z.number().min(0).max(5000).optional(),
+  storageCostPerTonMonth: z.number().min(0).max(5000).optional(),
+  deepProcessingCostPerTon: z.number().min(0).max(5000).optional(),
+  salesCostPerTon: z.number().min(0).max(5000).optional(),
+}).optional();
+
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -229,6 +265,7 @@ export const appRouter = router({
           storageTons: z.number().min(50).max(50000).optional().default(1000),
           startMonth: z.number().min(1).max(12).optional().default(4),
           storageDurationMonths: z.number().int().min(1).max(10).optional().default(6),
+          optimization: timeOptimizationSchema,
         })
       )
       .query(({ input }) => {
@@ -239,6 +276,7 @@ export const appRouter = router({
           input.storageTons,
           input.startMonth,
           input.storageDurationMonths,
+          input.optimization,
         );
       }),
     arbitrageAiDecision: protectedProcedure
@@ -250,6 +288,7 @@ export const appRouter = router({
           storageTons: z.number().min(50).max(50000).optional().default(1000),
           startMonth: z.number().min(1).max(12).optional().default(4),
           storageDurationMonths: z.number().int().min(1).max(10).optional().default(6),
+          optimization: timeOptimizationSchema,
         })
       )
       .mutation(async ({ input }) => {
@@ -260,6 +299,7 @@ export const appRouter = router({
           input.storageTons,
           input.startMonth,
           input.storageDurationMonths,
+          input.optimization,
         );
         const fallback = buildArbitrageAgentDraft(
           input.spotPrice,
@@ -268,6 +308,7 @@ export const appRouter = router({
           input.storageTons,
           input.startMonth,
           input.storageDurationMonths,
+          input.optimization,
         );
 
         try {
@@ -340,6 +381,7 @@ export const appRouter = router({
           reserveSalesTonPerMonth: z.number().min(0).max(200000).optional().default(5000),
           deepProcessingTonPerDay: z.number().min(0).max(50000).optional().default(260),
           rentedStorageTon: z.number().min(0).max(200000).optional().default(0),
+          optimization: networkOptimizationSchema,
         })
       )
       .query(({ input }) => {
@@ -362,6 +404,7 @@ export const appRouter = router({
           reserveSalesTonPerMonth: input.reserveSalesTonPerMonth,
           deepProcessingTonPerDay: input.deepProcessingTonPerDay,
           rentedStorageTon: input.rentedStorageTon,
+          optimization: input.optimization,
         });
       }),
     spatialAiDispatch: protectedProcedure

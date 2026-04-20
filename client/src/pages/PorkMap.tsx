@@ -35,7 +35,7 @@ type ChinaGeoData = {
   features: ChinaGeoFeature[];
 };
 
-const CHINA_GEO_CDN_URL = "https://cdn.jsdelivr.net/npm/d3-geo-map@1.0.0/data/china.geojson";
+import chinaGeo from "@/data/china-geo.json";
 
 type MetricKey = "hogPrice" | "cornPrice" | "soymealPrice";
 type ScenarioKey = "margin" | "logistics" | "balanced";
@@ -267,25 +267,9 @@ export default function PorkMapPage() {
 
   useEffect(() => {
     setIsLoading(true);
-    fetch(CHINA_GEO_CDN_URL)
-      .then(res => {
-        if (!res.ok) throw new Error(`Failed to fetch China geo data: ${res.status}`);
-        return res.json();
-      })
-      .then((geoData: ChinaGeoData) => {
-        setChinaGeoData(geoData);
-        setMapError(null);
-      })
-      .catch(err => {
-        console.error("Failed to load China geo data:", err);
-        setMapError(err.message);
-        import("@/data/china-geo.json")
-          .then(mod => setChinaGeoData(mod.default as ChinaGeoData))
-          .catch(() => {});
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+    setChinaGeoData(chinaGeo as unknown as ChinaGeoData);
+    setMapError(null);
+    setIsLoading(false);
   }, []);
 
   const selectedNode = useMemo(() => {
@@ -495,7 +479,7 @@ export default function PorkMapPage() {
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
                       >
-                        <ComposableMap projection="geoOrthographic" projectionConfig={{ scale: 660, rotate: [-104, -36, 0] }} className="h-full w-full">
+                        <ComposableMap projection="geoMercator" projectionConfig={{ scale: 660, center: [105, 36] }} className="h-full w-full">
                           <ZoomableGroup center={[104, 36]} zoom={1} filterZoomEvent={() => !isMapLocked} filterPanEvent={() => !isMapLocked}>
                             <Geographies geography={chinaGeoData}>
                               {({ geographies }: { geographies: ChinaGeoFeature[] }) =>

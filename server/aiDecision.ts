@@ -1,4 +1,6 @@
 import { calculateDecision, inventoryBatches, type InventoryBatch } from "./platformData";
+import { calculateArbitrage } from "./timeArbitrage";
+import { calculateSpatialArbitrage } from "./spatialArbitrage";
 
 export type ForecastStrategy = "steady" | "balanced" | "aggressive";
 
@@ -160,6 +162,25 @@ export type DispatchHistoryOrder = {
   }>;
 };
 
+export type AiDecisionOptimizationSnapshot = {
+  timeOptimization: {
+    recommendedStorageTons: number;
+    recommendedReleaseMonth: number;
+    constrainedBy: string[];
+    averageUtilization: number;
+    serviceLevel: number;
+    totalOperatingCost: number;
+  };
+  spatialOptimization: {
+    totalShippedTon: number;
+    totalNetProfit: number;
+    bottleneckStage: string;
+    storageOpenedRoutes: number;
+    averageChainUtilization: number;
+    vehicleMix: Record<string, number>;
+  };
+};
+
 export type AiDecisionWorkspaceResult = {
   forecast: AiForecastResult;
   simulation: AiWhatIfResult;
@@ -168,6 +189,7 @@ export type AiDecisionWorkspaceResult = {
   dispatchBoard: DispatchBoardResult;
   executionSummary: DispatchExecutionSummary;
   dispatchHistory: DispatchHistoryOrder[];
+  optimizationSnapshot: AiDecisionOptimizationSnapshot;
   lifecycle: {
     stage:
       | "forecast"
@@ -785,6 +807,50 @@ export function buildAiDecisionWorkspace(
   const executionSummary = buildDispatchExecutionSummary(dispatchBoard, dispatchHistory);
   const hasPersistedDispatch = dispatchHistory.length > 0;
   const hasEscalation = dispatchBoard.escalation || executionSummary.escalatedCount > 0 || alertBoard.items.some(item => item.status === "red");
+  const timeOptimization = calculateArbitrage(
+    forecast.batch.currentSpotPrice,
+    forecast.monthlyHoldingCost,
+    Math.max(forecast.summary.breakEvenPrice, forecast.batch.unitCost),
+    Math.max(50, Math.round(forecast.batch.weightKg / 1000)),
+    selectedMonth,
+    Math.max(3, selectedMonth),
+  );
+  const spatialOptimization = calculateSpatialArbitrage({
+    transportCostPerKmPerTon: 0.8,
+    minProfitThreshold: 0.5,
+    batchSizeTon: Math.max(100, Math.round(forecast.batch.weightKg / 1000)),
+    originFilter: "all",
+    partCode: forecast.batch.partCode,
+    strategyMode: demandAdjustment > 8 ? "fresh_first" : capacityAdjustment > 15 ? "storage_first" : "balanced",
+    timeStoragePolicy: timeOptimization.maxProfit > 0 ? "auto" : "off",
+    planningDays: 7,
+    holdingCostPerMonth: forecast.monthlyHoldingCost,
+    socialBreakevenCost: Math.max(forecast.summary.breakEvenPrice, forecast.batch.unitCost),
+    startMonth: selectedMonth,
+    storageDurationMonths: Math.max(3, selectedMonth),
+    freshSalesTonPerDay: Math.max(120, Math.round(forecast.batch.weightKg / 1200)),
+    reserveSalesTonPerMonth: Math.max(2000, Math.round(forecast.batch.weightKg / 12)),
+    deepProcessingTonPerDay: Math.max(80, Math.round(forecast.batch.weightKg / 4000)),
+    rentedStorageTon: Math.max(0, Math.round(forecast.batch.weightKg / 2500)),
+  });
+  const optimizationSnapshot: AiDecisionOptimizationSnapshot = {
+    timeOptimization: {
+      recommendedStorageTons: timeOptimization.optimizationPlan.summary.recommendedStorageTons,
+      recommendedReleaseMonth: timeOptimization.optimizationPlan.summary.recommendedReleaseMonth,
+      constrainedBy: timeOptimization.optimizationPlan.summary.constrainedBy,
+      averageUtilization: timeOptimization.optimizationPlan.summary.averageUtilization,
+      serviceLevel: timeOptimization.optimizationPlan.summary.serviceLevel,
+      totalOperatingCost: timeOptimization.optimizationPlan.summary.totalOperatingCost,
+    },
+    spatialOptimization: {
+      totalShippedTon: spatialOptimization.scheduleSummary.totalShippedTon,
+      totalNetProfit: spatialOptimization.scheduleSummary.totalNetProfit,
+      bottleneckStage: spatialOptimization.scheduleSummary.bottleneckStage,
+      storageOpenedRoutes: spatialOptimization.scheduleSummary.storageOpenedRoutes,
+      averageChainUtilization: spatialOptimization.scheduleSummary.averageChainUtilization,
+      vehicleMix: spatialOptimization.scheduleSummary.vehicleMix,
+    },
+  };
 
   let stage: AiDecisionWorkspaceResult["lifecycle"]["stage"] = "dispatch_preview";
   if (!hasPersistedDispatch && executionSummary.completedCount === 0 && executionSummary.inProgressCount === 0) {
@@ -811,6 +877,7 @@ export function buildAiDecisionWorkspace(
     dispatchBoard,
     executionSummary,
     dispatchHistory,
+    optimizationSnapshot,
     lifecycle: {
       stage,
       hasPersistedDispatch,

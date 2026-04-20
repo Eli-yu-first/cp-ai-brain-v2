@@ -70,6 +70,11 @@ export type TimeArbitrageResult = {
   historySocialCostLine: number[];
   /** 历史利润空间（用 null 标记，前端不画柱子） */
   historyProfitSpace: (number | null)[];
+  optimizationPlan: {
+    stages: CapacityStageInput[];
+    monthlyAllocations: TimeOptimizationAllocation[];
+    summary: TimeOptimizationSummary;
+  };
 };
 
 export type ArbitrageContext = {
@@ -83,6 +88,178 @@ export type ArbitrageContext = {
     storageDurationMonths: number;
   };
 };
+
+export type CapacityStageInput = {
+  stage: "breeding" | "slaughter" | "cutting" | "freezing" | "storage" | "deepProcessing" | "sales";
+  actualCapacity: number;
+  targetCapacity: number;
+  unit: "head/day" | "ton/day" | "ton/month";
+  unitCost: number;
+  enabled: boolean;
+};
+
+export type TimeArbitrageOptimizationInput = {
+  breedingHeadsPerDay?: number;
+  slaughterHeadsPerDay?: number;
+  cuttingHeadsPerDay?: number;
+  freezingTonsPerDay?: number;
+  storageTonsCapacity?: number;
+  deepProcessingTonsPerDay?: number;
+  salesTonsPerDay?: number;
+  breedingCostPerHead?: number;
+  slaughterCostPerHead?: number;
+  cuttingCostPerHead?: number;
+  freezingCostPerTon?: number;
+  storageCostPerTonMonth?: number;
+  deepProcessingCostPerTon?: number;
+  salesCostPerTon?: number;
+};
+
+export type TimeOptimizationAllocation = {
+  month: number;
+  breedingHeads: number;
+  slaughterHeads: number;
+  cuttingHeads: number;
+  freezingTons: number;
+  storageTons: number;
+  deepProcessingTons: number;
+  salesTons: number;
+  releasedTons: number;
+  utilization: Record<string, number>;
+};
+
+export type TimeOptimizationSummary = {
+  recommendedStorageTons: number;
+  recommendedReleaseMonth: number;
+  constrainedBy: string[];
+  averageUtilization: number;
+  serviceLevel: number;
+  totalOperatingCost: number;
+  throughputScore: number;
+};
+
+
+function round(value: number, digits = 2) {
+  return Number(value.toFixed(digits));
+}
+
+function roundInt(value: number) {
+  return Math.max(0, Math.round(value));
+}
+
+function buildDefaultCapacityStages(storageTons: number, optimization?: TimeArbitrageOptimizationInput): CapacityStageInput[] {
+  const monthlyStorageCapacity = optimization?.storageTonsCapacity ?? Math.max(storageTons * 1.35, 1200);
+  const dailySalesCapacity = optimization?.salesTonsPerDay ?? Math.max(storageTons / 6, 180);
+  return [
+    { stage: "breeding", actualCapacity: optimization?.breedingHeadsPerDay ?? 40000, targetCapacity: 40000, unit: "head/day", unitCost: optimization?.breedingCostPerHead ?? 0.18, enabled: true },
+    { stage: "slaughter", actualCapacity: optimization?.slaughterHeadsPerDay ?? 22000, targetCapacity: 40000, unit: "head/day", unitCost: optimization?.slaughterCostPerHead ?? 0.42, enabled: true },
+    { stage: "cutting", actualCapacity: optimization?.cuttingHeadsPerDay ?? 9000, targetCapacity: 40000, unit: "head/day", unitCost: optimization?.cuttingCostPerHead ?? 0.33, enabled: true },
+    { stage: "freezing", actualCapacity: optimization?.freezingTonsPerDay ?? 520, targetCapacity: 760, unit: "ton/day", unitCost: optimization?.freezingCostPerTon ?? 86, enabled: true },
+    { stage: "storage", actualCapacity: monthlyStorageCapacity, targetCapacity: Math.max(monthlyStorageCapacity, storageTons), unit: "ton/month", unitCost: optimization?.storageCostPerTonMonth ?? 42, enabled: true },
+    { stage: "deepProcessing", actualCapacity: optimization?.deepProcessingTonsPerDay ?? 210, targetCapacity: 320, unit: "ton/day", unitCost: optimization?.deepProcessingCostPerTon ?? 120, enabled: true },
+    { stage: "sales", actualCapacity: dailySalesCapacity, targetCapacity: Math.max(dailySalesCapacity, storageTons / 4), unit: "ton/day", unitCost: optimization?.salesCostPerTon ?? 35, enabled: true },
+  ];
+}
+
+function buildTimeOptimizationPlan(params: {
+  storageTons: number;
+  months: number[];
+  profits: MonthProfit[];
+  storageDurationMonths: number;
+  optimization?: TimeArbitrageOptimizationInput;
+}): TimeArbitrageResult["optimizationPlan"] {
+  const { storageTons, months, profits, storageDurationMonths, optimization } = params;
+  const stages = buildDefaultCapacityStages(storageTons, optimization);
+  const breeding = stages.find(stage => stage.stage === "breeding")!;
+  const slaughter = stages.find(stage => stage.stage === "slaughter")!;
+  const cutting = stages.find(stage => stage.stage === "cutting")!;
+  const freezing = stages.find(stage => stage.stage === "freezing")!;
+  const storage = stages.find(stage => stage.stage === "storage")!;
+  const deepProcessing = stages.find(stage => stage.stage === "deepProcessing")!;
+  const sales = stages.find(stage => stage.stage === "sales")!;
+
+  const monthlyBaseTon = storageTons / Math.max(1, storageDurationMonths);
+  let remainingStorage = storageTons;
+  let totalOperatingCost = 0;
+  let utilizationAccumulator = 0;
+  let throughputAccumulator = 0;
+
+  const monthlyAllocations = months.map((month, index) => {
+    const signal = profits[index]?.priceGap ?? 0;
+    const demandFactor = signal > 0 ? 1 + Math.min(signal / 10, 0.35) : Math.max(0.72, 1 + signal / 12);
+    const monthlyDemandTon = Math.min(remainingStorage, monthlyBaseTon * demandFactor);
+    const salesTons = Math.min(monthlyDemandTon, sales.actualCapacity * 30);
+    const deepProcessingTons = Math.min(Math.max(0, monthlyDemandTon - salesTons) * 0.35, deepProcessing.actualCapacity * 30);
+    const storageTonsThisMonth = Math.max(0, monthlyDemandTon - salesTons - deepProcessingTons);
+    const releasedTons = salesTons + deepProcessingTons;
+    const freezingTons = Math.min(monthlyDemandTon, freezing.actualCapacity * 30);
+    const slaughterHeads = roundInt((freezingTons * 1000) / 78);
+    const cuttingHeads = Math.min(slaughterHeads, cutting.actualCapacity * 30);
+    const breedingHeads = Math.min(Math.max(slaughterHeads, cuttingHeads), breeding.actualCapacity * 30);
+
+    remainingStorage = Math.max(0, remainingStorage - releasedTons);
+
+    const utilization = {
+      breeding: round((breedingHeads / Math.max(1, breeding.actualCapacity * 30)) * 100),
+      slaughter: round((slaughterHeads / Math.max(1, slaughter.actualCapacity * 30)) * 100),
+      cutting: round((cuttingHeads / Math.max(1, cutting.actualCapacity * 30)) * 100),
+      freezing: round((freezingTons / Math.max(1, freezing.actualCapacity * 30)) * 100),
+      storage: round((storageTonsThisMonth / Math.max(1, storage.actualCapacity)) * 100),
+      deepProcessing: round((deepProcessingTons / Math.max(1, deepProcessing.actualCapacity * 30)) * 100),
+      sales: round((salesTons / Math.max(1, sales.actualCapacity * 30)) * 100),
+    };
+
+    utilizationAccumulator += Object.values(utilization).reduce((sum, value) => sum + value, 0) / Object.values(utilization).length;
+    throughputAccumulator += releasedTons;
+    totalOperatingCost +=
+      breedingHeads * breeding.unitCost +
+      slaughterHeads * slaughter.unitCost +
+      cuttingHeads * cutting.unitCost +
+      freezingTons * freezing.unitCost +
+      storageTonsThisMonth * storage.unitCost +
+      deepProcessingTons * deepProcessing.unitCost +
+      salesTons * sales.unitCost;
+
+    return {
+      month,
+      breedingHeads,
+      slaughterHeads,
+      cuttingHeads,
+      freezingTons: round(freezingTons),
+      storageTons: round(storageTonsThisMonth),
+      deepProcessingTons: round(deepProcessingTons),
+      salesTons: round(salesTons),
+      releasedTons: round(releasedTons),
+      utilization,
+    } satisfies TimeOptimizationAllocation;
+  });
+
+  const constrainedBy = stages
+    .filter(stage => {
+      const key = stage.stage === "deepProcessing" ? "deepProcessing" : stage.stage;
+      return monthlyAllocations.some(item => item.utilization[key as keyof typeof item.utilization] >= 92);
+    })
+    .map(stage => stage.stage);
+
+  const bestMonth = profits.reduce(
+    (best, current) => (current.totalProfit > best.totalProfit ? current : best),
+    profits[0] ?? { month: 1, totalProfit: 0 },
+  );
+
+  return {
+    stages,
+    monthlyAllocations,
+    summary: {
+      recommendedStorageTons: round(storageTons - remainingStorage),
+      recommendedReleaseMonth: bestMonth.month,
+      constrainedBy,
+      averageUtilization: round(utilizationAccumulator / Math.max(1, monthlyAllocations.length)),
+      serviceLevel: round((throughputAccumulator / Math.max(storageTons, 1)) * 100),
+      totalOperatingCost: round(totalOperatingCost, 0),
+      throughputScore: round((throughputAccumulator / Math.max(1, storageTons)) * 100),
+    },
+  };
+}
 
 /**
  * 生猪期货预测价曲线（按图示规则，使用分段线性拟合）。
@@ -153,6 +330,7 @@ export function calculateArbitrage(
   storageTons: number = 1000,
   startMonth: number = 4,
   storageDurationMonths: number = 6,
+  optimization?: TimeArbitrageOptimizationInput,
 ): TimeArbitrageResult {
   const duration = Math.max(1, Math.min(10, Math.round(storageDurationMonths)));
 
@@ -264,6 +442,14 @@ export function calculateArbitrage(
     });
   }
 
+  const optimizationPlan = buildTimeOptimizationPlan({
+    storageTons,
+    months,
+    profits,
+    storageDurationMonths: duration,
+    optimization,
+  });
+
   return {
     currentSpotPrice: spotPrice,
     socialBreakevenCost,
@@ -292,6 +478,7 @@ export function calculateArbitrage(
     historyFuturePriceCurve,
     historySocialCostLine,
     historyProfitSpace,
+    optimizationPlan,
   };
 }
 
@@ -302,6 +489,7 @@ export function buildArbitrageDecisionContext(
   storageTons: number = 1000,
   startMonth: number = 4,
   storageDurationMonths: number = 6,
+  optimization?: TimeArbitrageOptimizationInput,
 ): ArbitrageContext {
   const result = calculateArbitrage(
     spotPrice,
@@ -310,6 +498,7 @@ export function buildArbitrageDecisionContext(
     storageTons,
     startMonth,
     storageDurationMonths,
+    optimization,
   );
   return {
     result,
@@ -331,6 +520,7 @@ export function buildArbitrageAgentDraft(
   storageTons: number = 1000,
   startMonth: number = 4,
   storageDurationMonths: number = 6,
+  optimization?: TimeArbitrageOptimizationInput,
 ) {
   const { result } = buildArbitrageDecisionContext(
     spotPrice,
@@ -339,9 +529,10 @@ export function buildArbitrageAgentDraft(
     storageTons,
     startMonth,
     storageDurationMonths,
+    optimization,
   );
 
-  const buyMonths = result.profits.filter((p) => p.shouldArbitrage).map((p) => p.month);
+  const buyMonths = result.profits.filter((p: MonthProfit) => p.shouldArbitrage).map((p: MonthProfit) => p.month);
   const costGap = parseFloat((socialBreakevenCost - spotPrice).toFixed(2));
   const marketStatus =
     costGap > 0
@@ -359,7 +550,7 @@ export function buildArbitrageAgentDraft(
       buyMonths.length > 0
         ? `建议从 ${startMonth} 月起锁定 ${storageTons} 吨收储，储存费 ${holdingCostPerMonth.toFixed(2)} 元/kg/月。${windowStr}，在 ${result.maxProfitMonth} 月出货价差最大（+${result.maxProfit} 元/kg，约 ${result.maxTotalProfit} 万元总利润）。${result.breakEvenMonth ? `生猪期货预测价预计在 ${result.breakEvenMonth} 月达到社会养殖成本保本点。` : ""}`
         : `当前参数下持有成本已接近或超过未来预测价，无有效套利窗口，建议延后收储或降低储存费。`,
-    decision: buyMonths.map((m) => `${m}月持仓`),
+    decision: buyMonths.map((m: number) => `${m}月持仓`),
     riskWarning: `生猪期货价格预测存在不确定性，建议以 ${storageTons / 3} 吨为单位分 3 批入库降低集中风险。预计资金占用 ${(spotPrice * storageTons * 1000 / 10000).toFixed(0)} 万元，请评估资金成本与流动性。`,
   };
 }

@@ -5,15 +5,7 @@ import { motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-export function NumberTicker({
-  value,
-  suffix = "",
-  decimals = 0,
-}: {
-  value: number;
-  suffix?: string;
-  decimals?: number;
-}) {
+export function NumberTicker({  value,  suffix = "",  decimals = 0,}: {  value: number;  suffix?: string;  decimals?: number;}) {
   const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
@@ -33,10 +25,21 @@ export function NumberTicker({
   }, [value]);
 
   return (
-    <span className="num-display tracking-[-0.02em]">
+    <motion.span 
+      className="num-display tracking-[-0.02em]"
+      animate={{ 
+        scale: [1, 1.05, 1],
+        opacity: [0.8, 1, 0.8]
+      }}
+      transition={{ 
+        duration: 2,
+        repeat: Infinity,
+        repeatType: "reverse"
+      }}
+    >
       {displayValue.toFixed(decimals)}
       {suffix}
-    </span>
+    </motion.span>
   );
 }
 
@@ -135,29 +138,40 @@ export function MetricCard({
   );
 }
 
-export function TechPanel({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+export function TechPanel({  children,  className,}: {  children: React.ReactNode;  className?: string;}) {
   return (
-    <div 
+    <motion.div 
       className={cn("relative overflow-hidden bg-[linear-gradient(135deg,rgba(4,14,35,0.95),rgba(6,18,45,0.9))] border border-cyan-500/30 shadow-[0_0_25px_rgba(6,182,212,0.1)] p-5 md:p-6", className)}
       style={{
         clipPath: "polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px))"
+      }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      whileHover={{ 
+        boxShadow: "0 0 40px rgba(6,182,212,0.15)",
+        borderColor: "rgba(6,182,212,0.5)"
       }}
     >
       {/* Decals & Grid */}
       <div className="absolute top-0 right-[20px] w-12 h-[2px] bg-cyan-400 font-mono text-[8px] flex items-center justify-end pr-1 text-cyan-900 border-l border-cyan-300">ACT</div>
       <div className="absolute bottom-[20px] left-0 w-[2px] h-12 bg-cyan-400" />
       <div className="absolute bottom-0 right-0 w-8 h-8 border-r-2 border-b-2 border-cyan-500/40" />
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.03)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" />
+      <motion.div 
+        className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.03)_1px,transparent_1px)] bg-[size:30px_30px] pointer-events-none" 
+        animate={{ 
+          backgroundPosition: ["0px 0px", "30px 30px"]
+        }}
+        transition={{ 
+          duration: 20,
+          repeat: Infinity,
+          ease: "linear"
+        }}
+      />
       <div className="relative z-10">
         {children}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

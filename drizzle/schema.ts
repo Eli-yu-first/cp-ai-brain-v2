@@ -141,6 +141,72 @@ export const cpVentureLinksTable = mysqlTable("cp_venture_links", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const porkMarketSnapshotsTable = mysqlTable("pork_market_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  snapshotId: varchar("snapshotId", { length: 96 }).notNull().unique(),
+  timeframe: varchar("timeframe", { length: 32 }).notNull(),
+  regionCode: varchar("regionCode", { length: 64 }).notNull(),
+  regionName: varchar("regionName", { length: 128 }).notNull(),
+  sourceStatus: varchar("sourceStatus", { length: 64 }).notNull(),
+  sourceSummary: text("sourceSummary").notNull(),
+  benchmarkQuotesJson: text("benchmarkQuotesJson").notNull(),
+  commodityQuotesJson: text("commodityQuotesJson").notNull(),
+  regionQuotesJson: text("regionQuotesJson").notNull(),
+  partQuotesJson: text("partQuotesJson").notNull(),
+  inventoryBatchesJson: text("inventoryBatchesJson").notNull(),
+  generatedAtMs: varchar("generatedAtMs", { length: 32 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const porkPriceTicksTable = mysqlTable("pork_price_ticks", {
+  id: int("id").autoincrement().primaryKey(),
+  tickKey: varchar("tickKey", { length: 192 }).notNull().unique(),
+  snapshotId: varchar("snapshotId", { length: 96 }).notNull(),
+  quoteType: mysqlEnum("quoteType", ["spot", "futures", "benchmark", "region", "part"]).notNull(),
+  code: varchar("code", { length: 96 }).notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  regionCode: varchar("regionCode", { length: 64 }),
+  regionName: varchar("regionName", { length: 128 }),
+  priceScaled: int("priceScaled").notNull(),
+  changeScaled: int("changeScaled").notNull(),
+  unit: varchar("unit", { length: 32 }).notNull(),
+  source: varchar("source", { length: 128 }).notNull(),
+  observedMinute: varchar("observedMinute", { length: 32 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const porkPartQuoteSnapshotsTable = mysqlTable("pork_part_quote_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  rowKey: varchar("rowKey", { length: 192 }).notNull().unique(),
+  snapshotId: varchar("snapshotId", { length: 96 }).notNull(),
+  partCode: varchar("partCode", { length: 96 }).notNull(),
+  partName: varchar("partName", { length: 128 }).notNull(),
+  category: mysqlEnum("category", ["A", "B", "C"]).notNull(),
+  spotPriceScaled: int("spotPriceScaled").notNull(),
+  frozenPriceScaled: int("frozenPriceScaled").notNull(),
+  futuresMappedPriceScaled: int("futuresMappedPriceScaled").notNull(),
+  predictedPriceScaled: int("predictedPriceScaled").notNull(),
+  basisScaled: int("basisScaled").notNull(),
+  changeScaled: int("changeScaled").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export const porkInventorySnapshotsTable = mysqlTable("pork_inventory_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  rowKey: varchar("rowKey", { length: 192 }).notNull().unique(),
+  snapshotId: varchar("snapshotId", { length: 96 }).notNull(),
+  batchCode: varchar("batchCode", { length: 96 }).notNull(),
+  partCode: varchar("partCode", { length: 96 }).notNull(),
+  partName: varchar("partName", { length: 128 }).notNull(),
+  warehouse: varchar("warehouse", { length: 128 }).notNull(),
+  weightKg: int("weightKg").notNull(),
+  unitCostScaled: int("unitCostScaled").notNull(),
+  ageDays: int("ageDays").notNull(),
+  currentSpotPriceScaled: int("currentSpotPriceScaled").notNull(),
+  futuresMappedPriceScaled: int("futuresMappedPriceScaled").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 export type NotificationDelivery = typeof notificationDeliveries.$inferSelect;
 export type InsertNotificationDelivery = typeof notificationDeliveries.$inferInsert;
 export type ArbitrageRecord = typeof arbitrageRecords.$inferSelect;
@@ -149,3 +215,8 @@ export type CpVentureCompanyRow = typeof cpVentureCompaniesTable.$inferSelect;
 export type InsertCpVentureCompanyRow = typeof cpVentureCompaniesTable.$inferInsert;
 export type CpVentureLinkRow = typeof cpVentureLinksTable.$inferSelect;
 export type InsertCpVentureLinkRow = typeof cpVentureLinksTable.$inferInsert;
+export type PorkMarketSnapshotRow = typeof porkMarketSnapshotsTable.$inferSelect;
+export type InsertPorkMarketSnapshotRow = typeof porkMarketSnapshotsTable.$inferInsert;
+export type InsertPorkPriceTickRow = typeof porkPriceTicksTable.$inferInsert;
+export type InsertPorkPartQuoteSnapshotRow = typeof porkPartQuoteSnapshotsTable.$inferInsert;
+export type InsertPorkInventorySnapshotRow = typeof porkInventorySnapshotsTable.$inferInsert;

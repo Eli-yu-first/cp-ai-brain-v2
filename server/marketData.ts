@@ -10,6 +10,7 @@ import {
   type PartQuote,
   type Timeframe,
 } from "./platformData";
+import { persistPorkMarketSnapshot } from "./db";
 
 type SpotCard = {
   label: string;
@@ -72,6 +73,13 @@ type FuturesHistoryPoint = {
   volume: number;
   amount: number;
   amplitude: number;
+};
+
+type WholesalePorkQuote = {
+  price: number;
+  changeRate: number;
+  sourceName: string;
+  sourceUrl: string;
 };
 
 type CacheEntry<T> = {
@@ -304,6 +312,13 @@ const fallbackSpotContext = {
   })),
 };
 
+const fallbackWholesalePorkQuote: WholesalePorkQuote = {
+  price: 14.4,
+  changeRate: -0.1,
+  sourceName: "农业农村部全国农产品批发市场猪肉均价（离线兜底）",
+  sourceUrl: "https://finance.sina.com.cn/roll/2026-04-17/doc-inhuutzk1050753.shtml",
+};
+
 function buildFallbackFuturesQuote(commodityCode: keyof typeof futuresConfig): FuturesQuote {
   const fallbackByCode: Record<keyof typeof futuresConfig, { contractCode: string; price: number; changeRate: number; changeValue: number }> = {
     live_hog_futures: { contractCode: "lh2609", price: 12600, changeRate: 0.8, changeValue: 100 },
@@ -335,6 +350,72 @@ async function settleOrFallback<T>(loader: Promise<T>, fallback: T) {
   } catch {
     return fallback;
   }
+}
+
+async function settleWithStatus<T>(loader: Promise<T>, fallback: T) {
+  try {
+    return { value: await loader, live: true };
+  } catch {
+    return { value: fallback, live: false };
+  }
+}
+
+function extractWholesalePorkQuote(raw: string, sourceUrl: string): WholesalePorkQuote | null {
+  const normalized = raw.replace(/\s+/g, "");
+  const priceMatch = normalized.match(/猪肉平均价格为([\d.]+)元\/公斤/);
+  if (!priceMatch) return null;
+
+  const directionMatch = normalized.match(/比(?:昨天|上周五)(上升|下降)([\d.]+)%/);
+  const stable = normalized.includes("与昨天持平") || normalized.includes("与上周五持平");
+  const direction = directionMatch?.[1];
+  const absChange = directionMatch?.[2] ? Number(directionMatch[2]) : 0;
+  const changeRate = stable ? 0 : direction === "下降" ? -absChange : absChange;
+
+  return {
+    price: Number(priceMatch[1]),
+    changeRate: Number.isFinite(changeRate) ? changeRate : 0,
+    sourceName: "农业农村部全国农产品批发市场猪肉均价",
+    sourceUrl,
+  };
+}
+
+async function fetchLatestWholesalePorkQuote(): Promise<WholesalePorkQuote> {
+  const rollUrls = [
+    "https://finance.sina.com.cn/roll/index.d.html?cid=56592&page=1",
+    "https://finance.sina.com.cn/roll/index.d.html?cid=56589&page=1",
+  ];
+
+  for (const rollUrl of rollUrls) {
+    const response = await fetch(rollUrl, {
+      headers: {
+        "user-agent": USER_AGENT,
+        accept: "text/html,application/xhtml+xml",
+        referer: "https://finance.sina.com.cn/",
+      },
+    });
+    if (!response.ok) continue;
+    const rollHtml = await response.text();
+    const linkMatches = Array.from(rollHtml.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g));
+    const candidate = linkMatches.find(match => {
+      const title = stripTags(match[2] ?? "");
+      return title.includes("农业农村部") && title.includes("猪肉") && title.includes("平均价格");
+    });
+    const articleUrl = candidate?.[1];
+    if (!articleUrl) continue;
+
+    const articleResponse = await fetch(articleUrl, {
+      headers: {
+        "user-agent": USER_AGENT,
+        accept: "text/html,application/xhtml+xml",
+        referer: rollUrl,
+      },
+    });
+    if (!articleResponse.ok) continue;
+    const quote = extractWholesalePorkQuote(await articleResponse.text(), articleUrl);
+    if (quote) return quote;
+  }
+
+  throw new Error("Latest wholesale pork quote not found");
 }
 
 async function fetchFuturesQuote(commodityCode: keyof typeof futuresConfig) {
@@ -472,13 +553,29 @@ export async function buildPorkMarketSnapshot(
   sortBy: MarketSortBy = "hogPrice",
 ): Promise<PorkMarketSnapshot> {
   const baseSnapshot = getPlatformSnapshot(timeframe);
-  const [spotContext, regionQuotes, liveHogFutures, cornFutures, soymealFutures] = await Promise.all([
-    settleOrFallback(getNationalSpotContext(), fallbackSpotContext),
-    settleOrFallback(getRegionQuotes(), fallbackRegionQuotes),
-    settleOrFallback(fetchFuturesQuote("live_hog_futures"), buildFallbackFuturesQuote("live_hog_futures")),
-    settleOrFallback(fetchFuturesQuote("corn_futures"), buildFallbackFuturesQuote("corn_futures")),
-    settleOrFallback(fetchFuturesQuote("soymeal_futures"), buildFallbackFuturesQuote("soymeal_futures")),
+  const [spotContextResult, regionQuotesResult, liveHogFuturesResult, cornFuturesResult, soymealFuturesResult, wholesalePorkResult] = await Promise.all([
+    settleWithStatus(getNationalSpotContext(), fallbackSpotContext),
+    settleWithStatus(getRegionQuotes(), fallbackRegionQuotes),
+    settleWithStatus(fetchFuturesQuote("live_hog_futures"), buildFallbackFuturesQuote("live_hog_futures")),
+    settleWithStatus(fetchFuturesQuote("corn_futures"), buildFallbackFuturesQuote("corn_futures")),
+    settleWithStatus(fetchFuturesQuote("soymeal_futures"), buildFallbackFuturesQuote("soymeal_futures")),
+    settleWithStatus(fetchLatestWholesalePorkQuote(), fallbackWholesalePorkQuote),
   ]);
+  const spotContext = spotContextResult.value;
+  const regionQuotes = regionQuotesResult.value;
+  const liveHogFutures = liveHogFuturesResult.value;
+  const cornFutures = cornFuturesResult.value;
+  const soymealFutures = soymealFuturesResult.value;
+  const wholesalePorkQuote = wholesalePorkResult.value;
+  const liveSourceCount = [
+    spotContextResult,
+    regionQuotesResult,
+    liveHogFuturesResult,
+    cornFuturesResult,
+    soymealFuturesResult,
+    wholesalePorkResult,
+  ].filter(item => item.live).length;
+  const sourceStatus = liveSourceCount === 6 ? "live" : liveSourceCount === 0 ? "fallback" : "partial_fallback";
   const { cards } = spotContext;
 
   const nationalLiveHog = findCard(cards, "外三元");
@@ -497,7 +594,7 @@ export async function buildPorkMarketSnapshot(
   const soymealSpot = selectedRegion?.soymealPrice ?? nationalSoymeal?.price ?? 3115;
   const soymealChange = selectedRegion?.soymealChange ?? nationalSoymeal?.change ?? 0;
   const liveHogFuturesKg = Number((liveHogFutures.price / 1000).toFixed(2));
-  const liveCarcassPrice = Number((liveHogSpot * 1.26 + (liveHogFuturesKg - liveHogSpot) * 0.18).toFixed(2));
+  const liveCarcassPrice = Number(wholesalePorkQuote.price.toFixed(2));
   const liveFrozenPrice = Number((liveCarcassPrice + 2.18).toFixed(2));
   const regionShift = Number((liveHogSpot - (nationalLiveHog?.price ?? liveHogSpot)).toFixed(2));
 
@@ -546,7 +643,8 @@ export async function buildPorkMarketSnapshot(
     futures: [liveHogFutures, cornFutures, soymealFutures],
   };
 
-  return {
+  const generatedAt = Date.now();
+  const snapshot: PorkMarketSnapshot = {
     ...baseSnapshot,
     allPartQuotes,
     inventoryBatches,
@@ -561,10 +659,10 @@ export async function buildPorkMarketSnapshot(
       },
       {
         code: "carcass",
-        name: "白条",
+        name: "猪肉批发",
         englishName: "Carcass",
         price: Number(liveCarcassPrice.toFixed(2)),
-        changeRate: Number((((liveCarcassPrice - 23.4) / 23.4) * 100).toFixed(2)),
+        changeRate: Number(wholesalePorkQuote.changeRate.toFixed(2)),
         unit: "¥/kg",
       },
       {
@@ -609,8 +707,27 @@ export async function buildPorkMarketSnapshot(
     regionOptions: [{ code: "national", name: "全国" }, ...regionQuotes.map(item => ({ code: item.regionCode, name: item.regionName }))],
     regionQuotes: sortRegionQuotes(regionQuotes, sortBy),
     commodityQuotes,
-    generatedAt: Date.now(),
+    generatedAt,
   };
+
+  void persistPorkMarketSnapshot({
+    snapshotId: `pork-market-${timeframe}-${snapshot.selectedRegionCode}-${new Date(generatedAt).toISOString().slice(0, 16)}`,
+    timeframe,
+    selectedRegionCode: snapshot.selectedRegionCode,
+    selectedRegionName: snapshot.selectedRegionName,
+    sourceStatus,
+    sourceSummary: `${wholesalePorkQuote.sourceName}; 生猪/玉米/豆粕: 猪价格网; 期货: 东方财富`,
+    benchmarkQuotes: snapshot.benchmarkQuotes,
+    commodityQuotes: snapshot.commodityQuotes,
+    regionQuotes: snapshot.regionQuotes,
+    allPartQuotes: snapshot.allPartQuotes,
+    inventoryBatches: snapshot.inventoryBatches,
+    generatedAt,
+  }).catch(error => {
+    console.error("[Database] Failed to persist pork market snapshot:", error);
+  });
+
+  return snapshot;
 }
 
 export async function buildLiveDecisionScenarios(batchCode: string, regionCode = "national") {

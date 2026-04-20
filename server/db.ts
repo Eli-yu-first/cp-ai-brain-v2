@@ -6,8 +6,16 @@ import {
   dispatchReceipts,
   InsertAuditLog,
   InsertDispatchOrder,
+  InsertPorkInventorySnapshotRow,
+  InsertPorkMarketSnapshotRow,
+  InsertPorkPartQuoteSnapshotRow,
+  InsertPorkPriceTickRow,
   InsertUser,
   notificationDeliveries,
+  porkInventorySnapshotsTable,
+  porkMarketSnapshotsTable,
+  porkPartQuoteSnapshotsTable,
+  porkPriceTicksTable,
   users,
 } from "../drizzle/schema";
 import type { AuditEntry } from "./platformData";
@@ -49,6 +57,78 @@ export type NotificationDeliveryInput = {
   sentAt?: Date;
 };
 
+type PersistableBenchmarkQuote = {
+  code: string;
+  name: string;
+  price: number;
+  changeRate: number;
+  unit: string;
+};
+
+type PersistableFuturesQuote = {
+  commodityCode: "live_hog_futures" | "corn_futures" | "soymeal_futures";
+  contractCode: string;
+  name: string;
+  price: number;
+  changeRate: number;
+  unit: string;
+};
+
+type PersistableSpotQuote = PersistableBenchmarkQuote;
+
+type PersistableRegionQuote = {
+  regionCode: string;
+  regionName: string;
+  liveHogPrice: number;
+  liveHogChange: number;
+  cornPrice: number;
+  cornChange: number;
+  soymealPrice: number;
+  soymealChange: number;
+};
+
+type PersistablePartQuote = {
+  code: string;
+  name: string;
+  category: "A" | "B" | "C";
+  spotPrice: number;
+  frozenPrice: number;
+  futuresMappedPrice: number;
+  predictedPrice: number;
+  basis: number;
+  changeRate: number;
+};
+
+type PersistableInventoryBatch = {
+  batchCode: string;
+  partCode: string;
+  partName: string;
+  warehouse: string;
+  weightKg: number;
+  unitCost: number;
+  ageDays: number;
+  currentSpotPrice: number;
+  futuresMappedPrice: number;
+};
+
+export type PorkMarketSnapshotPersistenceInput = {
+  snapshotId: string;
+  timeframe: string;
+  selectedRegionCode: string;
+  selectedRegionName: string;
+  sourceStatus: "live" | "partial_fallback" | "fallback";
+  sourceSummary: string;
+  benchmarkQuotes: PersistableBenchmarkQuote[];
+  commodityQuotes: {
+    spot: PersistableSpotQuote[];
+    futures: PersistableFuturesQuote[];
+  };
+  regionQuotes: PersistableRegionQuote[];
+  allPartQuotes: PersistablePartQuote[];
+  inventoryBatches: PersistableInventoryBatch[];
+  generatedAt: number;
+};
+
 function formatAuditId(id: number) {
   return `AUD-${String(id).padStart(3, "0")}`;
 }
@@ -68,6 +148,26 @@ function toAuditEntry(row: typeof auditLogs.$inferSelect): AuditEntry {
     createdAt: row.createdAt.getTime(),
     status: row.status,
   };
+}
+
+function scalePrice(value: number) {
+  return Number.isFinite(value) ? Math.round(value * 1000) : 0;
+}
+
+function observedMinuteFrom(timestampMs: number) {
+  return new Date(timestampMs).toISOString().slice(0, 16);
+}
+
+function safeJson(value: unknown) {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "null";
+  }
+}
+
+function truncate(value: string, maxLength: number) {
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
 }
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
@@ -365,6 +465,220 @@ export async function recordNotificationDelivery(input: NotificationDeliveryInpu
   });
 
   return { recorded: true };
+}
+
+export async function persistPorkMarketSnapshot(input: PorkMarketSnapshotPersistenceInput) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      persisted: false,
+      snapshotId: input.snapshotId,
+      priceTickCount: input.benchmarkQuotes.length + input.commodityQuotes.spot.length + input.commodityQuotes.futures.length + input.regionQuotes.length * 3 + input.allPartQuotes.length,
+      partQuoteCount: input.allPartQuotes.length,
+      inventoryCount: input.inventoryBatches.length,
+    };
+  }
+
+  const observedMinute = observedMinuteFrom(input.generatedAt);
+  const snapshotValues: InsertPorkMarketSnapshotRow = {
+    snapshotId: truncate(input.snapshotId, 96),
+    timeframe: truncate(input.timeframe, 32),
+    regionCode: truncate(input.selectedRegionCode, 64),
+    regionName: truncate(input.selectedRegionName, 128),
+    sourceStatus: input.sourceStatus,
+    sourceSummary: input.sourceSummary,
+    benchmarkQuotesJson: safeJson(input.benchmarkQuotes),
+    commodityQuotesJson: safeJson(input.commodityQuotes),
+    regionQuotesJson: safeJson(input.regionQuotes),
+    partQuotesJson: safeJson(input.allPartQuotes),
+    inventoryBatchesJson: safeJson(input.inventoryBatches),
+    generatedAtMs: String(input.generatedAt),
+  };
+
+  await db.insert(porkMarketSnapshotsTable).values(snapshotValues).onDuplicateKeyUpdate({
+    set: {
+      sourceStatus: snapshotValues.sourceStatus,
+      sourceSummary: snapshotValues.sourceSummary,
+      benchmarkQuotesJson: snapshotValues.benchmarkQuotesJson,
+      commodityQuotesJson: snapshotValues.commodityQuotesJson,
+      regionQuotesJson: snapshotValues.regionQuotesJson,
+      partQuotesJson: snapshotValues.partQuotesJson,
+      inventoryBatchesJson: snapshotValues.inventoryBatchesJson,
+      generatedAtMs: snapshotValues.generatedAtMs,
+    },
+  });
+
+  const priceTicks: InsertPorkPriceTickRow[] = [
+    ...input.benchmarkQuotes.map(quote => ({
+      tickKey: `${observedMinute}:benchmark:${quote.code}`,
+      snapshotId: input.snapshotId,
+      quoteType: "benchmark" as const,
+      code: quote.code,
+      name: quote.name,
+      regionCode: input.selectedRegionCode,
+      regionName: input.selectedRegionName,
+      priceScaled: scalePrice(quote.price),
+      changeScaled: scalePrice(quote.changeRate),
+      unit: quote.unit,
+      source: input.sourceSummary,
+      observedMinute,
+    })),
+    ...input.commodityQuotes.spot.map(quote => ({
+      tickKey: `${observedMinute}:spot:${quote.code}:${input.selectedRegionCode}`,
+      snapshotId: input.snapshotId,
+      quoteType: "spot" as const,
+      code: quote.code,
+      name: quote.name,
+      regionCode: input.selectedRegionCode,
+      regionName: input.selectedRegionName,
+      priceScaled: scalePrice(quote.price),
+      changeScaled: scalePrice(quote.changeRate),
+      unit: quote.unit,
+      source: input.sourceSummary,
+      observedMinute,
+    })),
+    ...input.commodityQuotes.futures.map(quote => ({
+      tickKey: `${observedMinute}:futures:${quote.commodityCode}:${quote.contractCode}`,
+      snapshotId: input.snapshotId,
+      quoteType: "futures" as const,
+      code: quote.commodityCode,
+      name: `${quote.name} ${quote.contractCode}`,
+      regionCode: null,
+      regionName: null,
+      priceScaled: scalePrice(quote.price),
+      changeScaled: scalePrice(quote.changeRate),
+      unit: quote.unit,
+      source: "Eastmoney futures",
+      observedMinute,
+    })),
+    ...input.regionQuotes.flatMap(region => [
+      {
+        tickKey: `${observedMinute}:region:live_hog:${region.regionCode}`,
+        snapshotId: input.snapshotId,
+        quoteType: "region" as const,
+        code: "live_hog",
+        name: "区域生猪现货",
+        regionCode: region.regionCode,
+        regionName: region.regionName,
+        priceScaled: scalePrice(region.liveHogPrice),
+        changeScaled: scalePrice(region.liveHogChange),
+        unit: "¥/kg",
+        source: input.sourceSummary,
+        observedMinute,
+      },
+      {
+        tickKey: `${observedMinute}:region:corn:${region.regionCode}`,
+        snapshotId: input.snapshotId,
+        quoteType: "region" as const,
+        code: "corn",
+        name: "区域玉米现货",
+        regionCode: region.regionCode,
+        regionName: region.regionName,
+        priceScaled: scalePrice(region.cornPrice),
+        changeScaled: scalePrice(region.cornChange),
+        unit: "¥/ton",
+        source: input.sourceSummary,
+        observedMinute,
+      },
+      {
+        tickKey: `${observedMinute}:region:soymeal:${region.regionCode}`,
+        snapshotId: input.snapshotId,
+        quoteType: "region" as const,
+        code: "soymeal",
+        name: "区域豆粕现货",
+        regionCode: region.regionCode,
+        regionName: region.regionName,
+        priceScaled: scalePrice(region.soymealPrice),
+        changeScaled: scalePrice(region.soymealChange),
+        unit: "¥/ton",
+        source: input.sourceSummary,
+        observedMinute,
+      },
+    ]),
+    ...input.allPartQuotes.map(part => ({
+      tickKey: `${observedMinute}:part:${part.code}:${input.selectedRegionCode}`,
+      snapshotId: input.snapshotId,
+      quoteType: "part" as const,
+      code: part.code,
+      name: part.name,
+      regionCode: input.selectedRegionCode,
+      regionName: input.selectedRegionName,
+      priceScaled: scalePrice(part.spotPrice),
+      changeScaled: scalePrice(part.changeRate),
+      unit: "¥/kg",
+      source: input.sourceSummary,
+      observedMinute,
+    })),
+  ];
+
+  for (const tick of priceTicks) {
+    await db.insert(porkPriceTicksTable).values(tick).onDuplicateKeyUpdate({
+      set: {
+        snapshotId: tick.snapshotId,
+        priceScaled: tick.priceScaled,
+        changeScaled: tick.changeScaled,
+        source: tick.source,
+      },
+    });
+  }
+
+  for (const part of input.allPartQuotes) {
+    const values: InsertPorkPartQuoteSnapshotRow = {
+      rowKey: `${input.snapshotId}:${part.code}`,
+      snapshotId: input.snapshotId,
+      partCode: part.code,
+      partName: part.name,
+      category: part.category,
+      spotPriceScaled: scalePrice(part.spotPrice),
+      frozenPriceScaled: scalePrice(part.frozenPrice),
+      futuresMappedPriceScaled: scalePrice(part.futuresMappedPrice),
+      predictedPriceScaled: scalePrice(part.predictedPrice),
+      basisScaled: scalePrice(part.basis),
+      changeScaled: scalePrice(part.changeRate),
+    };
+    await db.insert(porkPartQuoteSnapshotsTable).values(values).onDuplicateKeyUpdate({
+      set: {
+        spotPriceScaled: values.spotPriceScaled,
+        frozenPriceScaled: values.frozenPriceScaled,
+        futuresMappedPriceScaled: values.futuresMappedPriceScaled,
+        predictedPriceScaled: values.predictedPriceScaled,
+        basisScaled: values.basisScaled,
+        changeScaled: values.changeScaled,
+      },
+    });
+  }
+
+  for (const batch of input.inventoryBatches) {
+    const values: InsertPorkInventorySnapshotRow = {
+      rowKey: `${input.snapshotId}:${batch.batchCode}`,
+      snapshotId: input.snapshotId,
+      batchCode: batch.batchCode,
+      partCode: batch.partCode,
+      partName: batch.partName,
+      warehouse: batch.warehouse,
+      weightKg: Math.round(batch.weightKg),
+      unitCostScaled: scalePrice(batch.unitCost),
+      ageDays: batch.ageDays,
+      currentSpotPriceScaled: scalePrice(batch.currentSpotPrice),
+      futuresMappedPriceScaled: scalePrice(batch.futuresMappedPrice),
+    };
+    await db.insert(porkInventorySnapshotsTable).values(values).onDuplicateKeyUpdate({
+      set: {
+        unitCostScaled: values.unitCostScaled,
+        ageDays: values.ageDays,
+        currentSpotPriceScaled: values.currentSpotPriceScaled,
+        futuresMappedPriceScaled: values.futuresMappedPriceScaled,
+      },
+    });
+  }
+
+  return {
+    persisted: true,
+    snapshotId: input.snapshotId,
+    priceTickCount: priceTicks.length,
+    partQuoteCount: input.allPartQuotes.length,
+    inventoryCount: input.inventoryBatches.length,
+  };
 }
 
 export async function getDispatchOrderByOrderId(orderId: string) {

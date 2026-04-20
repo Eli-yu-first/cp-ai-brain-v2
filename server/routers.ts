@@ -42,6 +42,7 @@ import {
 import { sendEscalationNotifications } from "./escalationNotifier";
 import { buildPorkBusinessMap } from "./porkMap";
 import { getCpVentureMap } from "./cpVentureData";
+import { PORK_PARTS, PORK_PROJECT_BLUEPRINT } from "./porkIndustryModel";
 
 const timeframeSchema = z.enum(["day", "week", "month", "quarter", "halfYear", "year"]);
 const roleSchema = z.enum(["admin", "strategist", "executor"]);
@@ -102,6 +103,13 @@ export const appRouter = router({
       }),
     cpVentureMap: protectedProcedure.query(() => {
       return getCpVentureMap();
+    }),
+    projectBlueprint: protectedProcedure.query(() => {
+      return {
+        ...PORK_PROJECT_BLUEPRINT,
+        partCount: PORK_PARTS.length,
+        parts: PORK_PARTS,
+      };
     }),
     scenarios: protectedProcedure
       .input(

@@ -1,3 +1,8 @@
+import {
+  calculateCostOfCarryFairPrice,
+  calculateRiskAdjustedHoldingReturn,
+} from "./porkIndustryModel";
+
 /**
  * 时间套利计算引擎 v2（按 CP 集团业务图示规则实现）
  *
@@ -42,6 +47,10 @@ export type TimeArbitrageResult = {
   socialCostLine: number[];
   /** 每月价差（元/kg） */
   profitSpace: number[];
+  /** CoC 持有成本模型公允价（部位级期货隐含价的简化曲线） */
+  costOfCarryFairPriceCurve: number[];
+  /** 风险调整后年化收益率（%） */
+  riskAdjustedReturnCurve: number[];
   profits: MonthProfit[];
   /** 有效套利窗口的起止月 */
   arbitrageWindow: { startMonth: number; endMonth: number } | null;
@@ -180,6 +189,8 @@ export function calculateArbitrage(
   const futurePriceCurve: number[] = [];
   const socialCostLine: number[] = [];
   const profitSpace: number[] = [];
+  const costOfCarryFairPriceCurve: number[] = [];
+  const riskAdjustedReturnCurve: number[] = [];
   const profits: MonthProfit[] = [];
 
   let maxProfit = -Infinity;
@@ -198,6 +209,17 @@ export function calculateArbitrage(
 
     const futurePrice = futuresPriceAtOffset(spotPrice, socialBreakevenCost, i);
     futurePriceCurve.push(futurePrice);
+    const holdingDays = i * 30;
+    const dailyStorageRate = holdingCostPerMonth / Math.max(spotPrice, 1) / 30;
+    const fairPrice = calculateCostOfCarryFairPrice({
+      spotPrice,
+      annualCapitalRate: 4.2,
+      dailyStorageRate,
+      dailyLossRate: 0.0007,
+      holdingDays,
+      convenienceYieldPerKg: 0,
+    });
+    costOfCarryFairPriceCurve.push(fairPrice);
 
     socialCostLine.push(socialBreakevenCost);
 
@@ -206,6 +228,16 @@ export function calculateArbitrage(
 
     const shouldArbitrage = priceGap > 0 && holdingCost < socialBreakevenCost;
     const totalProfit = parseFloat(((priceGap * storageTons * 1000) / 10000).toFixed(1));
+    const riskAdjusted = calculateRiskAdjustedHoldingReturn({
+      expectedFuturePrice: futurePrice,
+      breakEvenPrice: holdingCost,
+      inventoryKg: storageTons * 1000,
+      inventoryCostPerKg: Math.max(spotPrice, 1),
+      holdingDays: Math.max(1, holdingDays),
+      riskFreeAnnualRate: 2.1,
+      volatility: 0.18,
+    });
+    riskAdjustedReturnCurve.push(riskAdjusted.annualizedReturnPct);
 
     if (priceGap > maxProfit) {
       maxProfit = priceGap;
@@ -244,6 +276,8 @@ export function calculateArbitrage(
     futurePriceCurve,
     socialCostLine,
     profitSpace,
+    costOfCarryFairPriceCurve,
+    riskAdjustedReturnCurve,
     profits,
     arbitrageWindow:
       arbitrageWindowStart !== null && arbitrageWindowEnd !== null

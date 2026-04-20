@@ -1,3 +1,5 @@
+import { PORK_PARTS } from "./porkIndustryModel";
+
 export type Locale = "zh" | "en" | "ja" | "th";
 export type Timeframe = "day" | "week" | "month" | "quarter" | "halfYear" | "year";
 export type RoleCode = "admin" | "strategist" | "executor";
@@ -211,34 +213,40 @@ export const businessCards: BusinessCard[] = [
   },
 ];
 
-const partDefinitions = [
-  ["live_hog", "毛猪", "Live Hog", "A", 15.2, 15.8, 16.2, 16.8, 1.2, 2.1],
-  ["carcass", "白条", "Carcass", "A", 19.8, 20.3, 20.8, 21.6, 1.4, 2.5],
-  ["frozen_whole", "冷冻", "Frozen", "A", 17.5, 18.0, 18.6, 19.0, 1.0, 1.8],
-  ["pork_belly", "五花", "Pork Belly", "A", 27.8, 28.9, 29.6, 30.4, 1.8, 2.6],
-  ["spare_ribs", "排骨", "Spare Ribs", "A", 34.2, 35.1, 35.7, 36.8, 1.5, 1.9],
-  ["loin", "里脊", "Loin", "A", 31.6, 32.2, 33.1, 34.1, 1.4, 2.2],
-  ["ham", "后腿", "Ham", "A", 24.6, 25.4, 26.2, 27.1, 1.3, 1.4],
-  ["shoulder", "前腿", "Shoulder", "A", 23.8, 24.6, 25.4, 26.4, 1.6, 1.8],
-  ["collar", "梅花肉", "Collar", "A", 28.7, 29.4, 30.3, 31.1, 1.2, 1.7],
-  ["hind_hock", "肘子", "Hock", "B", 21.4, 22.1, 22.9, 23.4, 0.9, 1.2],
-  ["fore_hock", "蹄膀", "Shank", "B", 20.6, 21.3, 22.0, 22.7, 1.0, 1.1],
-  ["big_chop", "大排", "Big Chop", "B", 25.2, 25.9, 26.7, 27.6, 1.1, 1.5],
-  ["small_chop", "小排", "Small Chop", "B", 29.3, 30.2, 31.0, 31.8, 1.0, 1.6],
-  ["neck", "颈肉", "Neck", "B", 22.8, 23.2, 24.1, 24.8, 1.3, 1.0],
-  ["sandwich", "夹心", "Sandwich Cut", "B", 21.1, 21.9, 22.6, 23.2, 1.2, 0.9],
-  ["fatback", "肥膘", "Fatback", "B", 18.9, 19.7, 20.5, 21.0, 0.8, 0.7],
-  ["ear", "猪耳", "Ear", "B", 35.4, 36.0, 36.6, 37.2, 0.6, 0.8],
-  ["tail", "猪尾", "Tail", "B", 31.2, 32.0, 32.8, 33.5, 0.9, 0.9],
-  ["trotter", "猪蹄", "Trotter", "B", 24.5, 25.1, 25.9, 26.7, 1.0, 1.1],
-  ["heart", "猪心", "Heart", "C", 19.4, 20.0, 20.6, 21.1, 0.7, 0.5],
-  ["liver", "猪肝", "Liver", "C", 13.8, 14.2, 14.9, 15.3, 0.5, 0.6],
-  ["kidney", "猪腰", "Kidney", "C", 22.3, 22.8, 23.2, 23.7, 0.6, 0.5],
-  ["intestine", "猪肠", "Intestine", "C", 16.1, 16.7, 17.4, 17.9, 0.8, 0.4],
-  ["head_meat", "头肉", "Head Meat", "C", 18.5, 19.1, 19.6, 20.2, 0.7, 0.5],
-  ["trimmings", "碎肉", "Trimmings", "C", 15.7, 16.2, 16.9, 17.4, 0.9, 0.6],
-  ["byproduct_mix", "副产拼配", "Byproduct Mix", "C", 12.9, 13.5, 14.1, 14.6, 1.0, 0.4],
-] as const;
+type PartPricingSeed = {
+  spotPrice: number;
+  frozenPrice: number;
+  futuresMappedPrice: number;
+  predictedPrice: number;
+  basis: number;
+  changeRate: number;
+};
+
+const partPricingSeeds: Record<string, PartPricingSeed> = {
+  pork_belly: { spotPrice: 27.8, frozenPrice: 28.9, futuresMappedPrice: 29.6, predictedPrice: 30.4, basis: 1.8, changeRate: 2.6 },
+  big_chop: { spotPrice: 25.2, frozenPrice: 25.9, futuresMappedPrice: 26.7, predictedPrice: 27.6, basis: 1.1, changeRate: 1.5 },
+  small_chop: { spotPrice: 29.3, frozenPrice: 30.2, futuresMappedPrice: 31.0, predictedPrice: 31.8, basis: 1.0, changeRate: 1.6 },
+  shoulder: { spotPrice: 23.8, frozenPrice: 24.6, futuresMappedPrice: 25.4, predictedPrice: 26.4, basis: 1.6, changeRate: 1.8 },
+  ham: { spotPrice: 24.6, frozenPrice: 25.4, futuresMappedPrice: 26.2, predictedPrice: 27.1, basis: 1.3, changeRate: 1.4 },
+  loin: { spotPrice: 31.6, frozenPrice: 32.2, futuresMappedPrice: 33.1, predictedPrice: 34.1, basis: 1.4, changeRate: 2.2 },
+  striploin: { spotPrice: 30.4, frozenPrice: 31.0, futuresMappedPrice: 31.8, predictedPrice: 32.8, basis: 1.2, changeRate: 1.9 },
+  front_rib: { spotPrice: 26.2, frozenPrice: 27.1, futuresMappedPrice: 27.8, predictedPrice: 28.7, basis: 1.1, changeRate: 1.6 },
+  tube_bone: { spotPrice: 18.8, frozenPrice: 19.5, futuresMappedPrice: 20.1, predictedPrice: 20.8, basis: 0.7, changeRate: 0.8 },
+  rib: { spotPrice: 34.2, frozenPrice: 35.1, futuresMappedPrice: 35.7, predictedPrice: 36.8, basis: 1.5, changeRate: 1.9 },
+  collar: { spotPrice: 28.7, frozenPrice: 29.4, futuresMappedPrice: 30.3, predictedPrice: 31.1, basis: 1.2, changeRate: 1.7 },
+  rump_tip: { spotPrice: 21.7, frozenPrice: 22.3, futuresMappedPrice: 23.0, predictedPrice: 23.8, basis: 0.8, changeRate: 1.0 },
+  middle_cut: { spotPrice: 24.1, frozenPrice: 24.8, futuresMappedPrice: 25.6, predictedPrice: 26.3, basis: 1.0, changeRate: 1.1 },
+  skin_on_belly: { spotPrice: 28.9, frozenPrice: 29.8, futuresMappedPrice: 30.5, predictedPrice: 31.4, basis: 1.6, changeRate: 1.8 },
+  skinless_belly: { spotPrice: 29.6, frozenPrice: 30.4, futuresMappedPrice: 31.1, predictedPrice: 32.0, basis: 1.7, changeRate: 1.9 },
+  rib_segment: { spotPrice: 32.8, frozenPrice: 33.6, futuresMappedPrice: 34.4, predictedPrice: 35.2, basis: 1.4, changeRate: 1.7 },
+  diced_leg: { spotPrice: 23.6, frozenPrice: 24.1, futuresMappedPrice: 24.8, predictedPrice: 25.5, basis: 0.9, changeRate: 1.0 },
+  loin_shreds: { spotPrice: 32.4, frozenPrice: 33.0, futuresMappedPrice: 33.8, predictedPrice: 34.7, basis: 1.3, changeRate: 1.6 },
+  belly_cubes: { spotPrice: 27.1, frozenPrice: 27.8, futuresMappedPrice: 28.5, predictedPrice: 29.4, basis: 1.1, changeRate: 1.3 },
+  big_chop_slices: { spotPrice: 26.6, frozenPrice: 27.2, futuresMappedPrice: 28.0, predictedPrice: 28.8, basis: 1.0, changeRate: 1.2 },
+  small_chop_cubes: { spotPrice: 30.1, frozenPrice: 30.8, futuresMappedPrice: 31.5, predictedPrice: 32.2, basis: 1.1, changeRate: 1.3 },
+  shoulder_shreds: { spotPrice: 24.2, frozenPrice: 24.8, futuresMappedPrice: 25.5, predictedPrice: 26.1, basis: 0.9, changeRate: 1.0 },
+  ham_cubes: { spotPrice: 24.8, frozenPrice: 25.3, futuresMappedPrice: 26.0, predictedPrice: 26.8, basis: 1.0, changeRate: 1.1 },
+};
 
 function generateSeries(base: number, wave: number, points: number, growth = 0.18) {
   return Array.from({ length: points }, (_, index) => {
@@ -249,29 +257,30 @@ function generateSeries(base: number, wave: number, points: number, growth = 0.1
   });
 }
 
-export const partQuotes: PartQuote[] = partDefinitions.map(
-  ([code, name, englishName, category, spotPrice, frozenPrice, futuresMappedPrice, predictedPrice, basis, changeRate]) => ({
-    code,
-    name,
-    englishName,
-    category,
-    spotPrice,
-    frozenPrice,
-    futuresMappedPrice,
-    predictedPrice,
-    basis,
-    changeRate,
-    sparkline: generateSeries(spotPrice - 1.1, 0.8, 12),
+export const partQuotes: PartQuote[] = PORK_PARTS.map(part => {
+  const seed = partPricingSeeds[part.code]!;
+  return {
+    code: part.code,
+    name: part.name,
+    englishName: part.englishName,
+    category: part.category,
+    spotPrice: seed.spotPrice,
+    frozenPrice: seed.frozenPrice,
+    futuresMappedPrice: seed.futuresMappedPrice,
+    predictedPrice: seed.predictedPrice,
+    basis: seed.basis,
+    changeRate: seed.changeRate,
+    sparkline: generateSeries(seed.spotPrice - 1.1, 0.8, 12),
     histories: {
-      day: generateSeries(spotPrice - 1.3, 0.6, 12, 0.08),
-      week: generateSeries(spotPrice - 1.8, 0.9, 14, 0.1),
-      month: generateSeries(spotPrice - 2.4, 1.1, 18, 0.12),
-      quarter: generateSeries(spotPrice - 3.1, 1.3, 20, 0.14),
-      halfYear: generateSeries(spotPrice - 3.8, 1.7, 24, 0.16),
-      year: generateSeries(spotPrice - 4.2, 2.1, 28, 0.18),
+      day: generateSeries(seed.spotPrice - 1.3, 0.6, 12, 0.08),
+      week: generateSeries(seed.spotPrice - 1.8, 0.9, 14, 0.1),
+      month: generateSeries(seed.spotPrice - 2.4, 1.1, 18, 0.12),
+      quarter: generateSeries(seed.spotPrice - 3.1, 1.3, 20, 0.14),
+      halfYear: generateSeries(seed.spotPrice - 3.8, 1.7, 24, 0.16),
+      year: generateSeries(seed.spotPrice - 4.2, 2.1, 28, 0.18),
     },
-  }),
-);
+  };
+});
 
 export const benchmarkQuotes: BenchmarkQuote[] = [
   { code: "live_hog", name: "毛猪", englishName: "Live Hog", price: 18.6, changeRate: 1.2, unit: "¥/kg" },
@@ -318,8 +327,8 @@ export const inventoryBatches: InventoryBatch[] = [
   },
   {
     batchCode: "CP-PK-240418-B4",
-    partCode: "spare_ribs",
-    partName: "排骨",
+    partCode: "rib",
+    partName: "肋排",
     warehouse: "上海二号冷库",
     weightKg: 9640,
     unitCost: 33.1,
@@ -336,7 +345,7 @@ export const inventoryBatches: InventoryBatch[] = [
   {
     batchCode: "CP-PK-240418-C7",
     partCode: "ham",
-    partName: "后腿",
+    partName: "后腿肉",
     warehouse: "合肥联储中心",
     weightKg: 22600,
     unitCost: 24.9,

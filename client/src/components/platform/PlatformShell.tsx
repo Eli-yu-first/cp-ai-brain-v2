@@ -23,6 +23,7 @@ import {
   Map,
   Timer,
   X,
+  Target,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
@@ -37,7 +38,7 @@ const languages: Array<{ code: LanguageCode; label: string }> = [
   { code: "th", label: "\u0e44\u0e17\u0e22" },
 ];
 
-const navIcons = [LayoutGrid, Workflow, Sparkles, MapPinned, BrainCircuit, Timer, Map, ShieldCheck, UsersRound, Building2] as const;
+const navIcons = [LayoutGrid, Workflow, Sparkles, MapPinned, BrainCircuit, Timer, Map, Target, ShieldCheck, UsersRound, Building2] as const;
 
 interface NavDef {
   id: string;
@@ -72,6 +73,7 @@ export function PlatformShell({
     { id: "ai", label: t("nav.ai"), href: "/ai", shortLabel: "AI" },
     { id: "time-arbitrage", label: t("nav.timeArbitrage"), href: "/time-arbitrage", shortLabel: "TA" },
     { id: "spatial-arbitrage", label: t("nav.spatialArbitrage"), href: "/spatial-arbitrage", shortLabel: "SA" },
+    { id: "global-optimization", label: t("nav.globalOptimization"), href: "/global-optimization", shortLabel: "GO" },
     { id: "audit", label: t("nav.audit"), href: "/audit", shortLabel: "A" },
     { id: "cp-venture", label: t("nav.cpVenture"), href: "/cp-venture", shortLabel: "VC" },
   ];

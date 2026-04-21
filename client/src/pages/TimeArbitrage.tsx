@@ -24,6 +24,7 @@ import {
   Trash2,
   Zap,
   Sparkles,
+  Package,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";

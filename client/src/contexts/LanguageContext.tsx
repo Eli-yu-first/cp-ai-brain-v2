@@ -156,6 +156,12 @@ const translations: TranslationBranch = {
       ja: "空間裁定",
       th: "การทำอาร์บิทราจเชิงพื้นที่",
     },
+    globalOptimization: {
+      zh: "最优化调度",
+      en: "Global Optimization",
+      ja: "最適化スケジューリング",
+      th: "การปรับให้เหมาะสมระดับโลก",
+    },
   },
   timeArbitrage: {
     pageTitle: {

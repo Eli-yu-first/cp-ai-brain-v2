@@ -38,6 +38,11 @@ import {
   type DeepArbitrageInput,
 } from "./deepArbitrage";
 import {
+  solveGlobalOptimization,
+  generateMockGlobalOptInputs,
+  GlobalOptimizationParamsSchema,
+} from "./globalOptimization";
+import {
   createAuditLog,
   createArbitrageRecord,
   getDispatchOrderByOrderId,
@@ -255,6 +260,28 @@ export const appRouter = router({
           input.capacityAdjustment,
           input.demandAdjustment,
         );
+      }),
+    globalOptimizationSimulate: protectedProcedure
+      .input(
+        GlobalOptimizationParamsSchema.optional()
+      )
+      .query(async ({ input }) => {
+        const execInput = input || generateMockGlobalOptInputs();
+        const optimizationData = solveGlobalOptimization(execInput);
+        const agentDraft = {
+          insight: "多工厂统筹算力已完成调度，利润峰值来源于将屠宰溢出的白条调入上海高溢价零售终端，副产物及产能空缺已内部消化。",
+          decision: [
+             { target: "FAC-SH-01", role: "屠宰调度组", action: "工厂实际处理能力达到上限 (瓶颈预警)。立即调配 10000头生猪进行最大化产能收转。", isHighPriority: true },
+             { target: "FAC-SH-01", role: "深加工组", action: "接受 100,000kg 内部白条调配，满负荷生产以满足自身订单需求。", isHighPriority: false },
+             { target: "STR-01", role: "物流车队", action: "立即安排冷链车，将销售订单发往上海 (运费率低且价格极具优势)。", isHighPriority: true }
+          ]
+        };
+
+        return {
+          inputs: execInput,
+          results: optimizationData,
+          agentDraft
+        };
       }),
     arbitrageSimulate: protectedProcedure
       .input(

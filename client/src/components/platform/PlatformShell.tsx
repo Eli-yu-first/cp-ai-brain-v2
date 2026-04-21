@@ -74,6 +74,7 @@ export function PlatformShell({
     { id: "time-arbitrage", label: t("nav.timeArbitrage"), href: "/time-arbitrage", shortLabel: "TA" },
     { id: "spatial-arbitrage", label: t("nav.spatialArbitrage"), href: "/spatial-arbitrage", shortLabel: "SA" },
     { id: "global-optimization", label: t("nav.globalOptimization"), href: "/global-optimization", shortLabel: "GO" },
+    { id: "optimization-scheduling2", label: t("nav.optimizationScheduling2"), href: "/optimization-scheduling2", shortLabel: "OS2" },
     { id: "audit", label: t("nav.audit"), href: "/audit", shortLabel: "A" },
     { id: "cp-venture", label: t("nav.cpVenture"), href: "/cp-venture", shortLabel: "VC" },
   ];

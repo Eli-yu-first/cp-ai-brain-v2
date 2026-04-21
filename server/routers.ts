@@ -56,6 +56,8 @@ import { sendEscalationNotifications } from "./escalationNotifier";
 import { buildPorkBusinessMap } from "./porkMap";
 import { getCpVentureMap } from "./cpVentureData";
 import { PORK_PARTS, PORK_PROJECT_BLUEPRINT } from "./porkIndustryModel";
+import { solveOptimization, generateAIDecision } from "./optimizationScheduling2";
+import { sampleOptimizationInput } from "@shared/optimizationScheduling2";
 
 const timeframeSchema = z.enum(["day", "week", "month", "quarter", "halfYear", "year"]);
 const roleSchema = z.enum(["admin", "strategist", "executor"]);
@@ -1141,6 +1143,25 @@ ${scenarios
           brandCertification: ["绿色食品"],
         };
         return analyzeAllDeepArbitrages(deepInput);
+      }),
+    optimizationScheduling2Simulate: protectedProcedure
+      .input(
+        z.object({
+          useSampleData: z.boolean().optional().default(true),
+        }).optional()
+      )
+      .query(({ input }) => {
+        const optInput = (input?.useSampleData !== false) ? sampleOptimizationInput : sampleOptimizationInput;
+        const output = solveOptimization(optInput);
+        const decision = generateAIDecision(optInput, output);
+        return { input: optInput, output, decision };
+      }),
+    optimizationScheduling2Solve: protectedProcedure
+      .mutation(() => {
+        const optInput = sampleOptimizationInput;
+        const output = solveOptimization(optInput);
+        const decision = generateAIDecision(optInput, output);
+        return { input: optInput, output, decision };
       }),
   }),
 });

@@ -178,82 +178,127 @@ function buildTimeOptimizationPlan(params: {
   const deepProcessing = stages.find(stage => stage.stage === "deepProcessing")!;
   const sales = stages.find(stage => stage.stage === "sales")!;
 
-  const monthlyBaseTon = storageTons / Math.max(1, storageDurationMonths);
-  let remainingStorage = storageTons;
+  const breedingCapM = breeding.actualCapacity * 30;
+  const slaughterCapM = slaughter.actualCapacity * 30;
+  const cuttingCapM = cutting.actualCapacity * 30;
+  const freezingCapM = freezing.actualCapacity * 30;
+  const salesCapM = sales.actualCapacity * 30;
+  const deepProcCapM = deepProcessing.actualCapacity * 30;
+
+  const numMonths = months.length;
+  // 找到最佳释储月份（最大利润月）
+  let bestMonthIndex = 0;
+  let maxTotalProfit = -Infinity;
+  profits.forEach((p, idx) => {
+    if (p.totalProfit > maxTotalProfit) {
+      maxTotalProfit = p.totalProfit;
+      bestMonthIndex = idx;
+    }
+  });
+
+  const allocations = Array.from({ length: numMonths }, (_, idx) => ({
+    month: months[idx]!,
+    breedingHeads: 0,
+    slaughterHeads: 0,
+    cuttingHeads: 0,
+    freezingTons: 0,
+    storageTons: 0,
+    deepProcessingTons: 0,
+    salesTons: 0,
+    releasedTons: 0,
+    utilization: {
+      breeding: 0, slaughter: 0, cutting: 0, freezing: 0, storage: 0, deepProcessing: 0, sales: 0
+    }
+  }));
+
+  // 拉动式出库阶段：从最佳出货月开始，尽可能将目标 storageTons 释放
+  let toRelease = storageTons;
+  for (let i = bestMonthIndex; i < numMonths && toRelease > 0; i++) {
+    let releaseHere = Math.min(toRelease, salesCapM + deepProcCapM);
+    let dps = Math.min(releaseHere * 0.35, deepProcCapM);
+    let sls = Math.min(releaseHere - dps, salesCapM);
+    
+    // 如果因比例导致销售额度溢出，重平衡
+    if (releaseHere - sls > deepProcCapM) {
+        dps = deepProcCapM;
+        sls = Math.min(releaseHere - dps, salesCapM);
+    } else {
+        dps = releaseHere - sls;
+    }
+
+    allocations[i]!.salesTons = sls;
+    allocations[i]!.deepProcessingTons = dps;
+    allocations[i]!.releasedTons = sls + dps;
+    toRelease -= (sls + dps);
+  }
+
+  // 拉动式生产阶段：为满足释放，通过逆向（从利润峰值月向前推）尽晚生产以降低持仓费用
+  let toProduce = storageTons - toRelease; // 只能生产即将被释放出来的量（真实贯通）
+  const actualTarget = toProduce;
+  for (let i = bestMonthIndex; i >= 0 && toProduce > 0; i--) {
+     // 78公斤 = 0.078吨 / 每头猪的产能转换率
+     const maxHeads = Math.min(breedingCapM, slaughterCapM, cuttingCapM);
+     const maxTonsFromHeads = maxHeads * 0.078;
+     const maxTonsCanProduce = Math.min(maxTonsFromHeads, freezingCapM);
+
+     let prodHere = Math.min(toProduce, maxTonsCanProduce);
+     
+     allocations[i]!.freezingTons = prodHere;
+     let headsNeeded = Math.ceil(prodHere / 0.078);
+     allocations[i]!.breedingHeads = headsNeeded;
+     allocations[i]!.slaughterHeads = headsNeeded;
+     allocations[i]!.cuttingHeads = headsNeeded;
+
+     toProduce -= prodHere;
+  }
+
+  // 结算库存及报表与成本
+  let currentInventory = 0;
   let totalOperatingCost = 0;
   let utilizationAccumulator = 0;
   let throughputAccumulator = 0;
 
-  const monthlyAllocations = months.map((month, index) => {
-    const signal = profits[index]?.priceGap ?? 0;
-    const demandFactor = signal > 0 ? 1 + Math.min(signal / 10, 0.35) : Math.max(0.72, 1 + signal / 12);
-    const monthlyDemandTon = Math.min(remainingStorage, monthlyBaseTon * demandFactor);
-    const salesTons = Math.min(monthlyDemandTon, sales.actualCapacity * 30);
-    const deepProcessingTons = Math.min(Math.max(0, monthlyDemandTon - salesTons) * 0.35, deepProcessing.actualCapacity * 30);
-    const storageTonsThisMonth = Math.max(0, monthlyDemandTon - salesTons - deepProcessingTons);
-    const releasedTons = salesTons + deepProcessingTons;
-    const freezingTons = Math.min(monthlyDemandTon, freezing.actualCapacity * 30);
-    const slaughterHeads = roundInt((freezingTons * 1000) / 78);
-    const cuttingHeads = Math.min(slaughterHeads, cutting.actualCapacity * 30);
-    const breedingHeads = Math.min(Math.max(slaughterHeads, cuttingHeads), breeding.actualCapacity * 30);
+  allocations.forEach(alloc => {
+     currentInventory += alloc.freezingTons;
+     currentInventory -= alloc.releasedTons;
+     alloc.storageTons = Math.max(0, currentInventory);
 
-    remainingStorage = Math.max(0, remainingStorage - releasedTons);
+     alloc.utilization.breeding = round((alloc.breedingHeads / Math.max(1, breedingCapM)) * 100);
+     alloc.utilization.slaughter = round((alloc.slaughterHeads / Math.max(1, slaughterCapM)) * 100);
+     alloc.utilization.cutting = round((alloc.cuttingHeads / Math.max(1, cuttingCapM)) * 100);
+     alloc.utilization.freezing = round((alloc.freezingTons / Math.max(1, freezingCapM)) * 100);
+     alloc.utilization.storage = round((alloc.storageTons / Math.max(1, storage.actualCapacity)) * 100);
+     alloc.utilization.deepProcessing = round((alloc.deepProcessingTons / Math.max(1, deepProcCapM)) * 100);
+     alloc.utilization.sales = round((alloc.salesTons / Math.max(1, salesCapM)) * 100);
 
-    const utilization = {
-      breeding: round((breedingHeads / Math.max(1, breeding.actualCapacity * 30)) * 100),
-      slaughter: round((slaughterHeads / Math.max(1, slaughter.actualCapacity * 30)) * 100),
-      cutting: round((cuttingHeads / Math.max(1, cutting.actualCapacity * 30)) * 100),
-      freezing: round((freezingTons / Math.max(1, freezing.actualCapacity * 30)) * 100),
-      storage: round((storageTonsThisMonth / Math.max(1, storage.actualCapacity)) * 100),
-      deepProcessing: round((deepProcessingTons / Math.max(1, deepProcessing.actualCapacity * 30)) * 100),
-      sales: round((salesTons / Math.max(1, sales.actualCapacity * 30)) * 100),
-    };
+     utilizationAccumulator += Object.values(alloc.utilization).reduce((sum, value) => sum + value, 0) / 7;
+     throughputAccumulator += alloc.releasedTons;
 
-    utilizationAccumulator += Object.values(utilization).reduce((sum, value) => sum + value, 0) / Object.values(utilization).length;
-    throughputAccumulator += releasedTons;
-    totalOperatingCost +=
-      breedingHeads * breeding.unitCost +
-      slaughterHeads * slaughter.unitCost +
-      cuttingHeads * cutting.unitCost +
-      freezingTons * freezing.unitCost +
-      storageTonsThisMonth * storage.unitCost +
-      deepProcessingTons * deepProcessing.unitCost +
-      salesTons * sales.unitCost;
-
-    return {
-      month,
-      breedingHeads,
-      slaughterHeads,
-      cuttingHeads,
-      freezingTons: round(freezingTons),
-      storageTons: round(storageTonsThisMonth),
-      deepProcessingTons: round(deepProcessingTons),
-      salesTons: round(salesTons),
-      releasedTons: round(releasedTons),
-      utilization,
-    } satisfies TimeOptimizationAllocation;
+     totalOperatingCost +=
+      alloc.breedingHeads * breeding.unitCost +
+      alloc.slaughterHeads * slaughter.unitCost +
+      alloc.cuttingHeads * cutting.unitCost +
+      alloc.freezingTons * freezing.unitCost +
+      alloc.storageTons * storage.unitCost +
+      alloc.deepProcessingTons * deepProcessing.unitCost +
+      alloc.salesTons * sales.unitCost;
   });
 
   const constrainedBy = stages
     .filter(stage => {
       const key = stage.stage === "deepProcessing" ? "deepProcessing" : stage.stage;
-      return monthlyAllocations.some(item => item.utilization[key as keyof typeof item.utilization] >= 92);
+      return allocations.some(item => (item.utilization[key as keyof typeof item.utilization] ?? 0) >= 92);
     })
     .map(stage => stage.stage);
 
-  const bestMonth = profits.reduce(
-    (best, current) => (current.totalProfit > best.totalProfit ? current : best),
-    profits[0] ?? { month: 1, totalProfit: 0 },
-  );
-
   return {
     stages,
-    monthlyAllocations,
+    monthlyAllocations: allocations,
     summary: {
-      recommendedStorageTons: round(storageTons - remainingStorage),
-      recommendedReleaseMonth: bestMonth.month,
+      recommendedStorageTons: round(actualTarget),
+      recommendedReleaseMonth: months[bestMonthIndex]!,
       constrainedBy,
-      averageUtilization: round(utilizationAccumulator / Math.max(1, monthlyAllocations.length)),
+      averageUtilization: round(utilizationAccumulator / Math.max(1, allocations.length)),
       serviceLevel: round((throughputAccumulator / Math.max(storageTons, 1)) * 100),
       totalOperatingCost: round(totalOperatingCost, 0),
       throughputScore: round((throughputAccumulator / Math.max(1, storageTons)) * 100),

@@ -424,7 +424,7 @@ export function buildAgentDecisionDraft(
     agents: [
       {
         agentId: "global",
-        agentName: "CEO经营 Agent / 事业部利润 Agent",
+        agentName: "经营 Agent / 事业部利润 Agent",
         objective: "最大化总部利润与库存周转效率",
         recommendation:
           simulation.summary.incrementalProfit >= 0

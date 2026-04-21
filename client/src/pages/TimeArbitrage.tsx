@@ -21,9 +21,9 @@ import {
   TrendingDown,
   TrendingUp,
   Warehouse,
-  Package,
   Trash2,
   Zap,
+  Sparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -783,9 +783,146 @@ export default function TimeArbitragePage() {
                 </ResponsiveContainer>
               )}
             </div>
+
+            {/* 1. AI 最优存储期公式解析 */}
+            {stats && simulation && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 p-4 rounded-[16px] border border-cyan-500/20 bg-cyan-950/40 backdrop-blur-md">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-full bg-cyan-500/20 p-1.5 flex flex-shrink-0">
+                    <Sparkles className="h-4 w-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <h5 className="text-[14px] font-semibold text-cyan-300">AI 分析建议：最优存期公式测算</h5>
+                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-slate-300">
+                      <strong className="text-slate-200">核心决策公式：</strong> <code className="bg-slate-900/60 px-1 py-0.5 rounded font-mono">预期当月出货利润 = (预期生猪期货价 - (当前现货价 ¥{spotPrice.toFixed(2)} + 储存费 ¥{holdingCost.toFixed(2)} × 持有月数)) × 规模吨数</code>。
+                      <br/>
+                      {stats.arbitrageCount > 0 ? (
+                        <span className="mt-2 inline-block space-y-2">
+                          <p>测算表明，本批次从 <strong className="text-white">{startMonth}月</strong> 启动收储最合理。在此存期路径下，于 <strong className="text-white">{stats.maxProfitMonth}月</strong> 出货将达到利润波峰，此时每公斤价差 
+                          <span className="text-emerald-400 font-mono font-bold mx-1.5">+{stats.maxProfit.toFixed(2)} 元</span>。最优释放持有期时长为 <strong className="text-white">{(stats.maxProfitMonth - startMonth + 12) % 12 || 12} 个月</strong>。</p>
+                          
+                          <p className="border-l-2 border-violet-500/50 pl-3 py-0.5 text-violet-200 bg-violet-500/10 rounded-r-md">
+                            <strong>排产与发货约束推演：</strong> 考虑到系统下达的七环节产能硬约束，向前提拉生产并向后推平释放后，在最佳盈利窗口实际能有效达成的可出货量为 <strong className="font-mono text-cyan-300">{simulation.optimizationPlan.summary.recommendedStorageTons.toLocaleString()} 吨</strong> 
+                            （规划收储需求 {storageTons.toLocaleString()} 吨）。超出的部分将作为溢出受限无法达成最优释放。
+                          </p>
+                        </span>
+                      ) : (
+                        <span className="text-rose-400 mt-2 inline-block">基于当前输入的持有成本与预期自然回升斜率测算，未来 10 个月内所有周期的增值均无法覆盖高昂的仓储及资金占用成本。模型判定公式无正向利润区间解，<strong className="tracking-wide">不推荐强行建立库存</strong>。</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
           </TechPanel>
         </div>
       </div>
+
+      {/* 2. 智能最优化调度墙 (根据最优出货月反推各环节) */}
+      {simulation?.optimizationPlan && (
+        <div className="mb-8 max-w-[100vw] overflow-hidden">
+          <SectionHeader
+            eyebrow="Capacity Allocation & AI Dispatch"
+            title="七环节产能智能最优化调度"
+            description="基于求得的最优套利出货窗口，反向运用拉动式算法，最优化分配全产线协同资源的调度，寻找产能最拥堵节点并下发人工智能调度决策指令。"
+          />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mt-2">
+            {/* 左侧：产能最优化分配仪表盘 */}
+            <TechPanel className="p-6 rounded-[24px]">
+              <h5 className="mb-5 text-[14px] font-semibold text-slate-200 flex items-center gap-2">
+                <LayersIcon className="h-4 w-4 text-cyan-400" />
+                最优释储月 ({stats?.maxProfitMonth}月) 环节满载率评测
+                <span className="ml-auto text-xs font-normal text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded">
+                  计算目标: 出货 {simulation.optimizationPlan.summary.recommendedStorageTons} 吨
+                </span>
+              </h5>
+              <div className="space-y-4">
+                {simulation.optimizationPlan.stages.map((stage) => {
+                  const key = stage.stage === "deepProcessing" ? "deepProcessing" : stage.stage;
+                  const maxUtil = Math.max(...simulation.optimizationPlan.monthlyAllocations.map(a => a.utilization[key] ?? 0));
+                  const isBottleneck = maxUtil > 90;
+                  const labelMap: Record<string, string> = { breeding: "养殖负荷", slaughter: "屠宰负荷", cutting: "分割负荷", freezing: "速冻负荷", storage: "库容占用", deepProcessing: "加工量配置", sales: "销售运力" };
+                  return (
+                    <div key={stage.stage} className="space-y-1.5">
+                      <div className="flex justify-between text-[12px]">
+                        <span className="text-slate-300 font-medium">{labelMap[stage.stage]}</span>
+                        <span className={`font-mono tracking-wider ${isBottleneck ? "text-rose-400 font-bold" : "text-emerald-400"}`}>{maxUtil.toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 w-full bg-slate-800/80 rounded-full overflow-hidden shadow-inner">
+                        <motion.div 
+                          className={`h-full ${isBottleneck ? "bg-rose-500" : "bg-emerald-500"}`} 
+                          initial={{ width: 0 }} 
+                          animate={{ width: `${Math.min(maxUtil, 100)}%` }} 
+                          transition={{ duration: 1.2, ease: "easeOut" }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="mt-4 pt-4 border-t border-white/10 flex justify-between text-xs text-slate-400">
+                  <span>总执行成本预估: <strong className="text-amber-400 font-mono">¥{simulation.optimizationPlan.summary.totalOperatingCost.toLocaleString()}</strong></span>
+                  <span>协同服务履约率: <strong className="text-cyan-400 font-mono">{simulation.optimizationPlan.summary.serviceLevel.toFixed(1)}%</strong></span>
+                </div>
+              </div>
+            </TechPanel>
+
+            {/* 右侧：部门AI自动化任务分配 */}
+            <TechPanel className="p-6 rounded-[24px] bg-gradient-to-br from-violet-900/10 to-transparent flex flex-col h-[400px]">
+              <h5 className="mb-4 text-[14px] font-semibold text-slate-200 flex items-center gap-2">
+                <BrainCircuit className="h-4 w-4 text-violet-400" />
+                各部门联动指派 (AI 驱动自动派发)
+              </h5>
+              <div className="flex-1 space-y-3 overflow-y-auto pr-2 custom-scrollbar">
+                
+                {simulation.optimizationPlan.summary.constrainedBy.length > 0 ? (
+                  simulation.optimizationPlan.summary.constrainedBy.map((bottleneckStage, idx) => {
+                    const RoleMap: Record<string, string> = { slaughter: "屠宰厂长", freezing: "冷库运营经理", storage: "仓储管理员", cutting: "分割车间班长", breeding: "养殖场长", deepProcessing: "深加工主管", sales: "销售总监" };
+                    return (
+                       <motion.div key={idx} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.15 }} className="p-3.5 rounded-xl border border-rose-500/30 bg-rose-500/10 shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-rose-500"></div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge className="bg-rose-500 hover:bg-rose-600 text-[10px] px-1.5 py-0">分发至: {RoleMap[bottleneckStage] || "调度中心"}</Badge>
+                          <span className="text-[13px] text-rose-300 font-semibold tracking-wide">产能过载黄色预警单</span>
+                        </div>
+                        <p className="text-[12px] text-slate-300 leading-relaxed">
+                          侦测到在核心套利释放期间，由您负责的 <strong>{RoleMap[bottleneckStage]}</strong> 管辖范围负荷率将突破 90% 红线边界。请立即提前规划临时三班倒加班计划，或上报总部申请调拨外部兄弟大区外协产能，防范生产停滞带来的利润锁死风险。
+                        </p>
+                      </motion.div>
+                    )
+                  })
+                ) : (
+                  <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-emerald-500 hover:bg-emerald-600 text-[10px] px-1.5 py-0">分发至: 事业部全员</Badge>
+                      <span className="text-[13px] text-emerald-300 font-semibold tracking-wide">排产放飞指令</span>
+                    </div>
+                    <p className="text-[12px] text-slate-300 leading-relaxed">
+                      智能算法判定：当前参数下的最优化收储与出库资源排布处于健康带宽之内。生产全链路未触及短板瓶颈，请各部门严格按照 AI 生产排期计划表稳定推进流转即可，无需额外排位干预。
+                    </p>
+                  </motion.div>
+                )}
+
+                {/* 固定的销售确认单据 */}
+                {stats && stats.maxProfit > 0 && (
+                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="p-3.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 mt-3 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-indigo-500 hover:bg-indigo-600 text-[10px] px-1.5 py-0">分发至: 销售总监</Badge>
+                      <span className="text-[13px] text-indigo-300 font-semibold tracking-wide">利润对冲锁定指令</span>
+                    </div>
+                    <p className="text-[12px] text-slate-300 leading-relaxed">
+                      最优策略要求全盘倾泻出货重心落在 <strong>{stats.maxProfitMonth} 月份</strong>。系统计算出需消化战略级仓储库存总量 <strong className="text-white">{simulation.optimizationPlan.summary.recommendedStorageTons}</strong> 吨。为了兑现 {stats.maxTotalProfit} 万总利润预期，请即刻根据预期差向 B 端核心终端释放对冲锁定合同。
+                    </p>
+                  </motion.div>
+                )}
+
+              </div>
+            </TechPanel>
+          </div>
+        </div>
+      )}
 
       {/* AI 决策推理（格式化四宫格展示） */}
       <div className="mb-8">

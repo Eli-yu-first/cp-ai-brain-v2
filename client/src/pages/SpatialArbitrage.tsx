@@ -90,6 +90,71 @@ const DEFAULT_OPTIMIZATION: OptimizationConfig = {
   salesCostPerTon: 35,
 };
 
+function normalizeProvinceName(name?: string) {
+  return (name ?? "")
+    .replace(/省|市|壮族自治区|回族自治区|维吾尔自治区|自治区|特别行政区/g, "")
+    .trim();
+}
+
+function buildProvinceMetrics(simulation: any, mode: "price" | "supplyDemand") {
+  const map = new Map<string, { rawName: string; value: number; tooltip: string }>();
+  if (!simulation?.nodes) return map;
+
+  for (const node of simulation.nodes) {
+    const key = normalizeProvinceName(node.name);
+    const used = node.type === "origin"
+      ? simulation.scheduleSummary?.usedCapacityByOrigin?.[node.name] ?? 0
+      : simulation.scheduleSummary?.usedDemandByDest?.[node.name] ?? 0;
+    const base = node.type === "origin" ? node.capacity ?? 1 : node.demand ?? 1;
+    const value = mode === "price" ? node.basePrice : used / Math.max(1, base);
+    const tooltip = mode === "price"
+      ? `${node.name}｜${node.type === "origin" ? "供给" : "需求"}价格：¥${node.basePrice.toFixed(2)}/kg`
+      : `${node.name}｜${node.type === "origin" ? "产能占用" : "需求满足"}：${(used / Math.max(1, base) * 100).toFixed(1)}%`;
+    map.set(key, { rawName: node.name, value, tooltip });
+  }
+  return map;
+}
+
+function getProvinceFill(name: string, simulation: any, mode: "price" | "supplyDemand") {
+  const metrics = buildProvinceMetrics(simulation, mode);
+  const info = metrics.get(normalizeProvinceName(name));
+  if (!info) return "rgba(15,23,42,0.6)";
+  const values = Array.from(metrics.values()).map(item => item.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const ratio = max === min ? 0.5 : (info.value - min) / (max - min);
+
+  if (mode === "price") {
+    const alpha = 0.18 + ratio * 0.55;
+    return `rgba(${Math.round(34 + ratio * 210)}, ${Math.round(197 - ratio * 90)}, ${Math.round(94 + ratio * 40)}, ${alpha.toFixed(2)})`;
+  }
+
+  const alpha = 0.18 + ratio * 0.5;
+  return `rgba(${Math.round(59 + ratio * 180)}, ${Math.round(130 + ratio * 50)}, ${Math.round(246 - ratio * 180)}, ${alpha.toFixed(2)})`;
+}
+
+function getProvinceTooltip(name: string, simulation: any, mode: "price" | "supplyDemand") {
+  const metrics = buildProvinceMetrics(simulation, mode);
+  return metrics.get(normalizeProvinceName(name))?.tooltip ?? `${name}｜暂无业务节点数据`;
+}
+
+function getNodeRadius(node: any, simulation: any) {
+  const base = node.type === "origin" ? (node.capacity ?? 1000) : (node.demand ?? 1000);
+  const maxBase = Math.max(
+    ...((simulation?.nodes ?? []).map((item: any) => item.type === node.type ? (item.type === "origin" ? item.capacity ?? 0 : item.demand ?? 0) : 0)),
+    1,
+  );
+  return 5 + (base / maxBase) * 9;
+}
+
+function getRouteStyle(route: any, maxProfit: number) {
+  const normalized = maxProfit <= 0 ? 0.2 : Math.max(0.18, Math.min(1, route.netProfit / maxProfit));
+  const strokeWidth = 1 + normalized * 3;
+  const opacity = 0.25 + normalized * 0.7;
+  const stroke = normalized > 0.75 ? "#22c55e" : normalized > 0.45 ? "#f59e0b" : "#fb7185";
+  return { stroke, strokeWidth, opacity };
+}
+
 export default function SpatialArbitragePage() {
   const { t } = useLanguage();
   const [transportCost, setTransportCost] = useState(0.8);
@@ -460,8 +525,9 @@ export default function SpatialArbitragePage() {
                  <ComposableMap
                    projection="geoMercator"
                    projectionConfig={{
-                     scale: 600,
-                     center: [105, 36]
+                     scale: 520,
+                     center: [104, 35],
+                     translateExtent: [[80, 40], [720, 440]],
                    }}
                    width={800}
                    height={480}
@@ -479,7 +545,7 @@ export default function SpatialArbitragePage() {
                            <Geography
                              key={geo.rsmKey}
                              geography={geo}
-                             fill={isOrigin ? originColor : isDest ? destColor : "rgba(15,23,42,0.6)"}
+                             fill={getProvinceFill(geo.properties?.name, simulation)}
                              stroke="rgba(56,189,248,0.25)"
                              strokeWidth={0.8}
                              className="transition-colors duration-500"
@@ -496,19 +562,17 @@ export default function SpatialArbitragePage() {
 
                    {/* Lines for routes */}
                    {simulation?.routes.slice(0, 10).map((route, i) => {
-                     // Opacity decays for lower ranking routes
-                     const opacity = Math.max(0.2, 1 - i * 0.15); 
-                     const isTop = i < 3;
+                     const style = getRouteStyle(route, simulation?.bestRouteProfit ?? 0);
                      return (
                         <MapLine
                           key={`route-${i}`}
                           from={route.originCoords}
                           to={route.destCoords}
-                          stroke="#fbbf24"
-                          strokeWidth={isTop ? 2.5 : 1}
-                          strokeDasharray={isTop ? "4 4" : "2 4"}
+                          stroke={style.stroke}
+                          strokeWidth={style.strokeWidth}
+                          strokeDasharray={style.strokeWidth > 3 ? "0" : "4 4"}
                           strokeLinecap="round"
-                          style={{ fill: "none", opacity }}
+                          style={{ fill: "none", opacity: style.opacity }}
                         />
                      );
                    })}
@@ -519,8 +583,7 @@ export default function SpatialArbitragePage() {
                      const isFiltered = originFilter !== "all" && isOr && node.id !== originFilter && !node.name.includes(originFilter);
                      if (isFiltered) return null;
                      
-                     // Dynamic radius roughly by visual scale
-                     const radius = isOr ? 8 : 6;
+                     const radius = getNodeRadius(node, simulation);
                      return (
                        <Marker key={node.id} coordinates={[node.lng, node.lat]}>
                          <circle

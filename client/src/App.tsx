@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { OptimizationChatLauncher, OptimizationChatProvider } from "./components/OptimizationChatLauncher";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import { useAuth } from "./_core/hooks/useAuth";
@@ -91,10 +92,13 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <LanguageProvider>
           <TabProvider>
-            <TooltipProvider>
-              <Toaster richColors position="top-right" />
-              <PlatformRouter />
-            </TooltipProvider>
+            <OptimizationChatProvider>
+              <TooltipProvider>
+                <Toaster richColors position="top-right" />
+                <PlatformRouter />
+                <OptimizationChatLauncher />
+              </TooltipProvider>
+            </OptimizationChatProvider>
           </TabProvider>
         </LanguageProvider>
       </ThemeProvider>

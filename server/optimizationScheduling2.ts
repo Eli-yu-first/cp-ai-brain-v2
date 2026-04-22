@@ -14,6 +14,9 @@ import type {
   TransportCostRow,
   PartOrderRow,
   DeepProcessDemandRow,
+  OptimizationScheduling2AppliedParameter,
+  OptimizationScheduling2SensitivityResult,
+  OptimizationScheduling2TuningInput,
 } from "../shared/optimizationScheduling2";
 
 type FactoryMonthKey = `${string}_${number}`;
@@ -392,6 +395,192 @@ function computeSummary(
     avgProfitPerPig: totalSlaughterCount > 0 ? Math.round((totalProfit / totalSlaughterCount) * 100) / 100 : 0,
     capacityUtilization: totalMaxCapacity > 0 ? Math.round((totalAllocated / totalMaxCapacity) * 10000) / 100 : 0,
   };
+}
+
+export function buildTunedOptimizationInput(
+  baseInput: OptimizationInput,
+  tuning: OptimizationScheduling2TuningInput = {},
+): {
+  input: OptimizationInput;
+  appliedParameters: OptimizationScheduling2AppliedParameter[];
+} {
+  const appliedParameters: OptimizationScheduling2AppliedParameter[] = [];
+  const slaughterCountMultiplier = tuning.slaughterCountMultiplier ?? 1;
+  const avgWeightAdjustmentKg = tuning.avgWeightAdjustmentKg ?? 0;
+  const livePigPriceAdjustment = tuning.livePigPriceAdjustment ?? 0;
+  const slaughterCapacityMultiplier = tuning.slaughterCapacityMultiplier ?? 1;
+  const splitCapacityMultiplier = tuning.splitCapacityMultiplier ?? 1;
+  const freezeCapacityMultiplier = tuning.freezeCapacityMultiplier ?? 1;
+  const storageCostMultiplier = tuning.storageCostMultiplier ?? 1;
+  const transportCostMultiplier = tuning.transportCostMultiplier ?? 1;
+  const partPriceAdjustments = tuning.partPriceAdjustments ?? {};
+
+  const partPriceAverages = new Map<string, number>();
+  Object.entries(partPriceAdjustments).forEach(([part, delta]) => {
+    if (typeof delta !== "number" || !Number.isFinite(delta) || delta === 0) return;
+    const matchingOrders = baseInput.partOrders.filter((row) => row.part === part);
+    if (matchingOrders.length === 0) return;
+    const average = matchingOrders.reduce((sum, row) => sum + row.salesPrice, 0) / matchingOrders.length;
+    partPriceAverages.set(part, average);
+    appliedParameters.push({
+      key: `part-price-${part}`,
+      label: `${part}售价`,
+      previousValue: Math.round(average * 100) / 100,
+      nextValue: Math.round((average + delta) * 100) / 100,
+      unit: "元/kg",
+    });
+  });
+
+  if (slaughterCountMultiplier !== 1) {
+    appliedParameters.push({
+      key: "slaughter-count-multiplier",
+      label: "出栏量",
+      previousValue: 100,
+      nextValue: Math.round(slaughterCountMultiplier * 1000) / 10,
+      unit: "%",
+    });
+  }
+  if (avgWeightAdjustmentKg !== 0) {
+    appliedParameters.push({
+      key: "avg-weight-adjustment",
+      label: "均重",
+      previousValue: 0,
+      nextValue: avgWeightAdjustmentKg,
+      unit: "kg",
+    });
+  }
+  if (livePigPriceAdjustment !== 0) {
+    appliedParameters.push({
+      key: "live-pig-price-adjustment",
+      label: "活猪成本",
+      previousValue: 0,
+      nextValue: livePigPriceAdjustment,
+      unit: "元/kg",
+    });
+  }
+  if (slaughterCapacityMultiplier !== 1) {
+    appliedParameters.push({
+      key: "slaughter-capacity-multiplier",
+      label: "屠宰产能",
+      previousValue: 100,
+      nextValue: Math.round(slaughterCapacityMultiplier * 1000) / 10,
+      unit: "%",
+    });
+  }
+  if (splitCapacityMultiplier !== 1) {
+    appliedParameters.push({
+      key: "split-capacity-multiplier",
+      label: "分割能力",
+      previousValue: 100,
+      nextValue: Math.round(splitCapacityMultiplier * 1000) / 10,
+      unit: "%",
+    });
+  }
+  if (freezeCapacityMultiplier !== 1) {
+    appliedParameters.push({
+      key: "freeze-capacity-multiplier",
+      label: "冷冻能力",
+      previousValue: 100,
+      nextValue: Math.round(freezeCapacityMultiplier * 1000) / 10,
+      unit: "%",
+    });
+  }
+  if (storageCostMultiplier !== 1) {
+    appliedParameters.push({
+      key: "storage-cost-multiplier",
+      label: "仓储成本",
+      previousValue: 100,
+      nextValue: Math.round(storageCostMultiplier * 1000) / 10,
+      unit: "%",
+    });
+  }
+  if (transportCostMultiplier !== 1) {
+    appliedParameters.push({
+      key: "transport-cost-multiplier",
+      label: "运输成本",
+      previousValue: 100,
+      nextValue: Math.round(transportCostMultiplier * 1000) / 10,
+      unit: "%",
+    });
+  }
+
+  return {
+    input: {
+      ...baseInput,
+      slaughterSchedule: baseInput.slaughterSchedule.map((row) => ({
+        ...row,
+        count: Math.max(0, Math.round(row.count * slaughterCountMultiplier)),
+        avgWeightKg: Math.max(1, Math.round((row.avgWeightKg + avgWeightAdjustmentKg) * 100) / 100),
+        livePigPrice: Math.max(0, Math.round((row.livePigPrice + livePigPriceAdjustment) * 100) / 100),
+      })),
+      slaughterCapacity: baseInput.slaughterCapacity.map((row) => ({
+        ...row,
+        maxSlaughter: Math.max(0, Math.round(row.maxSlaughter * slaughterCapacityMultiplier)),
+      })),
+      splitCapacity: baseInput.splitCapacity.map((row) => ({
+        ...row,
+        maxSplitKg: Math.max(0, Math.round(row.maxSplitKg * splitCapacityMultiplier)),
+        maxFreezeKg: Math.max(0, Math.round(row.maxFreezeKg * freezeCapacityMultiplier)),
+        maxStorageKg: Math.max(0, Math.round(row.maxStorageKg * freezeCapacityMultiplier)),
+        storageCostRate: Math.max(0, Math.round(row.storageCostRate * storageCostMultiplier * 100) / 100),
+      })),
+      warehouses: baseInput.warehouses.map((row) => ({
+        ...row,
+        storageCostRate: Math.max(0, Math.round(row.storageCostRate * storageCostMultiplier * 100) / 100),
+      })),
+      partOrders: baseInput.partOrders.map((row) => ({
+        ...row,
+        salesPrice: Math.max(0, Math.round((row.salesPrice + (partPriceAdjustments[row.part] ?? 0)) * 100) / 100),
+      })),
+      deepProcessDemand: baseInput.deepProcessDemand.map((row) => ({
+        ...row,
+        salesPrice: Math.max(0, Math.round((row.salesPrice + (partPriceAdjustments[row.part] ?? 0)) * 100) / 100),
+      })),
+      transportCosts: baseInput.transportCosts.map((row) => ({
+        ...row,
+        costPerKmPerKg: Math.max(0, Math.round(row.costPerKmPerKg * transportCostMultiplier * 1000000) / 1000000),
+      })),
+    },
+    appliedParameters,
+  };
+}
+
+export function buildOptimizationSensitivity(
+  baseOutput: OptimizationOutput,
+  nextOutput: OptimizationOutput,
+  baseDecision: AIOptimizationDecision,
+  nextDecision: AIOptimizationDecision,
+): OptimizationScheduling2SensitivityResult {
+  return {
+    totalProfitDelta: Math.round((nextOutput.summary.totalProfit - baseOutput.summary.totalProfit) * 100) / 100,
+    profitMarginDelta: Math.round((nextOutput.summary.profitMargin - baseOutput.summary.profitMargin) * 100) / 100,
+    capacityUtilizationDelta: Math.round((nextOutput.summary.capacityUtilization - baseOutput.summary.capacityUtilization) * 100) / 100,
+    bottleneckDelta: nextDecision.bottlenecks.length - baseDecision.bottlenecks.length,
+  };
+}
+
+export function buildOptimizationChatFallback(message: string): OptimizationScheduling2TuningInput {
+  const content = message.toLowerCase();
+  const tuning: OptimizationScheduling2TuningInput = {};
+
+  if (content.includes("提高") || content.includes("增加") || content.includes("上调")) {
+    tuning.slaughterCapacityMultiplier = 1.1;
+  }
+  if (content.includes("降低") || content.includes("减少") || content.includes("下调")) {
+    tuning.transportCostMultiplier = 0.9;
+  }
+  if (content.includes("价格") || content.includes("售价")) {
+    tuning.partPriceAdjustments = { 白条: 0.8, 五花肉: 1.2 };
+  }
+  if (content.includes("产能")) {
+    tuning.slaughterCapacityMultiplier = tuning.slaughterCapacityMultiplier ?? 0.9;
+  }
+  if (content.includes("仓储") || content.includes("冷冻")) {
+    tuning.storageCostMultiplier = 0.9;
+    tuning.freezeCapacityMultiplier = 1.1;
+  }
+
+  return tuning;
 }
 
 export function solveOptimization(input: OptimizationInput): OptimizationOutput {

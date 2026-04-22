@@ -155,6 +155,47 @@ export type OptimizationOutput = {
   summary: OptimizationSummary;
 };
 
+export type OptimizationScheduling2TuningInput = {
+  slaughterCountMultiplier?: number;
+  avgWeightAdjustmentKg?: number;
+  livePigPriceAdjustment?: number;
+  slaughterCapacityMultiplier?: number;
+  splitCapacityMultiplier?: number;
+  freezeCapacityMultiplier?: number;
+  storageCostMultiplier?: number;
+  transportCostMultiplier?: number;
+  partPriceAdjustments?: Partial<Record<PartCode, number>>;
+};
+
+export type OptimizationScheduling2SensitivityResult = {
+  totalProfitDelta: number;
+  profitMarginDelta: number;
+  capacityUtilizationDelta: number;
+  bottleneckDelta: number;
+};
+
+export type OptimizationScheduling2AppliedParameter = {
+  key: string;
+  label: string;
+  previousValue: number;
+  nextValue: number;
+  unit?: string;
+};
+
+export type OptimizationScheduling2ChatSuggestion = {
+  structuredPrompt: string;
+  reasoningSummary: string;
+  decisionFocus: string[];
+  recommendedActions: string[];
+  parameterSuggestions: OptimizationScheduling2TuningInput;
+  appliedParameters: OptimizationScheduling2AppliedParameter[];
+};
+
+export type OptimizationScheduling2ChatMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
 export type AIOptimizationDecision = {
   overview: string;
   keyFindings: string[];

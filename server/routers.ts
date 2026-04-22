@@ -56,8 +56,18 @@ import { sendEscalationNotifications } from "./escalationNotifier";
 import { buildPorkBusinessMap } from "./porkMap";
 import { getCpVentureMap } from "./cpVentureData";
 import { PORK_PARTS, PORK_PROJECT_BLUEPRINT } from "./porkIndustryModel";
-import { solveOptimization, generateAIDecision } from "./optimizationScheduling2";
-import { sampleOptimizationInput } from "@shared/optimizationScheduling2";
+import {
+  solveOptimization,
+  generateAIDecision,
+  buildOptimizationChatFallback,
+  buildOptimizationSensitivity,
+  buildTunedOptimizationInput,
+} from "./optimizationScheduling2";
+import {
+  sampleOptimizationInput,
+  type OptimizationScheduling2ChatMessage,
+  type OptimizationScheduling2ChatSuggestion,
+} from "@shared/optimizationScheduling2";
 
 const timeframeSchema = z.enum(["day", "week", "month", "quarter", "halfYear", "year"]);
 const roleSchema = z.enum(["admin", "strategist", "executor"]);
@@ -1147,14 +1157,170 @@ ${scenarios
     optimizationScheduling2Simulate: protectedProcedure
       .input(
         z.object({
-          useSampleData: z.boolean().optional().default(true),
+          tuning: z.object({
+            slaughterCountMultiplier: z.number().min(0.5).max(1.5).optional(),
+            avgWeightAdjustmentKg: z.number().min(-20).max(20).optional(),
+            livePigPriceAdjustment: z.number().min(-5).max(5).optional(),
+            slaughterCapacityMultiplier: z.number().min(0.5).max(1.5).optional(),
+            splitCapacityMultiplier: z.number().min(0.5).max(1.5).optional(),
+            freezeCapacityMultiplier: z.number().min(0.5).max(1.5).optional(),
+            storageCostMultiplier: z.number().min(0.5).max(1.5).optional(),
+            transportCostMultiplier: z.number().min(0.5).max(1.5).optional(),
+            partPriceAdjustments: z.record(z.string(), z.number().min(-10).max(10)).optional(),
+          }).optional(),
         }).optional()
       )
       .query(({ input }) => {
-        const optInput = (input?.useSampleData !== false) ? sampleOptimizationInput : sampleOptimizationInput;
-        const output = solveOptimization(optInput);
-        const decision = generateAIDecision(optInput, output);
-        return { input: optInput, output, decision };
+        const baseInput = sampleOptimizationInput;
+        const baseOutput = solveOptimization(baseInput);
+        const baseDecision = generateAIDecision(baseInput, baseOutput);
+        const tuned = buildTunedOptimizationInput(baseInput, input?.tuning);
+        const output = solveOptimization(tuned.input);
+        const decision = generateAIDecision(tuned.input, output);
+        const sensitivity = buildOptimizationSensitivity(baseOutput, output, baseDecision, decision);
+        return {
+          input: tuned.input,
+          output,
+          decision,
+          tuning: input?.tuning ?? {},
+          appliedParameters: tuned.appliedParameters,
+          sensitivity,
+          baseline: {
+            output: baseOutput,
+            decision: baseDecision,
+          },
+        };
+      }),
+    optimizationScheduling2Chat: protectedProcedure
+      .input(
+        z.object({
+          messages: z.array(z.object({
+            role: z.enum(["system", "user", "assistant"]),
+            content: z.string().min(1),
+          })),
+          tuning: z.object({
+            slaughterCountMultiplier: z.number().min(0.5).max(1.5).optional(),
+            avgWeightAdjustmentKg: z.number().min(-20).max(20).optional(),
+            livePigPriceAdjustment: z.number().min(-5).max(5).optional(),
+            slaughterCapacityMultiplier: z.number().min(0.5).max(1.5).optional(),
+            splitCapacityMultiplier: z.number().min(0.5).max(1.5).optional(),
+            freezeCapacityMultiplier: z.number().min(0.5).max(1.5).optional(),
+            storageCostMultiplier: z.number().min(0.5).max(1.5).optional(),
+            transportCostMultiplier: z.number().min(0.5).max(1.5).optional(),
+            partPriceAdjustments: z.record(z.string(), z.number().min(-10).max(10)).optional(),
+          }).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const latestMessage = input.messages[input.messages.length - 1]?.content ?? "";
+        const fallbackTuning = {
+          ...(input.tuning ?? {}),
+          ...buildOptimizationChatFallback(latestMessage),
+        };
+        const baseInput = sampleOptimizationInput;
+        const baseOutput = solveOptimization(baseInput);
+        const baseDecision = generateAIDecision(baseInput, baseOutput);
+
+        const buildChatResult = (suggestion: OptimizationScheduling2ChatSuggestion) => {
+          const tuned = buildTunedOptimizationInput(baseInput, {
+            ...(input.tuning ?? {}),
+            ...suggestion.parameterSuggestions,
+            partPriceAdjustments: {
+              ...(input.tuning?.partPriceAdjustments ?? {}),
+              ...(suggestion.parameterSuggestions.partPriceAdjustments ?? {}),
+            },
+          });
+          const output = solveOptimization(tuned.input);
+          const decision = generateAIDecision(tuned.input, output);
+          const sensitivity = buildOptimizationSensitivity(baseOutput, output, baseDecision, decision);
+          return {
+            suggestion: {
+              ...suggestion,
+              appliedParameters: tuned.appliedParameters,
+            },
+            input: tuned.input,
+            output,
+            decision,
+            appliedParameters: tuned.appliedParameters,
+            sensitivity,
+          };
+        };
+
+        try {
+          const llmResult = await invokeLLM({
+            messages: [
+              {
+                role: "system",
+                content:
+                  "你是最优化调度2页面的智能调参助手。你需要把用户自然语言目标转换成结构化调参建议，并输出严格 JSON。调参字段仅限：slaughterCountMultiplier, avgWeightAdjustmentKg, livePigPriceAdjustment, slaughterCapacityMultiplier, splitCapacityMultiplier, freezeCapacityMultiplier, storageCostMultiplier, transportCostMultiplier, partPriceAdjustments。倍率字段用 1 表示不变。",
+              },
+              {
+                role: "user",
+                content: JSON.stringify({
+                  messages: input.messages as OptimizationScheduling2ChatMessage[],
+                  tuning: input.tuning ?? {},
+                  currentSummary: baseOutput.summary,
+                  currentDecision: baseDecision,
+                }),
+              },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "optimization_scheduling2_chat",
+                strict: true,
+                schema: {
+                  type: "object",
+                  properties: {
+                    structuredPrompt: { type: "string" },
+                    reasoningSummary: { type: "string" },
+                    decisionFocus: { type: "array", items: { type: "string" } },
+                    recommendedActions: { type: "array", items: { type: "string" } },
+                    parameterSuggestions: {
+                      type: "object",
+                      properties: {
+                        slaughterCountMultiplier: { type: "number" },
+                        avgWeightAdjustmentKg: { type: "number" },
+                        livePigPriceAdjustment: { type: "number" },
+                        slaughterCapacityMultiplier: { type: "number" },
+                        splitCapacityMultiplier: { type: "number" },
+                        freezeCapacityMultiplier: { type: "number" },
+                        storageCostMultiplier: { type: "number" },
+                        transportCostMultiplier: { type: "number" },
+                        partPriceAdjustments: {
+                          type: "object",
+                          additionalProperties: { type: "number" },
+                        },
+                      },
+                      additionalProperties: false,
+                    },
+                  },
+                  required: ["structuredPrompt", "reasoningSummary", "decisionFocus", "recommendedActions", "parameterSuggestions"],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+
+          const rawContent = llmResult.choices?.[0]?.message?.content;
+          if (typeof rawContent !== "string") {
+            throw new Error("Invalid LLM content");
+          }
+          const parsed = JSON.parse(rawContent) as Omit<OptimizationScheduling2ChatSuggestion, "appliedParameters">;
+          return buildChatResult({
+            ...parsed,
+            appliedParameters: [],
+          });
+        } catch {
+          return buildChatResult({
+            structuredPrompt: `根据用户意图自动生成调参建议：${latestMessage || "优化当前排产表现"}`,
+            reasoningSummary: "已按关键词规则生成保守调参建议，并自动重新运行预测。",
+            decisionFocus: ["利润提升", "瓶颈缓解", "成本优化"],
+            recommendedActions: ["检查新的利润变化", "关注瓶颈是否减少", "如结果符合预期再继续细化参数"],
+            parameterSuggestions: fallbackTuning,
+            appliedParameters: [],
+          });
+        }
       }),
     optimizationScheduling2Solve: protectedProcedure
       .mutation(() => {

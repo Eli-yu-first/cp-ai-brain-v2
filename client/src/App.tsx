@@ -40,7 +40,7 @@ function PlatformRouter() {
     { id: "ai", href: "/ai", Component: AiDecisionPage },
     { id: "time-arbitrage", href: "/time-arbitrage", Component: TimeArbitragePage },
     { id: "spatial-arbitrage", href: "/spatial-arbitrage", Component: SpatialArbitragePage },
-    { id: "global-optimization", href: "/global-optimization", Component: GlobalOptimizationPage },
+    // { id: "global-optimization", href: "/global-optimization", Component: GlobalOptimizationPage },
     { id: "optimization-scheduling2", href: "/optimization-scheduling2", Component: OptimizationScheduling2Page },
     { id: "deep-arbitrage", href: "/deep-arbitrage", Component: DeepArbitragePage },
     { id: "audit", href: "/audit", Component: AuditPage },

@@ -37,6 +37,7 @@ import {
   buildCoreMetrics,
   type DeepArbitrageInput,
 } from "./deepArbitrage";
+import { simulateFinancialArbitrage } from "./financialArbitrage";
 import {
   createAuditLog,
   createArbitrageRecord,
@@ -878,6 +879,22 @@ export const appRouter = router({
           success: true,
           audit,
         };
+      }),
+    financialArbitrageSimulate: protectedProcedure
+      .input(
+        z.object({
+          spotPrice: z.number(),
+          futuresPrice: z.number(),
+          expectedFutureSpotPrice: z.number(),
+          expectedFutureFuturesPrice: z.number(),
+          physicalExposureTons: z.number(),
+          hedgeRatio: z.number(),
+          marginRate: z.number(),
+          contractSize: z.number(),
+        })
+      )
+      .query(({ input }) => {
+        return simulateFinancialArbitrage(input);
       }),
     aiChat: protectedProcedure
       .input(

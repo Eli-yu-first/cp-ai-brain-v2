@@ -73,6 +73,7 @@ export function PlatformShell({
     { id: "ai", label: t("nav.ai"), href: "/ai", shortLabel: "AI" },
     { id: "time-arbitrage", label: t("nav.timeArbitrage"), href: "/time-arbitrage", shortLabel: "TA" },
     { id: "spatial-arbitrage", label: t("nav.spatialArbitrage"), href: "/spatial-arbitrage", shortLabel: "SA" },
+    { id: "financial-arbitrage", label: t("nav.financialArbitrage"), href: "/financial-arbitrage", shortLabel: "FA" },
     { id: "global-optimization", label: t("nav.globalOptimization"), href: "/global-optimization", shortLabel: "GO" },
     { id: "audit", label: t("nav.audit"), href: "/audit", shortLabel: "A" },
     { id: "cp-venture", label: t("nav.cpVenture"), href: "/cp-venture", shortLabel: "VC" },

@@ -545,7 +545,7 @@ export default function SpatialArbitragePage() {
                            <Geography
                              key={geo.rsmKey}
                              geography={geo}
-                             fill={getProvinceFill(geo.properties?.name, simulation)}
+                             fill={getProvinceFill(geo.properties?.name, simulation, "price")}
                              stroke="rgba(56,189,248,0.25)"
                              strokeWidth={0.8}
                              className="transition-colors duration-500"

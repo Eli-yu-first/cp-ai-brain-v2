@@ -156,6 +156,12 @@ const translations: TranslationBranch = {
       ja: "空間裁定",
       th: "การทำอาร์บิทราจเชิงพื้นที่",
     },
+    financialArbitrage: {
+      zh: "金融套利",
+      en: "Financial Arbitrage",
+      ja: "金融裁定",
+      th: "อาร์บิทราจทางการเงิน",
+    },
     globalOptimization: {
       zh: "最优化调度",
       en: "Global Optimization",

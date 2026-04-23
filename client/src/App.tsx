@@ -20,6 +20,7 @@ import QuantPage from "./pages/Quant";
 import TenantsPage from "./pages/Tenants";
 import TimeArbitragePage from "./pages/TimeArbitrage";
 import SpatialArbitragePage from "./pages/SpatialArbitrage";
+import FinancialArbitragePage from "./pages/FinancialArbitrage";
 import GlobalOptimizationPage from "./pages/GlobalOptimization";
 
 /**
@@ -40,6 +41,7 @@ function PlatformRouter() {
     { id: "ai", href: "/ai", Component: AiDecisionPage },
     { id: "time-arbitrage", href: "/time-arbitrage", Component: TimeArbitragePage },
     { id: "spatial-arbitrage", href: "/spatial-arbitrage", Component: SpatialArbitragePage },
+    { id: "financial-arbitrage", href: "/financial-arbitrage", Component: FinancialArbitragePage },
     { id: "global-optimization", href: "/global-optimization", Component: GlobalOptimizationPage },
     { id: "deep-arbitrage", href: "/deep-arbitrage", Component: DeepArbitragePage },
     { id: "audit", href: "/audit", Component: AuditPage },

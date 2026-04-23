@@ -685,7 +685,7 @@ export default function OptimizationScheduling2Page() {
                   <DataTable
                     title="出栏表"
                     icon={PiggyBank}
-                    headers={["养殖场ID", "省份", "月份", "出栏量(头)", "均重(kg)", "毛猪价格(元/kg)"]}
+                    headers={["养殖场ID", "省份", "月份", "出栏量(头)", "均重(kg)", "毛猪价格", "网站价格", "期货价格"]}
                     rows={(result.input.slaughterSchedule ?? []).map((r) => [
                       <span className="font-mono text-cyan-200/80">{r.farmId}</span>,
                       <span>{r.province}</span>,
@@ -693,18 +693,22 @@ export default function OptimizationScheduling2Page() {
                       <span className="font-mono">{r.count.toLocaleString()}</span>,
                       <span className="font-mono">{r.avgWeightKg}</span>,
                       <span className="font-mono text-amber-300">¥{r.livePigPrice.toFixed(2)}</span>,
+                      <span className="font-mono text-blue-300">{r.websitePrice ? `¥${r.websitePrice.toFixed(2)}` : "-"}</span>,
+                      <span className="font-mono text-violet-300">{r.futuresPrice ? `¥${r.futuresPrice.toFixed(2)}` : "-"}</span>,
                     ])}
                     maxH={300}
                   />
                   <DataTable
                     title="出品率表"
                     icon={Factory}
-                    headers={["父物料", "子物料", "产出率", "工艺"]}
+                    headers={["父物料", "子物料", "产出率", "工艺", "加工成本(元/头)", "是否储备"]}
                     rows={(result.input.yieldRates ?? []).map((r) => [
                       <span>{r.parentMaterial}</span>,
                       <span className="font-medium">{r.childMaterial}</span>,
                       <span className="font-mono">{(r.yieldRate * 100).toFixed(0)}%</span>,
                       <span>工艺{r.process}</span>,
+                      <span className="font-mono text-amber-300/80">{r.slaughterCostPerHead ?? "-"}</span>,
+                      <span>{r.isReserve ? <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[9px]">储备</Badge> : <Badge variant="secondary" className="text-[9px] bg-white/[0.04] text-slate-500">否</Badge>}</span>,
                     ])}
                     maxH={250}
                   />
@@ -749,6 +753,20 @@ export default function OptimizationScheduling2Page() {
                     ])}
                     maxH={300}
                   />
+                  {(result.input.splitCosts ?? []).length > 0 && (
+                    <DataTable
+                      title="分割成本表"
+                      icon={LayoutDashboard}
+                      headers={["工厂ID", "分割部位", "分割费用(元/kg)", "速冻包装费用(元/kg)"]}
+                      rows={(result.input.splitCosts ?? []).map((r) => [
+                        <span className="font-mono text-cyan-200/80">{r.factoryId}</span>,
+                        <span className="font-medium">{r.part}</span>,
+                        <span className="font-mono text-amber-300/80">¥{r.splitCostPerKg.toFixed(2)}</span>,
+                        <span className="font-mono text-blue-300/80">¥{r.freezePackCostPerKg.toFixed(2)}</span>,
+                      ])}
+                      maxH={250}
+                    />
+                  )}
                 </>
               )}
             </motion.div>
@@ -896,6 +914,48 @@ export default function OptimizationScheduling2Page() {
                 ])}
                 maxH={300}
               />
+
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <DataTable
+                  title="生产表"
+                  icon={Factory}
+                  headers={["工厂ID", "月份", "部位", "产量(kg)", "销量(kg)", "存量(kg)"]}
+                  rows={(result?.output?.productionTable ?? []).map((p) => [
+                    <span className="font-mono text-cyan-200/80">{p.factoryId}</span>,
+                    <span>{MONTH_LABELS[p.month] ?? `${p.month}月`}</span>,
+                    <span className="font-medium">{p.part}</span>,
+                    <span className="font-mono">{p.productionKg.toLocaleString()}</span>,
+                    <span className="font-mono text-emerald-300/80">{p.salesKg.toLocaleString()}</span>,
+                    <span className="font-mono text-amber-300/80">{p.inventoryKg.toLocaleString()}</span>,
+                  ])}
+                  maxH={250}
+                />
+                <DataTable
+                  title="库存表"
+                  icon={Warehouse}
+                  headers={["工厂ID", "月份", "部位", "库存(kg)"]}
+                  rows={(result?.output?.inventoryTable ?? []).map((inv) => [
+                    <span className="font-mono text-cyan-200/80">{inv.factoryId}</span>,
+                    <span>{MONTH_LABELS[inv.month] ?? `${inv.month}月`}</span>,
+                    <span className="font-medium">{inv.part}</span>,
+                    <span className="font-mono text-amber-300">{inv.inventoryKg.toLocaleString()}</span>,
+                  ])}
+                  maxH={250}
+                />
+                <DataTable
+                  title="运输表"
+                  icon={Truck}
+                  headers={["工厂ID", "月份", "部位", "售达省份", "运输量(kg)"]}
+                  rows={(result?.output?.transportTable ?? []).map((t) => [
+                    <span className="font-mono text-cyan-200/80">{t.factoryId}</span>,
+                    <span>{MONTH_LABELS[t.month] ?? `${t.month}月`}</span>,
+                    <span className="font-medium">{t.part}</span>,
+                    <span>{t.destProvince}</span>,
+                    <span className="font-mono">{t.transportKg.toLocaleString()}</span>,
+                  ])}
+                  maxH={250}
+                />
+              </div>
             </motion.div>
           </AnimatePresence>
         )}

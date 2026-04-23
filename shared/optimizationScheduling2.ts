@@ -12,6 +12,8 @@ export type SlaughterScheduleRow = {
   count: number;
   avgWeightKg: number;
   livePigPrice: number;
+  websitePrice?: number;   // 网站价格-用于计算决策
+  futuresPrice?: number;   // 未来期货价格-元/kg
 };
 
 export type YieldRateRow = {
@@ -19,6 +21,8 @@ export type YieldRateRow = {
   childMaterial: string;
   yieldRate: number;
   process: number;
+  slaughterCostPerHead?: number;  // 屠宰/分割/冷冻成本-元/头或元/kg
+  isReserve?: boolean;            // 是否储备（Y/N）
 };
 
 export type SlaughterCapacityRow = {
@@ -40,10 +44,21 @@ export type SplitCapacityRow = {
 
 export type WarehouseRow = {
   warehouseId: WarehouseId;
+  factoryId?: FactoryId;          // 关联的工厂ID
   province: Province;
   maxStorageKg: number;
   storageCostRate: number;
   month: number;
+  part?: PartCode;                // 部位维度的库容
+  currentInventoryKg?: number;    // 当期库存-kg
+};
+
+// 分割成本表（新增）
+export type SplitCostRow = {
+  factoryId: FactoryId;
+  part: PartCode;
+  splitCostPerKg: number;         // 分割费用-元/kg
+  freezePackCostPerKg: number;    // 速冻包装费用-元/kg
 };
 
 export type PigOrderRow = {
@@ -121,11 +136,39 @@ export type SplittingRow = {
   freezeKg: number;
 };
 
+// 输出-生产表（新增）
+export type ProductionRow = {
+  factoryId: FactoryId;
+  month: number;
+  part: PartCode;
+  productionKg: number;           // 产量
+  salesKg: number;                // 销量
+  inventoryKg: number;            // 存量
+};
+
+// 输出-库存表（新增）
+export type InventoryRow = {
+  factoryId: FactoryId;
+  month: number;
+  part: PartCode;
+  inventoryKg: number;            // 库存-kg
+};
+
+// 输出-运输表（新增）
+export type TransportRow = {
+  factoryId: FactoryId;
+  month: number;
+  part: PartCode;
+  destProvince: Province;
+  transportKg: number;            // 运输量
+};
+
 export type OptimizationInput = {
   slaughterSchedule: SlaughterScheduleRow[];
   yieldRates: YieldRateRow[];
   slaughterCapacity: SlaughterCapacityRow[];
   splitCapacity: SplitCapacityRow[];
+  splitCosts: SplitCostRow[];             // 新增：分割成本表
   warehouses: WarehouseRow[];
   pigOrders: PigOrderRow[];
   partOrders: PartOrderRow[];
@@ -152,6 +195,9 @@ export type OptimizationOutput = {
   pigSalesTable: PigSalesRow[];
   salesTable: SalesRow[];
   splittingTable: SplittingRow[];
+  productionTable: ProductionRow[];       // 新增：生产表
+  inventoryTable: InventoryRow[];         // 新增：库存表
+  transportTable: TransportRow[];         // 新增：运输表
   summary: OptimizationSummary;
 };
 
@@ -231,6 +277,18 @@ const LIVE_PIG_PRICES: Record<number, number> = {
   7: 16.2, 8: 16.8, 9: 16.0, 10: 15.2, 11: 14.6, 12: 14.9,
 };
 
+// 网站参考价格（用于判断当前市场趋势）
+const WEBSITE_PRICES: Record<number, number> = {
+  1: 14.5, 2: 14.0, 3: 13.8, 4: 14.3, 5: 15.0, 6: 15.8,
+  7: 16.5, 8: 17.0, 9: 16.3, 10: 15.5, 11: 14.8, 12: 15.2,
+};
+
+// 未来期货价格（用于冷冻套利决策）
+const FUTURES_PRICES: Record<number, number> = {
+  1: 15.0, 2: 14.5, 3: 14.2, 4: 14.8, 5: 15.5, 6: 16.2,
+  7: 17.0, 8: 17.5, 9: 16.8, 10: 16.0, 11: 15.3, 12: 15.8,
+};
+
 const PART_PRICES: Record<PartCode, Record<CustomerType, number>> = {
   "白条": { "批发市场": 20.5, "商超零售": 23.0, "OEM深加工": 19.5, "自有深加工": 19.0, "餐饮连锁": 21.5 },
   "五花肉": { "批发市场": 28.0, "商超零售": 33.5, "OEM深加工": 26.5, "自有深加工": 25.0, "餐饮连锁": 30.0 },
@@ -266,6 +324,8 @@ function generateSlaughterSchedule(): SlaughterScheduleRow[] {
         count,
         avgWeightKg: farm.avgWeight + Math.round((Math.random() - 0.5) * 4),
         livePigPrice: LIVE_PIG_PRICES[month]! + (Math.random() - 0.5) * 0.6,
+        websitePrice: WEBSITE_PRICES[month]! + (Math.random() - 0.5) * 0.4,
+        futuresPrice: FUTURES_PRICES[month]! + (Math.random() - 0.5) * 0.5,
       });
     }
   }
@@ -274,19 +334,19 @@ function generateSlaughterSchedule(): SlaughterScheduleRow[] {
 
 function generateYieldRates(): YieldRateRow[] {
   return [
-    { parentMaterial: "毛猪", childMaterial: "白条", yieldRate: 0.75, process: 1 },
-    { parentMaterial: "毛猪", childMaterial: "内脏", yieldRate: 0.05, process: 1 },
-    { parentMaterial: "毛猪", childMaterial: "猪头", yieldRate: 0.05, process: 1 },
-    { parentMaterial: "毛猪", childMaterial: "猪蹄", yieldRate: 0.02, process: 1 },
-    { parentMaterial: "毛猪", childMaterial: "板油", yieldRate: 0.03, process: 1 },
-    { parentMaterial: "毛猪", childMaterial: "肥膘", yieldRate: 0.05, process: 1 },
-    { parentMaterial: "白条", childMaterial: "五花肉", yieldRate: 0.15, process: 2 },
-    { parentMaterial: "白条", childMaterial: "前腿肉", yieldRate: 0.18, process: 2 },
-    { parentMaterial: "白条", childMaterial: "后腿肉", yieldRate: 0.25, process: 2 },
-    { parentMaterial: "白条", childMaterial: "排骨", yieldRate: 0.12, process: 2 },
-    { parentMaterial: "白条", childMaterial: "里脊", yieldRate: 0.08, process: 2 },
-    { parentMaterial: "白条", childMaterial: "肘子", yieldRate: 0.10, process: 2 },
-    { parentMaterial: "白条", childMaterial: "肥膘", yieldRate: 0.12, process: 2 },
+    { parentMaterial: "毛猪", childMaterial: "白条", yieldRate: 0.75, process: 1, slaughterCostPerHead: 40, isReserve: false },
+    { parentMaterial: "毛猪", childMaterial: "内脏", yieldRate: 0.05, process: 1, slaughterCostPerHead: 40, isReserve: false },
+    { parentMaterial: "毛猪", childMaterial: "猪头", yieldRate: 0.05, process: 1, slaughterCostPerHead: 40, isReserve: true },
+    { parentMaterial: "毛猪", childMaterial: "猪蹄", yieldRate: 0.02, process: 1, slaughterCostPerHead: 40, isReserve: false },
+    { parentMaterial: "毛猪", childMaterial: "板油", yieldRate: 0.03, process: 1, slaughterCostPerHead: 40, isReserve: false },
+    { parentMaterial: "毛猪", childMaterial: "肥膘", yieldRate: 0.05, process: 1, slaughterCostPerHead: 40, isReserve: false },
+    { parentMaterial: "白条", childMaterial: "五花肉", yieldRate: 0.15, process: 2, slaughterCostPerHead: 80, isReserve: true },
+    { parentMaterial: "白条", childMaterial: "前腿肉", yieldRate: 0.18, process: 2, slaughterCostPerHead: 80, isReserve: true },
+    { parentMaterial: "白条", childMaterial: "后腿肉", yieldRate: 0.25, process: 2, slaughterCostPerHead: 80, isReserve: true },
+    { parentMaterial: "白条", childMaterial: "排骨", yieldRate: 0.12, process: 2, slaughterCostPerHead: 80, isReserve: true },
+    { parentMaterial: "白条", childMaterial: "里脊", yieldRate: 0.08, process: 2, slaughterCostPerHead: 80, isReserve: true },
+    { parentMaterial: "白条", childMaterial: "肘子", yieldRate: 0.10, process: 2, slaughterCostPerHead: 80, isReserve: false },
+    { parentMaterial: "白条", childMaterial: "肥膘", yieldRate: 0.12, process: 2, slaughterCostPerHead: 80, isReserve: false },
   ];
 }
 
@@ -336,20 +396,52 @@ function generateSplitCapacity(): SplitCapacityRow[] {
 }
 
 function generateWarehouses(): WarehouseRow[] {
-  const whConfigs: Array<{ id: WarehouseId; province: Province; baseCapacity: number }> = [
-    { id: "wh-cd", province: "四川", baseCapacity: 500000 },
-    { id: "wh-zz", province: "河南", baseCapacity: 800000 },
-    { id: "wh-jn", province: "山东", baseCapacity: 650000 },
+  const whConfigs: Array<{ id: WarehouseId; factoryId: FactoryId; province: Province; baseCapacity: number }> = [
+    { id: "wh-cd", factoryId: "factory-cd", province: "四川", baseCapacity: 500000 },
+    { id: "wh-zz", factoryId: "factory-zz", province: "河南", baseCapacity: 800000 },
+    { id: "wh-jn", factoryId: "factory-jn", province: "山东", baseCapacity: 650000 },
   ];
   const rows: WarehouseRow[] = [];
   for (const wh of whConfigs) {
     for (let month = 1; month <= 12; month++) {
       rows.push({
         warehouseId: wh.id,
+        factoryId: wh.factoryId,
         province: wh.province,
         maxStorageKg: wh.baseCapacity,
         storageCostRate: 0.6 + Math.random() * 0.3,
         month,
+        currentInventoryKg: Math.round(wh.baseCapacity * (0.2 + Math.random() * 0.3)),
+      });
+    }
+  }
+  return rows;
+}
+
+function generateSplitCosts(): SplitCostRow[] {
+  const rows: SplitCostRow[] = [];
+  const splitCostMap: Record<string, { splitCost: number; freezePackCost: number }> = {
+    "白条": { splitCost: 0, freezePackCost: 0 },
+    "五花肉": { splitCost: 1.2, freezePackCost: 0.8 },
+    "前腿肉": { splitCost: 1.0, freezePackCost: 0.8 },
+    "后腿肉": { splitCost: 1.1, freezePackCost: 0.8 },
+    "排骨": { splitCost: 1.5, freezePackCost: 1.0 },
+    "里脊": { splitCost: 1.8, freezePackCost: 1.2 },
+    "肘子": { splitCost: 0.8, freezePackCost: 0.6 },
+    "猪蹄": { splitCost: 0.6, freezePackCost: 0.5 },
+    "猪头": { splitCost: 0.5, freezePackCost: 0.4 },
+    "内脏": { splitCost: 0.4, freezePackCost: 0.3 },
+    "板油": { splitCost: 0.3, freezePackCost: 0.2 },
+    "肥膘": { splitCost: 0.3, freezePackCost: 0.2 },
+  };
+  for (const factoryId of FACTORIES) {
+    for (const part of PART_CODES) {
+      const costs = splitCostMap[part] ?? { splitCost: 1.0, freezePackCost: 0.7 };
+      rows.push({
+        factoryId,
+        part,
+        splitCostPerKg: costs.splitCost,
+        freezePackCostPerKg: costs.freezePackCost,
       });
     }
   }
@@ -461,6 +553,7 @@ export const sampleOptimizationInput: OptimizationInput = {
   yieldRates: generateYieldRates(),
   slaughterCapacity: generateSlaughterCapacity(),
   splitCapacity: generateSplitCapacity(),
+  splitCosts: generateSplitCosts(),
   warehouses: generateWarehouses(),
   pigOrders: generatePigOrders(),
   partOrders: generatePartOrders(),

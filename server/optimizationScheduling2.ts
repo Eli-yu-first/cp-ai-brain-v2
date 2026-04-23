@@ -6,6 +6,10 @@ import type {
   PigSalesRow,
   SalesRow,
   SplittingRow,
+  ProductionRow,
+  InventoryRow,
+  TransportRow,
+  SplitCostRow,
   AIOptimizationDecision,
   SlaughterScheduleRow,
   YieldRateRow,
@@ -650,6 +654,48 @@ export function solveOptimization(input: OptimizationInput): OptimizationOutput 
     splitCapMap,
   );
 
+  // 新增：生成生产表、库存表、运输表
+  const productionTable: ProductionRow[] = [];
+  const inventoryTable: InventoryRow[] = [];
+  const transportTable: TransportRow[] = [];
+
+  // 根据分割表生成生产表
+  for (const s of splittingResults) {
+    const matchingSales = finalProfitResults
+      .filter(p => p.factoryId === s.factoryId && p.month === s.month && p.part === s.part)
+      .reduce((sum, p) => sum + p.salesKg, 0);
+    const inv = Math.max(0, s.splitKg + s.freezeKg - matchingSales);
+    productionTable.push({
+      factoryId: s.factoryId,
+      month: s.month,
+      part: s.part,
+      productionKg: Math.round(s.splitKg),
+      salesKg: Math.round(matchingSales),
+      inventoryKg: Math.round(inv),
+    });
+    if (inv > 0) {
+      inventoryTable.push({
+        factoryId: s.factoryId,
+        month: s.month,
+        part: s.part,
+        inventoryKg: Math.round(inv),
+      });
+    }
+  }
+
+  // 根据利润表生成运输表
+  for (const p of finalProfitResults) {
+    if (p.salesKg > 0) {
+      transportTable.push({
+        factoryId: p.factoryId,
+        month: p.month,
+        part: p.part,
+        destProvince: p.salesProvince,
+        transportKg: Math.round(p.salesKg),
+      });
+    }
+  }
+
   const summary = computeSummary(
     finalProfitResults,
     pigSalesResults,
@@ -663,6 +709,9 @@ export function solveOptimization(input: OptimizationInput): OptimizationOutput 
     pigSalesTable: pigSalesResults,
     salesTable: salesResults,
     splittingTable: splittingResults,
+    productionTable,
+    inventoryTable,
+    transportTable,
     summary,
   };
 }

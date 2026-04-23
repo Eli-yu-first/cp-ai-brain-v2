@@ -46,12 +46,51 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { GlobalOptimizationTuningInput } from "@shared/globalOptimization";
+import type { GlobalOptimizationTuningInput, OptimizationSummary } from "@shared/globalOptimization";
+import {
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+} from "recharts";
 
 const MONTH_LABELS: Record<number, string> = {
   1: "1月", 2: "2月", 3: "3月", 4: "4月", 5: "5月", 6: "6月",
   7: "7月", 8: "8月", 9: "9月", 10: "10月", 11: "11月", 12: "12月",
 };
+
+// === 策略场景类型 ===
+type SavedScenario = {
+  id: string;
+  name: string;
+  tuning: GlobalOptimizationTuningInput;
+  summary: OptimizationSummary;
+  timestamp: number;
+  color: string;
+};
+
+const SCENARIO_COLORS = ["#06b6d4", "#f59e0b", "#10b981", "#6366f1", "#ef4444", "#ec4899"];
+
+// === 策略预设模板 ===
+const STRATEGY_PRESETS: Array<{ name: string; emoji: string; desc: string; tuning: GlobalOptimizationTuningInput }> = [
+  {
+    name: "基准线", emoji: "📊", desc: "默认参数，作为对比基线",
+    tuning: { slaughterCountMultiplier: 1, avgWeightAdjustmentKg: 0, livePigPriceAdjustment: 0, slaughterCapacityMultiplier: 1, splitCapacityMultiplier: 1, freezeCapacityMultiplier: 1, storageCostMultiplier: 1, transportCostMultiplier: 1, partPriceAdjustments: {} },
+  },
+  {
+    name: "激进扩产", emoji: "🚀", desc: "出栏+30%, 屠宰产能+20%, 分割+15%",
+    tuning: { slaughterCountMultiplier: 1.3, avgWeightAdjustmentKg: 0, livePigPriceAdjustment: 0, slaughterCapacityMultiplier: 1.2, splitCapacityMultiplier: 1.15, freezeCapacityMultiplier: 1.1, storageCostMultiplier: 1, transportCostMultiplier: 1, partPriceAdjustments: {} },
+  },
+  {
+    name: "降本增效", emoji: "💰", desc: "运输-20%, 仓储-15%, 冷冻+10%",
+    tuning: { slaughterCountMultiplier: 1, avgWeightAdjustmentKg: 0, livePigPriceAdjustment: 0, slaughterCapacityMultiplier: 1, splitCapacityMultiplier: 1, freezeCapacityMultiplier: 1.1, storageCostMultiplier: 0.85, transportCostMultiplier: 0.8, partPriceAdjustments: {} },
+  },
+  {
+    name: "悲观市场", emoji: "📉", desc: "猪价+2元, 出栏-15%, 部位售价下调",
+    tuning: { slaughterCountMultiplier: 0.85, avgWeightAdjustmentKg: 0, livePigPriceAdjustment: 2, slaughterCapacityMultiplier: 1, splitCapacityMultiplier: 1, freezeCapacityMultiplier: 1, storageCostMultiplier: 1, transportCostMultiplier: 1, partPriceAdjustments: { "白条": -1.5, "五花肉": -2, "排骨": -1.8 } },
+  },
+];
 
 const ROLE_CONFIG: Record<string, { icon: typeof Users; color: string; label: string; badgeColor: string }> = {
   purchasing: { icon: PiggyBank, color: "text-amber-400", label: "采购负责人", badgeColor: "bg-amber-500" },
@@ -361,7 +400,7 @@ export default function GlobalOptimizationPage() {
   const { t } = useLanguage();
   const { setController } = useOptimizationChat();
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<"output" | "input" | "decision">("output");
+  const [activeTab, setActiveTab] = useState<"output" | "input" | "decision" | "compare">("output");
   const [tuning, setTuning] = useState<GlobalOptimizationTuningInput>(DEFAULT_TUNING);
   const [showThinking, setShowThinking] = useState(false);
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>(
@@ -372,6 +411,9 @@ export default function GlobalOptimizationPage() {
     target: string; role: string; action: string; status: TaskStatus;
   }>>([]);
   const [showResult, setShowResult] = useState(false);
+  const [scenarios, setScenarios] = useState<SavedScenario[]>([]);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [scenarioName, setScenarioName] = useState("");
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dispatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -471,6 +513,35 @@ export default function GlobalOptimizationPage() {
     setTuning(DEFAULT_TUNING);
   }, []);
 
+  // === 策略场景管理 ===
+  const handleSaveScenario = useCallback(() => {
+    if (!summary || scenarios.length >= 6) return;
+    const name = scenarioName.trim() || `策略 ${scenarios.length + 1}`;
+    const newScenario: SavedScenario = {
+      id: `scenario-${Date.now()}`,
+      name,
+      tuning: { ...tuning },
+      summary: { ...summary },
+      timestamp: Date.now(),
+      color: SCENARIO_COLORS[scenarios.length % SCENARIO_COLORS.length]!,
+    };
+    setScenarios(prev => [...prev, newScenario]);
+    setScenarioName("");
+    setShowSaveDialog(false);
+  }, [summary, tuning, scenarioName, scenarios.length]);
+
+  const handleLoadScenario = useCallback((scenario: SavedScenario) => {
+    setTuning({ ...scenario.tuning });
+  }, []);
+
+  const handleDeleteScenario = useCallback((id: string) => {
+    setScenarios(prev => prev.filter(s => s.id !== id));
+  }, []);
+
+  const handleApplyPreset = useCallback((preset: typeof STRATEGY_PRESETS[number]) => {
+    setTuning({ ...preset.tuning });
+  }, []);
+
   useEffect(() => {
     setController({
       isLoading: chatMutation.isPending,
@@ -555,7 +626,7 @@ export default function GlobalOptimizationPage() {
   }, [tuning]);
 
   return (
-    <PlatformShell title="全链最优化调度" eyebrow="Optimization Scheduling 2" pageId="optimization-scheduling2">
+    <PlatformShell title="全链最优化调度" eyebrow="Global Optimization" pageId="global-optimization">
       <div className="space-y-6 pb-24">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
@@ -595,7 +666,7 @@ export default function GlobalOptimizationPage() {
 
         <div className="flex gap-3 items-center flex-wrap">
           <div className="flex rounded-xl overflow-hidden border border-white/[0.08]">
-            {(["output", "input", "decision"] as const).map((tab) => (
+            {(["output", "input", "decision", "compare"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -605,7 +676,7 @@ export default function GlobalOptimizationPage() {
                     : "text-slate-400 hover:text-white hover:bg-white/[0.04]"
                 }`}
               >
-                {tab === "output" ? "输出结果" : tab === "input" ? "输入参数" : "AI决策"}
+                {tab === "output" ? "输出结果" : tab === "input" ? "输入参数" : tab === "decision" ? "AI决策" : `策略对比 (${scenarios.length})`}
               </button>
             ))}
           </div>
@@ -614,7 +685,102 @@ export default function GlobalOptimizationPage() {
               参数已调整 · 结果已更新
             </Badge>
           )}
+          {summary && (
+            <Button
+              onClick={() => setShowSaveDialog(true)}
+              disabled={scenarios.length >= 6}
+              size="sm"
+              variant="outline"
+              className="border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              保存为策略 {scenarios.length > 0 ? `(${scenarios.length}/6)` : ""}
+            </Button>
+          )}
         </div>
+
+        {/* 保存策略弹窗 */}
+        <AnimatePresence>
+          {showSaveDialog && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowSaveDialog(false)}
+            >
+              <motion.div
+                onClick={(e) => e.stopPropagation()}
+                className="w-[420px] bg-[#0f1a2e] border border-white/[0.1] rounded-2xl p-6 shadow-2xl"
+              >
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-indigo-400" />
+                  保存当前策略场景
+                </h3>
+                <input
+                  type="text"
+                  value={scenarioName}
+                  onChange={(e) => setScenarioName(e.target.value)}
+                  placeholder={`策略 ${scenarios.length + 1}`}
+                  className="w-full bg-white/[0.06] border border-white/[0.1] rounded-xl px-4 py-3 text-white placeholder:text-slate-500 text-sm mb-4 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30"
+                  autoFocus
+                  onKeyDown={(e) => e.key === "Enter" && handleSaveScenario()}
+                />
+                {summary && (
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    <div className="p-2 rounded-lg bg-white/[0.03] text-center">
+                      <p className="text-[9px] text-slate-500 uppercase">利润</p>
+                      <p className="text-sm font-mono text-emerald-400">{formatCurrency(summary.totalProfit)}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-white/[0.03] text-center">
+                      <p className="text-[9px] text-slate-500 uppercase">利润率</p>
+                      <p className="text-sm font-mono text-cyan-400">{summary.profitMargin}%</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-white/[0.03] text-center">
+                      <p className="text-[9px] text-slate-500 uppercase">产能利用率</p>
+                      <p className="text-sm font-mono text-amber-400">{summary.capacityUtilization}%</p>
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => setShowSaveDialog(false)}
+                    variant="outline"
+                    className="flex-1 border-white/[0.1] text-slate-400"
+                  >取消</Button>
+                  <Button
+                    onClick={handleSaveScenario}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white"
+                  >保存策略</Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 已保存策略条 */}
+        {scenarios.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            {scenarios.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06] transition-colors group"
+              >
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} />
+                <span className="text-xs text-slate-300 font-medium">{s.name}</span>
+                <span className="text-[10px] font-mono text-emerald-400/70 ml-1">{formatCurrency(s.summary.totalProfit)}</span>
+                <button
+                  onClick={() => handleLoadScenario(s)}
+                  className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 transition-colors"
+                >加载</button>
+                <button
+                  onClick={() => handleDeleteScenario(s.id)}
+                  className="text-[10px] px-1 py-0.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                >✕</button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {activeTab === "input" && (
           <AnimatePresence>
@@ -679,6 +845,30 @@ export default function GlobalOptimizationPage() {
                   </div>
                 </div>
               )}
+
+              {/* 策略预设模板 */}
+              <TechPanel className="p-5 rounded-[20px]">
+                <h3 className="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-amber-400" />
+                  快速策略预设
+                  <span className="text-[10px] text-slate-500 font-normal">一键加载预制参数组合</span>
+                </h3>
+                <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                  {STRATEGY_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      onClick={() => handleApplyPreset(preset)}
+                      className="p-3 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-indigo-500/10 hover:border-indigo-500/25 transition-all text-left group"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">{preset.emoji}</span>
+                        <span className="text-xs font-semibold text-slate-200 group-hover:text-indigo-200">{preset.name}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">{preset.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </TechPanel>
 
               {result?.input && (
                 <>
@@ -1080,6 +1270,210 @@ export default function GlobalOptimizationPage() {
                   ))}
                 </ul>
               </TechPanel>
+            </motion.div>
+          </AnimatePresence>
+        )}
+
+        {/* ====== 策略对比 Tab ====== */}
+        {activeTab === "compare" && (
+          <AnimatePresence>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              {scenarios.length === 0 ? (
+                <TechPanel className="p-12 rounded-[20px] text-center">
+                  <Target className="h-12 w-12 text-slate-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-slate-300 mb-2">尚无保存的策略场景</h3>
+                  <p className="text-sm text-slate-500 mb-6 max-w-md mx-auto">
+                    先在「输入参数」Tab 中调整参数，执行求解后点击「保存为策略」，保存至少 2 个策略即可开始对比分析。
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <Button onClick={() => setActiveTab("input")} className="bg-indigo-600 hover:bg-indigo-500 text-white">
+                      <Sliders className="h-4 w-4 mr-1.5" />
+                      前往调参
+                    </Button>
+                  </div>
+                </TechPanel>
+              ) : (
+                <>
+                  {/* KPI 并排对比卡片 */}
+                  <TechPanel className="p-6 rounded-[20px]">
+                    <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                      <LayoutDashboard className="h-4 w-4 text-cyan-400" />
+                      策略 KPI 对比矩阵
+                      <Badge variant="secondary" className="text-[10px] bg-white/[0.06] text-slate-400">{scenarios.length} 个策略</Badge>
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs text-slate-300">
+                        <thead>
+                          <tr className="border-b border-white/[0.08]">
+                            <th className="text-left py-3 px-3 text-slate-500 font-medium">策略名称</th>
+                            <th className="text-right py-3 px-3 text-slate-500 font-medium">总利润</th>
+                            <th className="text-right py-3 px-3 text-slate-500 font-medium">总收入</th>
+                            <th className="text-right py-3 px-3 text-slate-500 font-medium">利润率</th>
+                            <th className="text-right py-3 px-3 text-slate-500 font-medium">屠宰量</th>
+                            <th className="text-right py-3 px-3 text-slate-500 font-medium">销量(吨)</th>
+                            <th className="text-right py-3 px-3 text-slate-500 font-medium">产能利用率</th>
+                            <th className="text-right py-3 px-3 text-slate-500 font-medium">每头利润</th>
+                            <th className="text-center py-3 px-3 text-slate-500 font-medium">排名</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...scenarios].sort((a, b) => b.summary.totalProfit - a.summary.totalProfit).map((s, idx) => {
+                            const isBest = idx === 0;
+                            const isWorst = idx === scenarios.length - 1 && scenarios.length > 1;
+                            return (
+                              <tr
+                                key={s.id}
+                                className={`border-b border-white/[0.04] transition-colors ${isBest ? "bg-emerald-500/[0.06]" : isWorst ? "bg-red-500/[0.04]" : "hover:bg-white/[0.02]"}`}
+                              >
+                                <td className="py-3 px-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} />
+                                    <span className="font-medium text-slate-200">{s.name}</span>
+                                    {isBest && <Badge className="text-[9px] bg-emerald-500/20 text-emerald-300 border-emerald-500/30">最优</Badge>}
+                                    {isWorst && <Badge className="text-[9px] bg-red-500/20 text-red-300 border-red-500/30">最差</Badge>}
+                                  </div>
+                                </td>
+                                <td className={`py-3 px-3 text-right font-mono font-bold ${isBest ? "text-emerald-400" : isWorst ? "text-red-400" : "text-slate-200"}`}>
+                                  {formatCurrency(s.summary.totalProfit)}
+                                </td>
+                                <td className="py-3 px-3 text-right font-mono text-cyan-300/80">{formatCurrency(s.summary.totalRevenue)}</td>
+                                <td className="py-3 px-3 text-right font-mono">{s.summary.profitMargin}%</td>
+                                <td className="py-3 px-3 text-right font-mono">{s.summary.totalSlaughterCount.toLocaleString()}</td>
+                                <td className="py-3 px-3 text-right font-mono">{(s.summary.totalSalesKg / 1000).toFixed(0)}</td>
+                                <td className="py-3 px-3 text-right font-mono">{s.summary.capacityUtilization}%</td>
+                                <td className="py-3 px-3 text-right font-mono">{s.summary.avgProfitPerPig.toFixed(0)}</td>
+                                <td className="py-3 px-3 text-center">
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold ${
+                                    isBest ? "bg-emerald-500/20 text-emerald-300" : isWorst ? "bg-red-500/20 text-red-300" : "bg-white/[0.06] text-slate-400"
+                                  }`}>
+                                    {idx + 1}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TechPanel>
+
+                  {/* 多策略叠加图表 */}
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <TechPanel className="p-6 rounded-[20px]">
+                      <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                        <LineChartIcon className="h-4 w-4 text-cyan-400" />
+                        核心指标对比柱状图
+                      </h3>
+                      <ResponsiveContainer width="100%" height={320}>
+                        <BarChart data={scenarios.map(s => ({
+                          name: s.name,
+                          利润: Math.round(s.summary.totalProfit),
+                          收入: Math.round(s.summary.totalRevenue),
+                          毛猪成本: Math.round(s.summary.totalPigCost),
+                        }))}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                          <XAxis dataKey="name" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                          <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} tickFormatter={(v: number) => formatCurrency(v)} />
+                          <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }} formatter={(value: number) => formatCurrency(value)} />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                          <Bar dataKey="利润" fill="#10b981" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="收入" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="毛猪成本" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </TechPanel>
+
+                    <TechPanel className="p-6 rounded-[20px]">
+                      <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                        <Target className="h-4 w-4 text-violet-400" />
+                        多维度策略雷达图
+                      </h3>
+                      <ResponsiveContainer width="100%" height={320}>
+                        <RadarChart data={(() => {
+                          const maxProfit = Math.max(...scenarios.map(s => s.summary.totalProfit), 1);
+                          const maxRevenue = Math.max(...scenarios.map(s => s.summary.totalRevenue), 1);
+                          const maxSales = Math.max(...scenarios.map(s => s.summary.totalSalesKg), 1);
+                          const maxSlaughter = Math.max(...scenarios.map(s => s.summary.totalSlaughterCount), 1);
+                          const dims: Array<Record<string, string | number>> = [
+                            { dimension: "利润" },
+                            { dimension: "收入" },
+                            { dimension: "利润率" },
+                            { dimension: "产能利用" },
+                            { dimension: "销量" },
+                            { dimension: "屠宰量" },
+                          ];
+                          scenarios.forEach((s) => {
+                            dims[0]![s.name] = Math.round((s.summary.totalProfit / maxProfit) * 100);
+                            dims[1]![s.name] = Math.round((s.summary.totalRevenue / maxRevenue) * 100);
+                            dims[2]![s.name] = s.summary.profitMargin;
+                            dims[3]![s.name] = s.summary.capacityUtilization;
+                            dims[4]![s.name] = Math.round((s.summary.totalSalesKg / maxSales) * 100);
+                            dims[5]![s.name] = Math.round((s.summary.totalSlaughterCount / maxSlaughter) * 100);
+                          });
+                          return dims;
+                        })()}>
+                          <PolarGrid stroke="rgba(255,255,255,0.08)" />
+                          <PolarAngleAxis dataKey="dimension" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 9 }} />
+                          {scenarios.map((s) => (
+                            <Radar key={s.id} name={s.name} dataKey={s.name} stroke={s.color} fill={s.color} fillOpacity={0.15} strokeWidth={2} />
+                          ))}
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                          <Tooltip contentStyle={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }} />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    </TechPanel>
+                  </div>
+
+                  {/* 策略差异分析 */}
+                  <TechPanel className="p-6 rounded-[20px]">
+                    <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                      <BrainCircuit className="h-4 w-4 text-indigo-400" />
+                      策略差异分析总结
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      {[...scenarios].sort((a, b) => b.summary.totalProfit - a.summary.totalProfit).map((s, idx) => {
+                        const bestProfit = Math.max(...scenarios.map(sc => sc.summary.totalProfit));
+                        const deltaFromBest = s.summary.totalProfit - bestProfit;
+                        return (
+                          <div key={s.id} className={`p-4 rounded-xl border ${idx === 0 ? "border-emerald-500/30 bg-emerald-500/[0.06]" : "border-white/[0.08] bg-white/[0.02]"}`}>
+                            <div className="flex items-center gap-2 mb-3">
+                              <span className="h-3 w-3 rounded-full" style={{ background: s.color }} />
+                              <span className="text-sm font-semibold text-slate-200">{s.name}</span>
+                              {idx === 0 && <Badge className="text-[9px] bg-emerald-500/20 text-emerald-300 border-emerald-500/30">🏆 最优</Badge>}
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-slate-500">总利润</span>
+                                <span className="font-mono text-emerald-400">{formatCurrency(s.summary.totalProfit)}</span>
+                              </div>
+                              <div className="flex justify-between text-xs">
+                                <span className="text-slate-500">利润率</span>
+                                <span className="font-mono text-cyan-300">{s.summary.profitMargin}%</span>
+                              </div>
+                              <div className="flex justify-between text-xs">
+                                <span className="text-slate-500">产能利用率</span>
+                                <span className="font-mono text-amber-300">{s.summary.capacityUtilization}%</span>
+                              </div>
+                              <div className="flex justify-between text-xs">
+                                <span className="text-slate-500">每头利润</span>
+                                <span className="font-mono text-violet-300">¥{s.summary.avgProfitPerPig.toFixed(0)}</span>
+                              </div>
+                              {deltaFromBest !== 0 && (
+                                <div className="pt-2 border-t border-white/[0.06]">
+                                  <span className="text-[10px] text-red-400 font-mono">
+                                    距最优策略: {formatCurrency(deltaFromBest)}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </TechPanel>
+                </>
+              )}
             </motion.div>
           </AnimatePresence>
         )}

@@ -1165,6 +1165,42 @@ ${scenarios
           },
         };
       }),
+    globalOptimizationBatchSimulate: protectedProcedure
+      .input(
+        z.object({
+          scenarios: z.array(z.object({
+            name: z.string(),
+            tuning: z.object({
+              slaughterCountMultiplier: z.number().min(0.5).max(1.5).optional(),
+              avgWeightAdjustmentKg: z.number().min(-20).max(20).optional(),
+              livePigPriceAdjustment: z.number().min(-5).max(5).optional(),
+              slaughterCapacityMultiplier: z.number().min(0.5).max(1.5).optional(),
+              splitCapacityMultiplier: z.number().min(0.5).max(1.5).optional(),
+              freezeCapacityMultiplier: z.number().min(0.5).max(1.5).optional(),
+              storageCostMultiplier: z.number().min(0.5).max(1.5).optional(),
+              transportCostMultiplier: z.number().min(0.5).max(1.5).optional(),
+              partPriceAdjustments: z.record(z.string(), z.number().min(-10).max(10)).optional(),
+            }),
+          })).min(1).max(6),
+        })
+      )
+      .query(({ input }) => {
+        const baseInput = sampleOptimizationInput;
+        const baseOutput = solveOptimization(baseInput);
+        return input.scenarios.map((scenario) => {
+          const tuned = buildTunedOptimizationInput(baseInput, scenario.tuning);
+          const output = solveOptimization(tuned.input);
+          const decision = generateAIDecision(tuned.input, output);
+          return {
+            name: scenario.name,
+            tuning: scenario.tuning,
+            summary: output.summary,
+            decision,
+            appliedParameters: tuned.appliedParameters,
+            profitDelta: output.summary.totalProfit - baseOutput.summary.totalProfit,
+          };
+        });
+      }),
     globalOptimizationChat: protectedProcedure
       .input(
         z.object({

@@ -21,7 +21,6 @@ import TenantsPage from "./pages/Tenants";
 import TimeArbitragePage from "./pages/TimeArbitrage";
 import SpatialArbitragePage from "./pages/SpatialArbitrage";
 import GlobalOptimizationPage from "./pages/GlobalOptimization";
-import OptimizationScheduling2Page from "./pages/OptimizationScheduling2";
 
 /**
  * PlatformRouter: Renders all platform pages simultaneously but only shows the active one.
@@ -41,8 +40,7 @@ function PlatformRouter() {
     { id: "ai", href: "/ai", Component: AiDecisionPage },
     { id: "time-arbitrage", href: "/time-arbitrage", Component: TimeArbitragePage },
     { id: "spatial-arbitrage", href: "/spatial-arbitrage", Component: SpatialArbitragePage },
-    // { id: "global-optimization", href: "/global-optimization", Component: GlobalOptimizationPage },
-    { id: "optimization-scheduling2", href: "/optimization-scheduling2", Component: OptimizationScheduling2Page },
+    { id: "global-optimization", href: "/global-optimization", Component: GlobalOptimizationPage },
     { id: "deep-arbitrage", href: "/deep-arbitrage", Component: DeepArbitragePage },
     { id: "audit", href: "/audit", Component: AuditPage },
     { id: "cp-venture", href: "/cp-venture", Component: CpVenturePage },

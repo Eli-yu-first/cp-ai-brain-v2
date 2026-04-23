@@ -162,12 +162,6 @@ const translations: TranslationBranch = {
       ja: "最適化スケジューリング",
       th: "การปรับให้เหมาะสมระดับโลก",
     },
-    optimizationScheduling2: {
-      zh: "最优化调度2",
-      en: "Optimization Scheduling 2",
-      ja: "最適化スケジューリング2",
-      th: "การจัดตารางเวลาให้เหมาะสม 2",
-    },
   },
   timeArbitrage: {
     pageTitle: {

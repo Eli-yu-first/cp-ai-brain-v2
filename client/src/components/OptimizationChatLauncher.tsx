@@ -9,10 +9,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import type {
-  OptimizationScheduling2AppliedParameter,
-  OptimizationScheduling2ChatSuggestion,
-  OptimizationScheduling2SensitivityResult,
-} from "@shared/optimizationScheduling2";
+  GlobalOptimizationAppliedParameter,
+  GlobalOptimizationChatSuggestion,
+  GlobalOptimizationSensitivityResult,
+} from "@shared/globalOptimization";
 import { Bot, MessageCircle, Sparkles } from "lucide-react";
 import {
   createContext,
@@ -27,9 +27,9 @@ import { useLocation } from "wouter";
 type ChatResponsePayload = {
   userMessage: string;
   assistantMessage: string;
-  suggestion: OptimizationScheduling2ChatSuggestion;
-  appliedParameters: OptimizationScheduling2AppliedParameter[];
-  sensitivity: OptimizationScheduling2SensitivityResult;
+  suggestion: GlobalOptimizationChatSuggestion;
+  appliedParameters: GlobalOptimizationAppliedParameter[];
+  sensitivity: GlobalOptimizationSensitivityResult;
 };
 
 type OptimizationChatController = {
@@ -68,7 +68,7 @@ export function OptimizationChatLauncher() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "我是最优化调度2智能助手。你可以直接告诉我业务目标，我会把自然语言转成结构化调参并自动预测。",
+      content: "我是全链最优化调度智能助手。你可以直接告诉我业务目标，我会把自然语言转成结构化调参并自动预测。",
     },
   ]);
   const [latestPayload, setLatestPayload] = useState<ChatResponsePayload | null>(null);
@@ -81,7 +81,7 @@ export function OptimizationChatLauncher() {
     setLatestPayload(payload);
   }, [controller]);
 
-  if (location !== "/optimization-scheduling2") return null;
+  if (location !== "/global-optimization") return null;
 
   return (
     <>

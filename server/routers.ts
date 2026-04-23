@@ -38,11 +38,6 @@ import {
   type DeepArbitrageInput,
 } from "./deepArbitrage";
 import {
-  solveGlobalOptimization,
-  generateMockGlobalOptInputs,
-  GlobalOptimizationParamsSchema,
-} from "./globalOptimization";
-import {
   createAuditLog,
   createArbitrageRecord,
   getDispatchOrderByOrderId,
@@ -62,12 +57,12 @@ import {
   buildOptimizationChatFallback,
   buildOptimizationSensitivity,
   buildTunedOptimizationInput,
-} from "./optimizationScheduling2";
+} from "./globalOptimization";
 import {
   sampleOptimizationInput,
-  type OptimizationScheduling2ChatMessage,
-  type OptimizationScheduling2ChatSuggestion,
-} from "@shared/optimizationScheduling2";
+  type GlobalOptimizationChatMessage,
+  type GlobalOptimizationChatSuggestion,
+} from "@shared/globalOptimization";
 
 const timeframeSchema = z.enum(["day", "week", "month", "quarter", "halfYear", "year"]);
 const roleSchema = z.enum(["admin", "strategist", "executor"]);
@@ -273,28 +268,7 @@ export const appRouter = router({
           input.demandAdjustment,
         );
       }),
-    globalOptimizationSimulate: protectedProcedure
-      .input(
-        GlobalOptimizationParamsSchema.optional()
-      )
-      .query(async ({ input }) => {
-        const execInput = input || generateMockGlobalOptInputs();
-        const optimizationData = solveGlobalOptimization(execInput);
-        const agentDraft = {
-          insight: "多工厂统筹算力已完成调度，利润峰值来源于将屠宰溢出的白条调入上海高溢价零售终端，副产物及产能空缺已内部消化。",
-          decision: [
-             { target: "FAC-SH-01", role: "屠宰调度组", action: "工厂实际处理能力达到上限 (瓶颈预警)。立即调配 10000头生猪进行最大化产能收转。", isHighPriority: true },
-             { target: "FAC-SH-01", role: "深加工组", action: "接受 100,000kg 内部白条调配，满负荷生产以满足自身订单需求。", isHighPriority: false },
-             { target: "STR-01", role: "物流车队", action: "立即安排冷链车，将销售订单发往上海 (运费率低且价格极具优势)。", isHighPriority: true }
-          ]
-        };
 
-        return {
-          inputs: execInput,
-          results: optimizationData,
-          agentDraft
-        };
-      }),
     arbitrageSimulate: protectedProcedure
       .input(
         z.object({
@@ -1154,7 +1128,7 @@ ${scenarios
         };
         return analyzeAllDeepArbitrages(deepInput);
       }),
-    optimizationScheduling2Simulate: protectedProcedure
+    globalOptimizationSimulate: protectedProcedure
       .input(
         z.object({
           tuning: z.object({
@@ -1191,7 +1165,7 @@ ${scenarios
           },
         };
       }),
-    optimizationScheduling2Chat: protectedProcedure
+    globalOptimizationChat: protectedProcedure
       .input(
         z.object({
           messages: z.array(z.object({
@@ -1221,7 +1195,7 @@ ${scenarios
         const baseOutput = solveOptimization(baseInput);
         const baseDecision = generateAIDecision(baseInput, baseOutput);
 
-        const buildChatResult = (suggestion: OptimizationScheduling2ChatSuggestion) => {
+        const buildChatResult = (suggestion: GlobalOptimizationChatSuggestion) => {
           const tuned = buildTunedOptimizationInput(baseInput, {
             ...(input.tuning ?? {}),
             ...suggestion.parameterSuggestions,
@@ -1257,7 +1231,7 @@ ${scenarios
               {
                 role: "user",
                 content: JSON.stringify({
-                  messages: input.messages as OptimizationScheduling2ChatMessage[],
+                  messages: input.messages as GlobalOptimizationChatMessage[],
                   tuning: input.tuning ?? {},
                   currentSummary: baseOutput.summary,
                   currentDecision: baseDecision,
@@ -1306,7 +1280,7 @@ ${scenarios
           if (typeof rawContent !== "string") {
             throw new Error("Invalid LLM content");
           }
-          const parsed = JSON.parse(rawContent) as Omit<OptimizationScheduling2ChatSuggestion, "appliedParameters">;
+          const parsed = JSON.parse(rawContent) as Omit<GlobalOptimizationChatSuggestion, "appliedParameters">;
           return buildChatResult({
             ...parsed,
             appliedParameters: [],
@@ -1322,7 +1296,7 @@ ${scenarios
           });
         }
       }),
-    optimizationScheduling2Solve: protectedProcedure
+    globalOptimizationSolve: protectedProcedure
       .mutation(() => {
         const optInput = sampleOptimizationInput;
         const output = solveOptimization(optInput);

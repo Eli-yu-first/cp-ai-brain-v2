@@ -201,7 +201,7 @@ export type OptimizationOutput = {
   summary: OptimizationSummary;
 };
 
-export type OptimizationScheduling2TuningInput = {
+export type GlobalOptimizationTuningInput = {
   slaughterCountMultiplier?: number;
   avgWeightAdjustmentKg?: number;
   livePigPriceAdjustment?: number;
@@ -213,14 +213,14 @@ export type OptimizationScheduling2TuningInput = {
   partPriceAdjustments?: Partial<Record<PartCode, number>>;
 };
 
-export type OptimizationScheduling2SensitivityResult = {
+export type GlobalOptimizationSensitivityResult = {
   totalProfitDelta: number;
   profitMarginDelta: number;
   capacityUtilizationDelta: number;
   bottleneckDelta: number;
 };
 
-export type OptimizationScheduling2AppliedParameter = {
+export type GlobalOptimizationAppliedParameter = {
   key: string;
   label: string;
   previousValue: number;
@@ -228,16 +228,16 @@ export type OptimizationScheduling2AppliedParameter = {
   unit?: string;
 };
 
-export type OptimizationScheduling2ChatSuggestion = {
+export type GlobalOptimizationChatSuggestion = {
   structuredPrompt: string;
   reasoningSummary: string;
   decisionFocus: string[];
   recommendedActions: string[];
-  parameterSuggestions: OptimizationScheduling2TuningInput;
-  appliedParameters: OptimizationScheduling2AppliedParameter[];
+  parameterSuggestions: GlobalOptimizationTuningInput;
+  appliedParameters: GlobalOptimizationAppliedParameter[];
 };
 
-export type OptimizationScheduling2ChatMessage = {
+export type GlobalOptimizationChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
 };

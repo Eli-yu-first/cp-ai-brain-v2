@@ -138,6 +138,18 @@ const translations: TranslationBranch = {
       ja: "AI意思決定",
       th: "การตัดสินใจ AI",
     },
+    aiWarRoom: {
+      zh: "AI 作战系统",
+      en: "AI War Room",
+      ja: "AI作戦システム",
+      th: "ห้องบัญชาการ AI",
+    },
+    aiValueChain: {
+      zh: "AI 价值链",
+      en: "AI Value Chain",
+      ja: "AI価値連鎖",
+      th: "ห่วงโซ่มูลค่า AI",
+    },
     audit: {
       zh: "审计日志",
       en: "Audit Log",
@@ -161,6 +173,12 @@ const translations: TranslationBranch = {
       en: "Financial Arbitrage",
       ja: "金融裁定",
       th: "อาร์บิทราจทางการเงิน",
+    },
+    professionalArbitrage: {
+      zh: "专业组合套利",
+      en: "Professional Arbitrage",
+      ja: "専門組合せ裁定",
+      th: "อาร์บิทราจเชิงวิชาชีพ",
     },
     globalOptimization: {
       zh: "最优化调度",
@@ -409,7 +427,8 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 function resolvePath(path: string): TranslationNode | undefined {
   return path.split(".").reduce<TranslationNode | undefined>((acc, key) => {
-    if (!acc || !(key in (acc as Record<string, TranslationNode>))) return undefined;
+    if (!acc || !(key in (acc as Record<string, TranslationNode>)))
+      return undefined;
     return (acc as Record<string, TranslationNode>)[key];
   }, translations as TranslationNode);
 }
@@ -433,7 +452,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     };
   }, [language]);
 
-  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+  return (
+    <LanguageContext.Provider value={value}>
+      {children}
+    </LanguageContext.Provider>
+  );
 }
 
 export function useLanguage() {

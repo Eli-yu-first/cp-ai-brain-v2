@@ -11,6 +11,7 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
+  Crosshair,
   Globe,
   LayoutGrid,
   MapPinned,
@@ -38,7 +39,23 @@ const languages: Array<{ code: LanguageCode; label: string }> = [
   { code: "th", label: "\u0e44\u0e17\u0e22" },
 ];
 
-const navIcons = [LayoutGrid, Workflow, Sparkles, MapPinned, BrainCircuit, Timer, Map, Target, ShieldCheck, UsersRound, Building2] as const;
+const navIcons = [
+  LayoutGrid,
+  Workflow,
+  Sparkles,
+  MapPinned,
+  BrainCircuit,
+  Crosshair,
+  Timer,
+  Map,
+  Target,
+  ShieldCheck,
+  Workflow,
+  UsersRound,
+  Building2,
+  Activity,
+  Workflow,
+] as const;
 
 interface NavDef {
   id: string;
@@ -65,18 +82,76 @@ export function PlatformShell({
   const { openTab, tabs, activeTabId, switchTab } = useTabContext();
 
   const navItems: NavDef[] = [
-    { id: "tenants", label: t("nav.tenants"), href: "/tenants", shortLabel: "T" },
-    { id: "overview", label: t("nav.overview"), href: "/overview", shortLabel: "O" },
+    {
+      id: "tenants",
+      label: t("nav.tenants"),
+      href: "/tenants",
+      shortLabel: "T",
+    },
+    {
+      id: "overview",
+      label: t("nav.overview"),
+      href: "/overview",
+      shortLabel: "O",
+    },
     { id: "pork", label: t("nav.pork"), href: "/pork", shortLabel: "P" },
-    { id: "pork-map", label: t("nav.porkMap"), href: "/pork-map", shortLabel: "PM" },
+    {
+      id: "pork-map",
+      label: t("nav.porkMap"),
+      href: "/pork-map",
+      shortLabel: "PM",
+    },
     { id: "quant", label: t("nav.quant"), href: "/quant", shortLabel: "Q" },
     { id: "ai", label: t("nav.ai"), href: "/ai", shortLabel: "AI" },
-    { id: "time-arbitrage", label: t("nav.timeArbitrage"), href: "/time-arbitrage", shortLabel: "TA" },
-    { id: "spatial-arbitrage", label: t("nav.spatialArbitrage"), href: "/spatial-arbitrage", shortLabel: "SA" },
-    { id: "financial-arbitrage", label: t("nav.financialArbitrage"), href: "/financial-arbitrage", shortLabel: "FA" },
-    { id: "global-optimization", label: t("nav.globalOptimization"), href: "/global-optimization", shortLabel: "GO" },
+    {
+      id: "ai-war-room",
+      label: t("nav.aiWarRoom"),
+      href: "/ai-war-room",
+      shortLabel: "WR",
+    },
+    {
+      id: "ai-value-chain",
+      label: t("nav.aiValueChain"),
+      href: "/ai-value-chain",
+      shortLabel: "VL",
+    },
+    {
+      id: "time-arbitrage",
+      label: t("nav.timeArbitrage"),
+      href: "/time-arbitrage",
+      shortLabel: "TA",
+    },
+    {
+      id: "spatial-arbitrage",
+      label: t("nav.spatialArbitrage"),
+      href: "/spatial-arbitrage",
+      shortLabel: "SA",
+    },
+    {
+      id: "financial-arbitrage",
+      label: t("nav.financialArbitrage"),
+      href: "/financial-arbitrage",
+      shortLabel: "FA",
+    },
+    {
+      id: "professional-arbitrage",
+      label: t("nav.professionalArbitrage"),
+      href: "/professional-arbitrage",
+      shortLabel: "PA",
+    },
+    {
+      id: "global-optimization",
+      label: t("nav.globalOptimization"),
+      href: "/global-optimization",
+      shortLabel: "GO",
+    },
     { id: "audit", label: t("nav.audit"), href: "/audit", shortLabel: "A" },
-    { id: "cp-venture", label: t("nav.cpVenture"), href: "/cp-venture", shortLabel: "VC" },
+    {
+      id: "cp-venture",
+      label: t("nav.cpVenture"),
+      href: "/cp-venture",
+      shortLabel: "VC",
+    },
   ];
 
   // Auto-register the current page as a tab
@@ -97,24 +172,32 @@ export function PlatformShell({
   };
 
   const sidebarContent = (isMobile: boolean) => (
-    <div className={cn(
-      "flex h-full flex-col",
-      isMobile ? "w-full" : collapsed ? "w-[72px]" : "w-[220px]",
-      "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
-    )}>
+    <div
+      className={cn(
+        "flex h-full flex-col",
+        isMobile ? "w-full" : collapsed ? "w-[72px]" : "w-[220px]",
+        "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+      )}
+    >
       {/* Logo area */}
-      <div className={cn(
-        "flex items-center border-b border-white/[0.06] px-3 py-4",
-        collapsed && !isMobile ? "justify-center" : "justify-between"
-      )}>
+      <div
+        className={cn(
+          "flex items-center border-b border-white/[0.06] px-3 py-4",
+          collapsed && !isMobile ? "justify-center" : "justify-between"
+        )}
+      >
         {(!collapsed || isMobile) && (
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400/20 to-blue-500/20 border border-cyan-400/20">
               <Activity className="h-4 w-4 text-cyan-300" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-bold text-white tracking-tight">CP-AI Brain</p>
-              <p className="truncate text-[9px] font-medium uppercase tracking-[0.2em] text-slate-500">V1.0</p>
+              <p className="truncate text-[13px] font-bold text-white tracking-tight">
+                CP-AI Brain
+              </p>
+              <p className="truncate text-[9px] font-medium uppercase tracking-[0.2em] text-slate-500">
+                V1.0
+              </p>
             </div>
           </div>
         )}
@@ -124,7 +207,10 @@ export function PlatformShell({
           </div>
         )}
         {isMobile && (
-          <button onClick={() => setMobileOpen(false)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors">
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+          >
             <X className="h-4 w-4" />
           </button>
         )}
@@ -150,7 +236,7 @@ export function PlatformShell({
                 collapsed && !isMobile ? "justify-center px-0" : "",
                 isActive
                   ? "bg-cyan-400/[0.1] text-cyan-100 shadow-[inset_0_1px_0_rgba(56,189,248,0.1)]"
-                  : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200",
+                  : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200"
               )}
             >
               {/* Active indicator bar */}
@@ -158,20 +244,34 @@ export function PlatformShell({
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-cyan-400 shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
               )}
               <div className="relative">
-                <Icon className={cn("h-[18px] w-[18px] shrink-0 transition-colors", isActive ? "text-cyan-300" : "text-slate-500 group-hover:text-slate-300")} />
+                <Icon
+                  className={cn(
+                    "h-[18px] w-[18px] shrink-0 transition-colors",
+                    isActive
+                      ? "text-cyan-300"
+                      : "text-slate-500 group-hover:text-slate-300"
+                  )}
+                />
                 {/* Badge dot on sidebar icon */}
                 {hasBadge && (
-                  <span className={cn(
-                    "absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500",
-                    badgeFlash && "animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.6)]"
-                  )} />
+                  <span
+                    className={cn(
+                      "absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500",
+                      badgeFlash &&
+                        "animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.6)]"
+                    )}
+                  />
                 )}
               </div>
               {(!collapsed || isMobile) && (
-                <span className={cn(
-                  "truncate text-[13px] font-medium transition-colors",
-                  isActive ? "text-cyan-100 font-semibold" : ""
-                )}>{item.label}</span>
+                <span
+                  className={cn(
+                    "truncate text-[13px] font-medium transition-colors",
+                    isActive ? "text-cyan-100 font-semibold" : ""
+                  )}
+                >
+                  {item.label}
+                </span>
               )}
             </button>
           );
@@ -179,24 +279,34 @@ export function PlatformShell({
       </nav>
 
       {/* Bottom controls */}
-      <div className={cn(
-        "border-t border-white/[0.06] px-2 py-3 space-y-2",
-        collapsed && !isMobile ? "items-center" : ""
-      )}>
+      <div
+        className={cn(
+          "border-t border-white/[0.06] px-2 py-3 space-y-2",
+          collapsed && !isMobile ? "items-center" : ""
+        )}
+      >
         {/* Language selector */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className={cn(
-              "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-slate-400 hover:bg-white/[0.05] hover:text-slate-200 transition-all",
-              collapsed && !isMobile ? "justify-center px-0" : ""
-            )}>
+            <button
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-slate-400 hover:bg-white/[0.05] hover:text-slate-200 transition-all",
+                collapsed && !isMobile ? "justify-center px-0" : ""
+              )}
+            >
               <Globe className="h-[18px] w-[18px] shrink-0" />
               {(!collapsed || isMobile) && (
-                <span className="truncate text-[13px] font-medium">{languages.find(l => l.code === language)?.label}</span>
+                <span className="truncate text-[13px] font-medium">
+                  {languages.find(l => l.code === language)?.label}
+                </span>
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="right" align="end" className="w-44 rounded-xl border-white/[0.08] bg-[rgba(8,16,32,0.97)] p-1.5 text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+          <DropdownMenuContent
+            side="right"
+            align="end"
+            className="w-44 rounded-xl border-white/[0.08] bg-[rgba(8,16,32,0.97)] p-1.5 text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+          >
             {languages.map(item => (
               <DropdownMenuItem
                 key={item.code}
@@ -205,7 +315,7 @@ export function PlatformShell({
                   "rounded-lg px-3 py-2.5 text-[13px] transition-all cursor-pointer",
                   language === item.code
                     ? "bg-cyan-400/[0.1] text-cyan-200 font-medium"
-                    : "text-slate-400 hover:text-white",
+                    : "text-slate-400 hover:text-white"
                 )}
               >
                 {item.label}
@@ -220,8 +330,22 @@ export function PlatformShell({
             onClick={() => setCollapsed(!collapsed)}
             className="flex w-full items-center justify-center gap-3 rounded-xl px-3 py-2.5 text-slate-500 hover:bg-white/[0.05] hover:text-slate-300 transition-all"
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-            {!collapsed && <span className="text-[12px] font-medium">{language === "zh" ? "\u6536\u8d77" : language === "en" ? "Collapse" : language === "ja" ? "\u6298\u308a\u305f\u305f\u3080" : "\u0e22\u0e38\u0e1a"}</span>}
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+            {!collapsed && (
+              <span className="text-[12px] font-medium">
+                {language === "zh"
+                  ? "\u6536\u8d77"
+                  : language === "en"
+                    ? "Collapse"
+                    : language === "ja"
+                      ? "\u6298\u308a\u305f\u305f\u3080"
+                      : "\u0e22\u0e38\u0e1a"}
+              </span>
+            )}
           </button>
         )}
       </div>
@@ -234,7 +358,10 @@ export function PlatformShell({
         {/* MOBILE OVERLAY */}
         {mobileOpen && (
           <div className="fixed inset-0 z-50 xl:hidden">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => setMobileOpen(false)}
+            />
             <aside className="relative h-full w-[260px] border-r border-white/[0.06] bg-[#060e1e] shadow-2xl">
               {sidebarContent(true)}
             </aside>
@@ -242,11 +369,13 @@ export function PlatformShell({
         )}
 
         {/* DESKTOP SIDEBAR */}
-        <aside className={cn(
-          "hidden xl:flex xl:flex-col border-r border-white/[0.06] bg-[linear-gradient(180deg,rgba(6,14,30,0.98),rgba(4,10,22,0.99))]",
-          "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
-          collapsed ? "xl:w-[72px]" : "xl:w-[220px]"
-        )}>
+        <aside
+          className={cn(
+            "hidden xl:flex xl:flex-col border-r border-white/[0.06] bg-[linear-gradient(180deg,rgba(6,14,30,0.98),rgba(4,10,22,0.99))]",
+            "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            collapsed ? "xl:w-[72px]" : "xl:w-[220px]"
+          )}
+        >
           {sidebarContent(false)}
         </aside>
 
@@ -269,9 +398,13 @@ export function PlatformShell({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2.5">
                   <div className="hidden h-4 w-[2px] rounded-full bg-cyan-400/60 md:block" />
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/60">{eyebrow}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/60">
+                    {eyebrow}
+                  </p>
                 </div>
-                <h2 className="mt-1.5 truncate text-lg font-bold tracking-tight text-white md:text-xl">{title}</h2>
+                <h2 className="mt-1.5 truncate text-lg font-bold tracking-tight text-white md:text-xl">
+                  {title}
+                </h2>
               </div>
 
               <div className="flex items-center gap-2">
@@ -289,9 +422,7 @@ export function PlatformShell({
 
           {/* Page content */}
           <main className="flex-1 overflow-y-auto px-3 py-4 md:px-5 md:py-5">
-            <div className="mx-auto max-w-[1580px]">
-              {children}
-            </div>
+            <div className="mx-auto max-w-[1580px]">{children}</div>
           </main>
         </div>
       </div>

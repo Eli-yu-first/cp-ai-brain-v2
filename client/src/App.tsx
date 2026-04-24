@@ -1,6 +1,9 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { OptimizationChatLauncher, OptimizationChatProvider } from "./components/OptimizationChatLauncher";
+import {
+  OptimizationChatLauncher,
+  OptimizationChatProvider,
+} from "./components/OptimizationChatLauncher";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, useLocation } from "wouter";
 import { useAuth } from "./_core/hooks/useAuth";
@@ -10,6 +13,8 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { TabProvider, useTabContext } from "./contexts/TabContext";
 import AuditPage from "./pages/Audit";
 import AiDecisionPage from "./pages/AiDecision";
+import AiValueChainPage from "./pages/AiValueChain";
+import AiWarRoomPage from "./pages/AiWarRoom";
 import CpVenturePage from "./pages/CpVenture";
 import DeepArbitragePage from "./pages/DeepArbitrage";
 import Home from "./pages/Home";
@@ -21,6 +26,7 @@ import TenantsPage from "./pages/Tenants";
 import TimeArbitragePage from "./pages/TimeArbitrage";
 import SpatialArbitragePage from "./pages/SpatialArbitrage";
 import FinancialArbitragePage from "./pages/FinancialArbitrage";
+import ProfessionalArbitragePage from "./pages/ProfessionalArbitrage";
 import GlobalOptimizationPage from "./pages/GlobalOptimization";
 
 /**
@@ -39,11 +45,42 @@ function PlatformRouter() {
     { id: "pork-map", href: "/pork-map", Component: PorkMapPage },
     { id: "quant", href: "/quant", Component: QuantPage },
     { id: "ai", href: "/ai", Component: AiDecisionPage },
-    { id: "time-arbitrage", href: "/time-arbitrage", Component: TimeArbitragePage },
-    { id: "spatial-arbitrage", href: "/spatial-arbitrage", Component: SpatialArbitragePage },
-    { id: "financial-arbitrage", href: "/financial-arbitrage", Component: FinancialArbitragePage },
-    { id: "global-optimization", href: "/global-optimization", Component: GlobalOptimizationPage },
-    { id: "deep-arbitrage", href: "/deep-arbitrage", Component: DeepArbitragePage },
+    { id: "ai-war-room", href: "/ai-war-room", Component: AiWarRoomPage },
+    {
+      id: "ai-value-chain",
+      href: "/ai-value-chain",
+      Component: AiValueChainPage,
+    },
+    {
+      id: "time-arbitrage",
+      href: "/time-arbitrage",
+      Component: TimeArbitragePage,
+    },
+    {
+      id: "spatial-arbitrage",
+      href: "/spatial-arbitrage",
+      Component: SpatialArbitragePage,
+    },
+    {
+      id: "financial-arbitrage",
+      href: "/financial-arbitrage",
+      Component: FinancialArbitragePage,
+    },
+    {
+      id: "professional-arbitrage",
+      href: "/professional-arbitrage",
+      Component: ProfessionalArbitragePage,
+    },
+    {
+      id: "global-optimization",
+      href: "/global-optimization",
+      Component: GlobalOptimizationPage,
+    },
+    {
+      id: "deep-arbitrage",
+      href: "/deep-arbitrage",
+      Component: DeepArbitragePage,
+    },
     { id: "audit", href: "/audit", Component: AuditPage },
     { id: "cp-venture", href: "/cp-venture", Component: CpVenturePage },
   ];
@@ -74,10 +111,7 @@ function PlatformRouter() {
         if (!isOpen) return null;
 
         return (
-          <div
-            key={id}
-            style={{ display: isVisible ? "contents" : "none" }}
-          >
+          <div key={id} style={{ display: isVisible ? "contents" : "none" }}>
             <Component />
           </div>
         );

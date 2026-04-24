@@ -38,6 +38,7 @@ import {
   type DeepArbitrageInput,
 } from "./deepArbitrage";
 import { simulateFinancialArbitrage } from "./financialArbitrage";
+import { simulateProfessionalArbitrage } from "./professionalArbitrage";
 import {
   createAuditLog,
   createArbitrageRecord,
@@ -906,6 +907,38 @@ export const appRouter = router({
       )
       .query(({ input }) => {
         return simulateFinancialArbitrage(input);
+      }),
+    professionalArbitrageSimulate: protectedProcedure
+      .input(
+        z
+          .object({
+            partCode: z.string().optional(),
+            batchCode: z.string().optional(),
+            spotPrice: z.number().min(1).max(40).optional(),
+            futuresPrice: z.number().min(1).max(40).optional(),
+            expectedFutureSpotPrice: z.number().min(1).max(40).optional(),
+            expectedFutureFuturesPrice: z.number().min(1).max(40).optional(),
+            holdingCostPerMonth: z.number().min(0.01).max(2.0).optional(),
+            socialBreakevenCost: z.number().min(1).max(40).optional(),
+            storageTons: z.number().min(50).max(50000).optional(),
+            startMonth: z.number().int().min(1).max(12).optional(),
+            storageDurationMonths: z.number().int().min(1).max(10).optional(),
+            originFilter: z.string().optional(),
+            transportCostPerKmPerTon: z.number().min(0.1).max(5.0).optional(),
+            minProfitThreshold: z.number().min(0).max(10).optional(),
+            targetShipmentTon: z.number().min(0).max(200000).optional(),
+            physicalExposureTons: z.number().min(1).max(200000).optional(),
+            hedgeRatio: z.number().min(0).max(1).optional(),
+            marginRate: z.number().min(0.01).max(0.5).optional(),
+            contractSize: z.number().min(1).max(100).optional(),
+            maxCapital: z.number().min(1).max(1_000_000_000).optional(),
+            maxMarginUsage: z.number().min(1).max(1_000_000_000).optional(),
+            riskProfile: z.enum(["conservative", "balanced", "aggressive"]).optional(),
+          })
+          .optional(),
+      )
+      .query(({ input }) => {
+        return simulateProfessionalArbitrage(input ?? {});
       }),
     aiChat: protectedProcedure
       .input(

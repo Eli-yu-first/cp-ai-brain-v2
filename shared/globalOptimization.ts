@@ -1,3 +1,13 @@
+import {
+  EXCEL_CUSTOMER_TYPE_LIST,
+  EXCEL_FACTORY_ID_LIST,
+  EXCEL_FARM_ID_LIST,
+  EXCEL_PART_CODE_LIST,
+  EXCEL_PROVINCE_LIST,
+  EXCEL_WAREHOUSE_ID_LIST,
+  excelOptimizationInput,
+} from "./excelOptimizationData";
+
 export type Province = string;
 export type PartCode = string;
 export type CustomerType = string;
@@ -12,53 +22,75 @@ export type SlaughterScheduleRow = {
   count: number;
   avgWeightKg: number;
   livePigPrice: number;
-  websitePrice?: number;   // 网站价格-用于计算决策
-  futuresPrice?: number;   // 未来期货价格-元/kg
+  websitePrice?: number;
+  futuresPrice?: number;
+  dateStart?: string;
+  dateEnd?: string;
+  sourceRowCount?: number;
 };
 
 export type YieldRateRow = {
   parentMaterial: string;
   childMaterial: string;
   yieldRate: number;
-  process: number;
-  slaughterCostPerHead?: number;  // 屠宰/分割/冷冻成本-元/头或元/kg
-  isReserve?: boolean;            // 是否储备（Y/N）
+  process: number | string;
+  slaughterCostPerHead?: number;
+  isReserve?: boolean;
+  reserveFlag?: string;
 };
 
 export type SlaughterCapacityRow = {
   factoryId: FactoryId;
+  companyName?: string;
   province: Province;
   month: number;
   maxSlaughter: number;
+  dailyCapacity?: number;
+  dailySlaughterCapacity?: number;
+  sourceDayCount?: number;
 };
 
 export type SplitCapacityRow = {
   factoryId: FactoryId;
+  companyName?: string;
   part: PartCode;
   maxSplitKg: number;
   maxFreezeKg: number;
   maxStorageKg: number;
   storageCostRate: number;
   month: number;
+  dailyProductionKg?: number;
+  dailyFreshSalesKg?: number;
+  dailyReserveKg?: number;
+  sourceDayCount?: number;
+  yieldRate?: number;
 };
 
 export type WarehouseRow = {
   warehouseId: WarehouseId;
-  factoryId?: FactoryId;          // 关联的工厂ID
+  factoryId?: FactoryId;
+  companyName?: string;
   province: Province;
   maxStorageKg: number;
   storageCostRate: number;
+  storageCostRatePerKgDay?: number;
   month: number;
-  part?: PartCode;                // 部位维度的库容
-  currentInventoryKg?: number;    // 当期库存-kg
+  part?: PartCode;
+  currentInventoryKg?: number;
+  sourceDayCount?: number;
 };
 
-// 分割成本表（新增）
 export type SplitCostRow = {
   factoryId: FactoryId;
+  companyName?: string;
   part: PartCode;
-  splitCostPerKg: number;         // 分割费用-元/kg
-  freezePackCostPerKg: number;    // 速冻包装费用-元/kg
+  slaughterCostPerKg?: number;
+  splitCostPerKg: number;
+  packageCostPerKg?: number;
+  freezeCostPerKg?: number;
+  freezePackCostPerKg: number;
+  costCoefficient?: number;
+  materialCategory?: string;
 };
 
 export type PigOrderRow = {
@@ -75,8 +107,14 @@ export type PartOrderRow = {
   month: number;
   customerType: CustomerType;
   orderQty: number;
+  dailyOrderQty?: number;
   salesPrice: number;
   destinationProvince: Province;
+  date?: string;
+  priceCoefficient?: number;
+  freshPriceCoefficient?: number;
+  livePigPrice?: number;
+  sourceDayCount?: number;
 };
 
 export type DeepProcessDemandRow = {
@@ -87,6 +125,8 @@ export type DeepProcessDemandRow = {
   rawMaterialDemand: number;
   salesPrice: number;
   destinationProvince: Province;
+  companyName?: string;
+  date?: string;
 };
 
 export type TransportCostRow = {
@@ -94,6 +134,7 @@ export type TransportCostRow = {
   destinationProvince: Province;
   costPerKmPerKg: number;
   distanceKm: number;
+  sourceRowCount?: number;
 };
 
 export type ProfitRow = {
@@ -108,6 +149,11 @@ export type ProfitRow = {
   pigCost: number;
   storageCost: number;
   transportCost: number;
+  slaughterCost: number;
+  splitCost: number;
+  packageCost: number;
+  freezeCost: number;
+  processingCost: number;
   profit: number;
 };
 
@@ -136,31 +182,28 @@ export type SplittingRow = {
   freezeKg: number;
 };
 
-// 输出-生产表（新增）
 export type ProductionRow = {
   factoryId: FactoryId;
   month: number;
   part: PartCode;
-  productionKg: number;           // 产量
-  salesKg: number;                // 销量
-  inventoryKg: number;            // 存量
+  productionKg: number;
+  salesKg: number;
+  inventoryKg: number;
 };
 
-// 输出-库存表（新增）
 export type InventoryRow = {
   factoryId: FactoryId;
   month: number;
   part: PartCode;
-  inventoryKg: number;            // 库存-kg
+  inventoryKg: number;
 };
 
-// 输出-运输表（新增）
 export type TransportRow = {
   factoryId: FactoryId;
   month: number;
   part: PartCode;
   destProvince: Province;
-  transportKg: number;            // 运输量
+  transportKg: number;
 };
 
 export type OptimizationInput = {
@@ -168,7 +211,7 @@ export type OptimizationInput = {
   yieldRates: YieldRateRow[];
   slaughterCapacity: SlaughterCapacityRow[];
   splitCapacity: SplitCapacityRow[];
-  splitCosts: SplitCostRow[];             // 新增：分割成本表
+  splitCosts: SplitCostRow[];
   warehouses: WarehouseRow[];
   pigOrders: PigOrderRow[];
   partOrders: PartOrderRow[];
@@ -181,6 +224,7 @@ export type OptimizationSummary = {
   totalPigCost: number;
   totalStorageCost: number;
   totalTransportCost: number;
+  totalProcessingCost: number;
   totalProfit: number;
   profitMargin: number;
   totalSlaughterCount: number;
@@ -195,9 +239,9 @@ export type OptimizationOutput = {
   pigSalesTable: PigSalesRow[];
   salesTable: SalesRow[];
   splittingTable: SplittingRow[];
-  productionTable: ProductionRow[];       // 新增：生产表
-  inventoryTable: InventoryRow[];         // 新增：库存表
-  transportTable: TransportRow[];         // 新增：运输表
+  productionTable: ProductionRow[];
+  inventoryTable: InventoryRow[];
+  transportTable: TransportRow[];
   summary: OptimizationSummary;
 };
 
@@ -257,6 +301,218 @@ export type AIOptimizationDecision = {
   profitOptimization: string[];
 };
 
+export type FuturesArbitrageSignal = {
+  signalId: string;
+  signalType: "CASH_CARRY" | "REVERSE_CASH_CARRY" | "BASIS" | "CONTRACT_ROLLOVER" | "HEDGE";
+  partCode: PartCode;
+  action: "BUY_FUTES" | "SELL_FUTURES" | "HOLD" | "CLOSE_POSITION";
+  entryPrice: number;
+  targetPrice: number;
+  stopLoss: number;
+  expectedProfitPerKg: number;
+  confidence: number;
+  holdingDays: number;
+  hedgeRatio: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  reasoning: string;
+  month: number;
+};
+
+export type DailySlaughterPlanRow = {
+  factoryId: FactoryId;
+  province: Province;
+  date: string;
+  plannedCount: number;
+  avgWeightKg: number;
+  shiftType: "DAY" | "NIGHT" | "FULL";
+  estimatedOutputKg: number;
+};
+
+export type StoragePlanRow = {
+  warehouseId: WarehouseId;
+  factoryId: FactoryId;
+  province: Province;
+  month: number;
+  plannedInboundKg: number;
+  plannedOutboundKg: number;
+  plannedStorageDays: number;
+  currentInventoryKg: number;
+  endInventoryKg: number;
+  turnoverRate: number;
+};
+
+export type ProvincialTransferRow = {
+  originProvince: Province;
+  destinationProvince: Province;
+  part: PartCode;
+  month: number;
+  plannedTransferKg: number;
+  inTransitKg: number;
+  deliveredKg: number;
+  costPerKg: number;
+  totalCost: number;
+  leadTimeDays: number;
+};
+
+export type InventoryBatchRow = {
+  warehouseId: WarehouseId;
+  factoryId: FactoryId;
+  part: PartCode;
+  batchId: string;
+  inboundDate: string;
+  inboundKg: number;
+  currentKg: number;
+  daysStored: number;
+  remainingShelfLifeDays: number;
+  storageCostPerKgPerDay: number;
+  cumulativeStorageCost: number;
+  fefoPriority: number;
+  status: "ACTIVE" | "EXPIRING_SOON" | "EXPIRED" | "CLEARED";
+};
+
+export type InventoryAgeDistributionRow = {
+  part: PartCode;
+  warehouseId: WarehouseId;
+  province: Province;
+  bucket0to7Days: number;
+  bucket8to14Days: number;
+  bucket15to30Days: number;
+  bucket31to60Days: number;
+  bucket60PlusDays: number;
+  totalKg: number;
+  avgDaysStored: number;
+  avgStorageCostPerKg: number;
+  turnoverDays: number;
+};
+
+export type FuturesMarketDataRow = {
+  month: number;
+  futuresPriceCurrent: number;
+  futuresPriceM1: number;
+  futuresPriceM2: number;
+  futuresPriceM3: number;
+  spotPrice: number;
+  basis: number;
+  basisHistory: number[];
+  openInterest: number;
+  volume: number;
+  volatility: number;
+  trend: "UP" | "DOWN" | "SIDEWAYS";
+  recommendation: "STRONG_BUY" | "BUY" | "HOLD" | "SELL" | "STRONG_SELL";
+  confidence: number;
+};
+
+export type FutureSlaughterPlanRow = {
+  farmId: FarmId;
+  province: Province;
+  weekStartDate: string;
+  weekEndDate: string;
+  plannedCount: number;
+  contractCount: number;
+  spotCount: number;
+  avgWeightKg: number;
+  confidenceLevel: number;
+  priceLockedCount: number;
+  priceLockedRate: number;
+};
+
+export type FuturesArbitrageOutput = {
+  signals: FuturesArbitrageSignal[];
+  cashCarryOpportunities: Array<{
+    partCode: PartCode;
+    buySpotSellFuturesProfitPerKg: number;
+    netProfitAfterCosts: number;
+    annualizedReturn: number;
+    confidence: number;
+  }>;
+  basisAnalysis: Array<{
+    partCode: PartCode;
+    currentBasis: number;
+    historicalAvgBasis: number;
+    basisZScore: number;
+    forecast: "NARROW" | "WIDEN" | "STABLE";
+  }>;
+  hedgeRecommendations: Array<{
+    partCode: PartCode;
+    recommendedHedgeRatio: number;
+    futuresContractMonth: number;
+    hedgeVolumeKg: number;
+    estimatedCost: number;
+    riskReduction: number;
+  }>;
+};
+
+export type EnhancedOptimizationOutput = OptimizationOutput & {
+  dailySlaughterPlan: DailySlaughterPlanRow[];
+  storagePlan: StoragePlanRow[];
+  provincialTransfer: ProvincialTransferRow[];
+  inventoryBatches: InventoryBatchRow[];
+  inventoryAgeDistribution: InventoryAgeDistributionRow[];
+  futuresMarketData: FuturesMarketDataRow[];
+  futureSlaughterPlan: FutureSlaughterPlanRow[];
+  futuresArbitrage: FuturesArbitrageOutput;
+};
+
+export type SeasonalProcurementDecision = {
+  month: number;
+  action: "INCREASE_STOCK" | "REDUCE_STOCK" | "HOLD" | "DESTOCK";
+  targetVolumeKg: number;
+  priceThreshold: number;
+  reasoning: string;
+  confidence: number;
+  priority: "URGENT" | "HIGH" | "MEDIUM" | "LOW";
+};
+
+export type StorageTimingDecision = {
+  part: PartCode;
+  currentInventoryKg: number;
+  recommendedInboundKg: number;
+  recommendedOutboundKg: number;
+  recommendedStorageDays: number;
+  targetReleaseMonth: number;
+  estimatedProfitFromTiming: number;
+  riskFactors: string[];
+  action: "ACCELERATE_INBOUND" | "DELAY_INBOUND" | "ACCELERATE_OUTBOUND" | "HOLD";
+  confidence: number;
+};
+
+export type EnhancedAIOptimizationDecision = AIOptimizationDecision & {
+  futuresArbitrageSignals: FuturesArbitrageSignal[];
+  seasonalProcurementDecisions: SeasonalProcurementDecision[];
+  storageTimingDecisions: StorageTimingDecision[];
+  contractRecommendations: Array<{
+    type: "LONG_SPOT" | "LONG_FUTURES" | "CALL_OPTIONS" | "PUT_OPTIONS" | "COLLAR";
+    partCode: PartCode;
+    volumeKg: number;
+    entryPrice: number;
+    targetExitPrice: number;
+    maxLoss: number;
+    expectedReturn: number;
+    hedgeRatio: number;
+    reasoning: string;
+    monthsToExpiry: number;
+  }>;
+  provincialTransferOptimization: Array<{
+    originProvince: Province;
+    destinationProvince: Province;
+    part: PartCode;
+    recommendedTransferKg: number;
+    currentTransferKg: number;
+    deltaKg: number;
+    costSavings: number;
+    reason: string;
+  }>;
+  riskAdjustedRecommendations: Array<{
+    recommendation: string;
+    riskScore: number;
+    riskLabel: "LOW" | "MEDIUM" | "HIGH";
+    downside: number;
+    upside: number;
+    confidence: number;
+    optimalTiming: string;
+  }>;
+};
+
 const PROVINCES = ["四川", "河南", "山东", "湖南", "广东", "江苏"] as const;
 
 const FARMS: FarmId[] = ["farm-sc", "farm-hn", "farm-sd", "farm-hu", "farm-gd"];
@@ -277,13 +533,11 @@ const LIVE_PIG_PRICES: Record<number, number> = {
   7: 16.2, 8: 16.8, 9: 16.0, 10: 15.2, 11: 14.6, 12: 14.9,
 };
 
-// 网站参考价格（用于判断当前市场趋势）
 const WEBSITE_PRICES: Record<number, number> = {
   1: 14.5, 2: 14.0, 3: 13.8, 4: 14.3, 5: 15.0, 6: 15.8,
   7: 16.5, 8: 17.0, 9: 16.3, 10: 15.5, 11: 14.8, 12: 15.2,
 };
 
-// 未来期货价格（用于冷冻套利决策）
 const FUTURES_PRICES: Record<number, number> = {
   1: 15.0, 2: 14.5, 3: 14.2, 4: 14.8, 5: 15.5, 6: 16.2,
   7: 17.0, 8: 17.5, 9: 16.8, 10: 16.0, 11: 15.3, 12: 15.8,
@@ -541,22 +795,13 @@ function generateTransportCosts(): TransportCostRow[] {
   return rows;
 }
 
-export const PROVINCE_LIST = PROVINCES;
-export const PART_CODE_LIST = PART_CODES;
-export const CUSTOMER_TYPE_LIST = CUSTOMER_TYPES;
-export const FACTORY_ID_LIST = FACTORIES;
-export const FARM_ID_LIST = FARMS;
-export const WAREHOUSE_ID_LIST = WAREHOUSES;
+export const PROVINCE_LIST = EXCEL_PROVINCE_LIST as Province[];
+export const PART_CODE_LIST = EXCEL_PART_CODE_LIST as PartCode[];
+export const CUSTOMER_TYPE_LIST = EXCEL_CUSTOMER_TYPE_LIST as CustomerType[];
+export const FACTORY_ID_LIST = EXCEL_FACTORY_ID_LIST as FactoryId[];
+export const FARM_ID_LIST = EXCEL_FARM_ID_LIST as FarmId[];
+export const WAREHOUSE_ID_LIST = EXCEL_WAREHOUSE_ID_LIST as WarehouseId[];
 
 export const sampleOptimizationInput: OptimizationInput = {
-  slaughterSchedule: generateSlaughterSchedule(),
-  yieldRates: generateYieldRates(),
-  slaughterCapacity: generateSlaughterCapacity(),
-  splitCapacity: generateSplitCapacity(),
-  splitCosts: generateSplitCosts(),
-  warehouses: generateWarehouses(),
-  pigOrders: generatePigOrders(),
-  partOrders: generatePartOrders(),
-  deepProcessDemand: generateDeepProcessDemand(),
-  transportCosts: generateTransportCosts(),
+  ...excelOptimizationInput,
 };

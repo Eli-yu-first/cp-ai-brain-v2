@@ -28,6 +28,7 @@ import {
   Truck,
   Users,
   Warehouse,
+  Wrench,
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -582,14 +583,15 @@ export default function GlobalOptimizationPage() {
 
   const profitByMonth = useMemo(() => {
     if (!result?.output?.profitTable) return [];
-    const map = new Map<number, { revenue: number; profit: number; pigCost: number; storageCost: number; transportCost: number }>();
+    const map = new Map<number, { revenue: number; profit: number; pigCost: number; storageCost: number; transportCost: number; processingCost: number }>();
     for (const p of result.output.profitTable) {
-      const existing = map.get(p.month) ?? { revenue: 0, profit: 0, pigCost: 0, storageCost: 0, transportCost: 0 };
+      const existing = map.get(p.month) ?? { revenue: 0, profit: 0, pigCost: 0, storageCost: 0, transportCost: 0, processingCost: 0 };
       existing.revenue += p.revenue;
       existing.profit += p.profit;
       existing.pigCost += p.pigCost;
       existing.storageCost += p.storageCost;
       existing.transportCost += p.transportCost;
+      existing.processingCost += p.processingCost;
       map.set(p.month, existing);
     }
     return Array.from(map.entries())
@@ -947,12 +949,16 @@ export default function GlobalOptimizationPage() {
                     <DataTable
                       title="分割成本表"
                       icon={LayoutDashboard}
-                      headers={["工厂ID", "分割部位", "分割费用(元/kg)", "速冻包装费用(元/kg)"]}
+                      headers={["工厂ID", "分割部位", "屠宰成本", "分割费用", "包装费用", "速冻费用", "成本系数", "物料类别"]}
                       rows={(result.input.splitCosts ?? []).map((r) => [
                         <span className="font-mono text-cyan-200/80">{r.factoryId}</span>,
                         <span className="font-medium">{r.part}</span>,
+                        <span className="font-mono text-amber-300/80">¥{(r.slaughterCostPerKg ?? 0).toFixed(2)}</span>,
                         <span className="font-mono text-amber-300/80">¥{r.splitCostPerKg.toFixed(2)}</span>,
-                        <span className="font-mono text-blue-300/80">¥{r.freezePackCostPerKg.toFixed(2)}</span>,
+                        <span className="font-mono text-blue-300/80">¥{(r.packageCostPerKg ?? 0).toFixed(2)}</span>,
+                        <span className="font-mono text-blue-300/80">¥{(r.freezeCostPerKg ?? 0).toFixed(2)}</span>,
+                        <span className="font-mono">{(r.costCoefficient ?? 0).toFixed(3)}</span>,
+                        <span>{r.materialCategory ?? ""}</span>,
                       ])}
                       maxH={250}
                     />
@@ -981,6 +987,7 @@ export default function GlobalOptimizationPage() {
                 <SummaryCard icon={Factory} label="屠宰量" value={`${summary.totalSlaughterCount.toLocaleString()}`} unit="头" color="text-violet-400" />
                 <SummaryCard icon={Package} label="销量" value={`${(summary.totalSalesKg / 1000).toFixed(0)}`} unit="吨" color="text-blue-400" />
                 <SummaryCard icon={Zap} label="产能利用率" value={`${summary.capacityUtilization}%`} color="text-orange-400" />
+                <SummaryCard icon={Wrench} label="加工成本" value={formatCurrency(summary.totalProcessingCost)} unit="元" color="text-rose-300" />
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -999,6 +1006,7 @@ export default function GlobalOptimizationPage() {
                       <Bar dataKey="revenue" name="收入" fill="#06b6d4" radius={[4, 4, 0, 0]} />
                       <Line type="monotone" dataKey="profit" name="利润" stroke="#10b981" strokeWidth={2} dot={{ fill: "#10b981", r: 3 }} />
                       <Line type="monotone" dataKey="pigCost" name="毛猪成本" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 5" dot={false} />
+                      <Line type="monotone" dataKey="processingCost" name="加工成本" stroke="#fb7185" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </TechPanel>
@@ -1043,7 +1051,7 @@ export default function GlobalOptimizationPage() {
                   <DataTable
                     title="利润表"
                     icon={PiggyBank}
-                    headers={["工厂ID", "月份", "部位", "销量(kg)", "单价", "收入", "毛猪成本", "仓储成本", "运输成本", "利润"]}
+                    headers={["工厂ID", "月份", "部位", "销量(kg)", "单价", "收入", "毛猪成本", "加工成本", "仓储成本", "运输成本", "利润"]}
                     rows={(result?.output?.profitTable ?? []).map((p) => [
                       <span className="font-mono text-cyan-200/80">{p.factoryId}</span>,
                       <span>{MONTH_LABELS[p.month] ?? `${p.month}月`}</span>,
@@ -1052,6 +1060,7 @@ export default function GlobalOptimizationPage() {
                       <span className="font-mono">¥{p.price.toFixed(1)}</span>,
                       <span className="font-mono text-slate-200">{formatCurrency(p.revenue)}</span>,
                       <span className="font-mono text-amber-300/80">{formatCurrency(p.pigCost)}</span>,
+                      <span className="font-mono text-rose-300/80">{formatCurrency(p.processingCost)}</span>,
                       <span className="font-mono text-violet-300/80">{formatCurrency(p.storageCost)}</span>,
                       <span className="font-mono text-blue-300/80">{formatCurrency(p.transportCost)}</span>,
                       <span className={`font-mono font-bold ${p.profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatCurrency(p.profit)}</span>,

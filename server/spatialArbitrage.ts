@@ -1,3 +1,10 @@
+import {
+  buildConstraintCheck,
+  buildPenaltyConfig,
+  calculatePenaltyBreakdown,
+  calculateScoreCard,
+  type UnifiedStrategyResult,
+} from "./arbitrageShared";
 import { partQuotes } from "./platformData";
 import { calculateArbitrage } from "./timeArbitrage";
 
@@ -251,6 +258,7 @@ export type SpatialArbitrageResult = {
     totalNetProfit: number; // 万元
     averageFreightPerKg: number;
     averageNetProfitPerKg: number;
+    averageRegionalBasisSpread: number;
     usedCapacityByOrigin: Record<string, number>;
     usedDemandByDest: Record<string, number>;
     vehicleMix: Record<VehicleType["code"], number>;
@@ -278,7 +286,18 @@ export type SpatialArbitrageResult = {
   averageSpread: number;
   nodes: GeoNode[];
   aiDecisionOverview: string;
+  analytics: {
+    totalBasisPnL: number;
+    executionPenalty: number;
+    riskPenalty: number;
+    capitalPenalty: number;
+    adjustedObjective: number;
+    scoreCard: UnifiedStrategyResult["scoreCard"];
+    constraints: UnifiedStrategyResult["constraints"];
+    unifiedResult: UnifiedStrategyResult;
+  };
 };
+
 
 // 工具函数：计算两点简易球面距离 (简化公式)
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -765,6 +784,9 @@ export function calculateSpatialArbitrage(
 
   // 汇总
   const totalShippedTon = schedulePlan.reduce((s, p) => s + p.shippedTon, 0);
+  const requestedShipmentTon = typeof targetShipmentTon === "number" && targetShipmentTon > 0
+    ? targetShipmentTon
+    : Math.max(totalShippedTon, 1);
   const totalFreight = schedulePlan.reduce((s, p) => s + p.freightTotal, 0);
   const totalNetProfit = parseFloat(schedulePlan.reduce((s, p) => s + p.netProfitTotal, 0).toFixed(1));
   const freshSalesTon = parseFloat(schedulePlan.reduce((s, p) => s + p.freshSalesTon, 0).toFixed(1));
@@ -801,6 +823,21 @@ export function calculateSpatialArbitrage(
       ? parseFloat(((totalNetProfit * 10000) / (totalShippedTon * 1000)).toFixed(2))
       : 0;
 
+  const averageRegionalBasisSpread =
+    schedulePlan.length > 0
+      ? parseFloat(
+          (
+            schedulePlan.reduce((sum, item) => {
+              const originNode = GEO_NODES.find((node) => node.id === item.originId);
+              const destNode = GEO_NODES.find((node) => node.id === item.destId);
+              const originBasis = (originNode?.basePrice ?? 0) - socialBreakevenCost;
+              const destBasis = (destNode?.basePrice ?? 0) - socialBreakevenCost;
+              return sum + (destBasis - originBasis);
+            }, 0) / schedulePlan.length
+          ).toFixed(2),
+        )
+      : 0;
+
   const usedCapacityByOrigin: Record<string, number> = {};
   const usedDemandByDest: Record<string, number> = {};
   for (const o of origins) {
@@ -811,23 +848,6 @@ export function calculateSpatialArbitrage(
     const used = (d.demand ?? 0) - (remainingDemand[d.id] ?? 0);
     if (used > 0) usedDemandByDest[d.name] = parseFloat(used.toFixed(1));
   }
-
-  const scheduleSummary = {
-    totalShippedTon: parseFloat(totalShippedTon.toFixed(1)),
-    totalFreight: parseFloat(totalFreight.toFixed(0)),
-    totalNetProfit,
-    averageFreightPerKg,
-    averageNetProfitPerKg,
-    usedCapacityByOrigin,
-    usedDemandByDest,
-    vehicleMix,
-    freshSalesTon,
-    storageTon,
-    deepProcessingTon,
-    storageOpenedRoutes,
-    averageChainUtilization,
-    bottleneckStage,
-  };
 
   // 顶层汇总（兼容现有前端字段）
   let bestRouteProfit = 0;
@@ -844,6 +864,60 @@ export function calculateSpatialArbitrage(
     avSpread = parseFloat((allSpread / routes.length).toFixed(2));
   }
 
+  const scheduleSummary = {
+    totalShippedTon: parseFloat(totalShippedTon.toFixed(1)),
+    totalFreight: parseFloat(totalFreight.toFixed(0)),
+    totalNetProfit,
+    averageFreightPerKg,
+    averageNetProfitPerKg,
+    averageRegionalBasisSpread,
+    usedCapacityByOrigin,
+    usedDemandByDest,
+    vehicleMix,
+    freshSalesTon,
+    storageTon,
+    deepProcessingTon,
+    storageOpenedRoutes,
+    averageChainUtilization,
+    bottleneckStage,
+  };
+
+  const penaltyConfig = buildPenaltyConfig("balanced");
+  const totalBasisPnL = round(schedulePlan.reduce((sum, item) => sum + item.timeProfitPerKg * item.storageManagedTons * 1000, 0), 0);
+  const stressLoss = round(Math.max(0, totalNetProfit * 10000 * 0.18 + totalFreight * 0.12), 0);
+  const penaltyBreakdown = calculatePenaltyBreakdown({
+    volatilityRisk: Math.max(0, averageNetProfitPerKg * totalShippedTon * 110),
+    basisRisk: Math.abs(averageRegionalBasisSpread) * totalShippedTon * 120,
+    spreadRisk: Math.abs(avSpread) * totalShippedTon * 95,
+    maxDrawdownProxy: Math.abs(totalNetProfit * 10000) * 0.14,
+    stressLoss,
+    marginUsed: 0,
+    peakCapitalOccupied: Math.max(1, totalFreight + totalShippedTon * socialBreakevenCost * 1000),
+    leverageRatio: 1,
+    liquidityRisk: schedulePlan.length * 4 + vehicleMix.small * 2,
+    executionComplexity: schedulePlan.length * 1.8 + storageOpenedRoutes * 6,
+    config: penaltyConfig,
+  });
+  const constraints = [
+    buildConstraintCheck("shipment_target", totalShippedTon, requestedShipmentTon, penaltyConfig.executionPenaltyWeight),
+    buildConstraintCheck("average_chain_utilization", averageChainUtilization, 92, penaltyConfig.executionPenaltyWeight),
+    buildConstraintCheck("storage_capacity", storageTon + deepProcessingTon, PORK_CHAIN_FACTORS.storage.actualStorageTon + Math.max(0, rentedStorageTon), penaltyConfig.executionPenaltyWeight * 1.2),
+  ];
+  const adjustedObjective = round(
+    totalNetProfit * 10000 - penaltyBreakdown.riskPenalty - penaltyBreakdown.capitalPenalty - penaltyBreakdown.executionPenalty,
+    0,
+  );
+  const returnOnCapital = round((totalNetProfit * 10000 / Math.max(totalFreight + totalShippedTon * socialBreakevenCost * 1000, 1)) * 100, 2);
+  const scoreCard = calculateScoreCard({
+    netPnL: totalNetProfit * 10000,
+    adjustedObjective,
+    stressLoss,
+    hedgeEffectiveness: Math.max(0, Math.min(1, 0.55 + storageOpenedRoutes * 0.03 + averageNetProfitPerKg / 10)),
+    returnOnCapital,
+    returnOnMargin: returnOnCapital * 1.1,
+    executionPenalty: penaltyBreakdown.executionPenalty + constraints.reduce((sum, item) => sum + item.penaltyContribution, 0),
+    riskPenalty: penaltyBreakdown.riskPenalty,
+  });
   const topStr = routes
     .slice(0, 3)
     .map((r) => `${r.originName}→${r.destName}(+${r.netProfit.toFixed(2)}元/kg)`)
@@ -855,6 +929,97 @@ export function calculateSpatialArbitrage(
       : routes.length > 0
         ? `AI决策：发现 ${routes.length} 条套利窗口，但产能/需求已耗尽或单位运费超阈值，建议放宽车型或分批执行。`
         : "AI决策：目前市场供需与运费不匹配，无最优套利路线。";
+
+  const unifiedResult: UnifiedStrategyResult = {
+    strategyType: "regional_basis_arbitrage",
+    strategyName: "区域基差套利",
+    summary: {
+      recommendedAction: schedulePlan.length > 0 ? `优先执行 ${bestRouteName} 等高净利线路` : "等待区域价差进一步扩大",
+      headline: schedulePlan.length > 0 ? "区域价差与时间套利联动后仍具可执行收益" : "当前区域价差未穿透运费与执行惩罚",
+      keyDriver: storageOpenedRoutes > 0 ? "区域价差 + 时间套利联动" : "纯区域价差",
+    },
+    pnl: {
+      grossPnL: round(totalNetProfit * 10000 + totalFreight, 0),
+      spotPnL: round(totalNetProfit * 10000, 0),
+      futuresPnL: 0,
+      basisPnL: totalBasisPnL,
+      spreadPnL: round(avSpread * totalShippedTon * 1000, 0),
+      transportPnL: -round(totalFreight, 0),
+      processingPnL: round(deepProcessingTon * 420, 0),
+      marginCost: 0,
+      financingCost: 0,
+      storageCost: round(storageTon * 180 + deepProcessingTon * 120, 0),
+      slippageCost: 0,
+      transactionCost: round(schedulePlan.length * 300, 0),
+      otherCost: 0,
+      netPnL: round(totalNetProfit * 10000, 0),
+      riskPenalty: penaltyBreakdown.riskPenalty,
+      capitalPenalty: penaltyBreakdown.capitalPenalty,
+      executionPenalty: penaltyBreakdown.executionPenalty,
+      adjustedObjective,
+    },
+    riskMetrics: {
+      priceRisk: round(Math.max(0, averageNetProfitPerKg * totalShippedTon * 110), 0),
+      basisRisk: round(Math.abs(averageRegionalBasisSpread) * totalShippedTon * 120, 0),
+      spreadRisk: round(Math.abs(avSpread) * totalShippedTon * 95, 0),
+      volatilityRisk: round(Math.max(0, averageNetProfitPerKg * totalShippedTon * 110), 0),
+      var95: round(stressLoss * 0.72, 0),
+      cvar95: stressLoss,
+      maxDrawdownProxy: round(Math.abs(totalNetProfit * 10000) * 0.14, 0),
+      stressLoss,
+      hedgeEffectiveness: round(Math.max(0, Math.min(100, 55 + storageOpenedRoutes * 3 + averageNetProfitPerKg * 4)), 2),
+      confidenceScore: round(Math.max(0, 100 - averageChainUtilization * 0.35 - schedulePlan.length * 0.8), 2),
+    },
+    capitalMetrics: {
+      initialCapitalUsed: round(totalShippedTon * socialBreakevenCost * 1000, 0),
+      marginUsed: 0,
+      peakCapitalOccupied: round(totalFreight + totalShippedTon * socialBreakevenCost * 1000, 0),
+      capitalTurnoverDays: effectivePlanningDays,
+      returnOnCapital,
+      returnOnMargin: returnOnCapital * 1.1,
+      leverageRatio: 1,
+    },
+    constraints,
+    sensitivities: schedulePlan.slice(0, 12).map((item) => ({
+      scenario: `${item.originName}→${item.destName}`,
+      netPnL: round(item.netProfitTotal * 10000, 0),
+      adjustedObjective: round(item.netProfitTotal * 10000 - item.freightTotal * 0.08, 0),
+      metricA: item.netProfitPerKg,
+      metricB: item.timeProfitPerKg,
+    })),
+    stressTests: [
+      {
+        name: "freight_up",
+        description: "运费上升 12%",
+        netPnL: round(totalNetProfit * 10000 - totalFreight * 0.12, 0),
+        adjustedObjective: round(adjustedObjective - totalFreight * 0.08, 0),
+        stressLoss: round(totalFreight * 0.12, 0),
+        pass: totalNetProfit * 10000 - totalFreight * 0.12 > 0,
+      },
+      {
+        name: "basis_reversal",
+        description: "区域基差缩窄 0.3 元/kg",
+        netPnL: round(totalNetProfit * 10000 - totalShippedTon * 300, 0),
+        adjustedObjective: round(adjustedObjective - totalShippedTon * 180, 0),
+        stressLoss: round(totalShippedTon * 300, 0),
+        pass: totalNetProfit * 10000 - totalShippedTon * 300 > 0,
+      },
+    ],
+    scoreCard,
+    recommendations: [
+      {
+        headline: "聚焦高置信线路",
+        action: schedulePlan.length > 0 ? `优先执行 ${bestRouteName}` : "暂缓大规模跨区发运",
+        rationale: "当前收益分布呈头部集中，尾部线路更易被运费波动吞噬。",
+      },
+      {
+        headline: "联动时间套利",
+        action: storageOpenedRoutes > 0 ? "保留入储与深加工联动能力" : "关注时间套利窗口再决定是否入储",
+        rationale: "区域价差与时间套利叠加能明显抬升风险调整收益。",
+      },
+    ],
+    aiInsight: decisionOverview,
+  };
 
   return {
     routes,
@@ -889,6 +1054,16 @@ export function calculateSpatialArbitrage(
     averageSpread: avSpread,
     nodes: GEO_NODES,
     aiDecisionOverview: decisionOverview,
+    analytics: {
+      totalBasisPnL,
+      executionPenalty: penaltyBreakdown.executionPenalty,
+      riskPenalty: penaltyBreakdown.riskPenalty,
+      capitalPenalty: penaltyBreakdown.capitalPenalty,
+      adjustedObjective,
+      scoreCard,
+      constraints,
+      unifiedResult,
+    },
   };
 }
 

@@ -891,6 +891,17 @@ export const appRouter = router({
           hedgeRatio: z.number(),
           marginRate: z.number(),
           contractSize: z.number(),
+          holdingDays: z.number().int().min(1).max(365).optional().default(90),
+          storageCostPerTonDay: z.number().min(0).max(50).optional().default(1.1),
+          financingRatePct: z.number().min(0).max(30).optional().default(4.2),
+          transactionCostPerTon: z.number().min(0).max(500).optional().default(18),
+          slippagePerKg: z.number().min(0).max(2).optional().default(0.03),
+          deliveryCostPerTon: z.number().min(0).max(1000).optional().default(35),
+          expectedBasisConvergence: z.number().min(-5).max(5).optional().default(0),
+          maxCapital: z.number().min(1).max(1_000_000_000).optional(),
+          maxMarginUsage: z.number().min(1).max(1_000_000_000).optional(),
+          optimizationTarget: z.enum(["net_profit_max", "risk_adjusted_return_max", "capital_efficiency_max"]).optional().default("risk_adjusted_return_max"),
+          riskProfile: z.enum(["conservative", "balanced", "aggressive"]).optional().default("balanced"),
         })
       )
       .query(({ input }) => {

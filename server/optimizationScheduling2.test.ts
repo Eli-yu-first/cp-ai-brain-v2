@@ -1,6 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { solveOptimization, generateAIDecision } from "./optimizationScheduling2";
-import { sampleOptimizationInput } from "../shared/optimizationScheduling2";
+import { solveOptimization, generateAIDecision, generateEnhancedOptimization, generateEnhancedAIDecision } from "./globalOptimization";
+import { sampleOptimizationInput } from "../shared/globalOptimization";
+import {
+  excelCostRows,
+  excelDailySlaughterRows,
+  excelFactories,
+  excelFreshCapacityRows,
+  excelOptimizationMetadata,
+  excelPartCoefficients,
+  excelPriceCoefficients,
+  excelRawPartOrders,
+  excelStandardFees,
+  excelTransportFeeRows,
+} from "../shared/excelOptimizationData";
 
 describe("solveOptimization", () => {
   it("should return valid output structure with sample data", () => {
@@ -11,6 +23,53 @@ describe("solveOptimization", () => {
     expect(result).toHaveProperty("salesTable");
     expect(result).toHaveProperty("splittingTable");
     expect(result).toHaveProperty("summary");
+  });
+
+  it("uses the real Excel workbook data as the optimization input", () => {
+    expect(sampleOptimizationInput.slaughterSchedule).toHaveLength(excelOptimizationMetadata.rowCounts.monthlySlaughterRows);
+    expect(sampleOptimizationInput.yieldRates).toHaveLength(excelOptimizationMetadata.rowCounts.yieldRateRows);
+    expect(sampleOptimizationInput.slaughterCapacity).toHaveLength(excelOptimizationMetadata.rowCounts.slaughterCapacityRows);
+    expect(sampleOptimizationInput.splitCapacity).toHaveLength(excelOptimizationMetadata.rowCounts.splitCapacityRows);
+    expect(sampleOptimizationInput.splitCosts).toHaveLength(excelOptimizationMetadata.rowCounts.costRows);
+    expect(sampleOptimizationInput.warehouses).toHaveLength(excelOptimizationMetadata.rowCounts.warehouseRows);
+    expect(sampleOptimizationInput.partOrders).toHaveLength(excelOptimizationMetadata.rowCounts.partOrderRows);
+    expect(sampleOptimizationInput.deepProcessDemand).toHaveLength(excelOptimizationMetadata.rowCounts.deepProcessDemandRows);
+    expect(sampleOptimizationInput.transportCosts).toHaveLength(excelOptimizationMetadata.rowCounts.transportCostRows);
+  });
+
+  it("keeps every Excel source table covered by generated data arrays", () => {
+    expect(excelDailySlaughterRows).toHaveLength(excelOptimizationMetadata.rowCounts.dailySlaughterRows);
+    expect(excelFactories).toHaveLength(excelOptimizationMetadata.rowCounts.factoryRows);
+    expect(excelFreshCapacityRows).toHaveLength(excelOptimizationMetadata.rowCounts.freshCapacityRows);
+    expect(excelCostRows).toHaveLength(excelOptimizationMetadata.rowCounts.costRows);
+    expect(excelRawPartOrders).toHaveLength(excelOptimizationMetadata.rowCounts.partOrderRows);
+    expect(excelTransportFeeRows).toHaveLength(excelOptimizationMetadata.rowCounts.transportFeeRows);
+    expect(excelPartCoefficients).toHaveLength(excelOptimizationMetadata.rowCounts.partCoefficientRows);
+    expect(excelPriceCoefficients).toHaveLength(excelOptimizationMetadata.rowCounts.priceCoefficientRows);
+    expect(excelStandardFees).toHaveLength(excelOptimizationMetadata.rowCounts.standardFeeRows);
+  });
+
+  it("preserves Excel-only fields that are not part of the solver contract", () => {
+    expect(excelDailySlaughterRows[0]).toEqual(expect.objectContaining({
+      excelSerialDate: expect.any(Number),
+      websitePrice: expect.any(Number),
+      futuresPrice: expect.any(Number),
+    }));
+    expect(excelCostRows[0]).toEqual(expect.objectContaining({
+      slaughterCostPerKg: expect.any(Number),
+      costCoefficient: expect.any(Number),
+      materialCategory: expect.any(String),
+    }));
+    expect(excelRawPartOrders[0]).toEqual(expect.objectContaining({
+      excelSerialDate: expect.any(Number),
+      freshPriceCoefficient: expect.any(Number),
+      livePigPrice: expect.any(Number),
+    }));
+    expect(excelFactories[0]).toEqual(expect.objectContaining({
+      ownershipType: expect.any(String),
+      system: expect.any(String),
+      managementFeePerHead: expect.any(Number),
+    }));
   });
 
   it("should produce non-empty profit table", () => {
@@ -58,7 +117,7 @@ describe("solveOptimization", () => {
   it("should have consistent profit calculation in profit table", () => {
     const result = solveOptimization(sampleOptimizationInput);
     for (const row of result.profitTable) {
-      const expectedProfit = row.revenue - row.pigCost - row.storageCost - row.transportCost;
+      const expectedProfit = row.revenue - row.pigCost - row.storageCost - row.transportCost - row.processingCost;
       expect(Math.abs(row.profit - expectedProfit)).toBeLessThan(0.02);
     }
   });
@@ -79,6 +138,7 @@ describe("solveOptimization", () => {
       yieldRates: [],
       slaughterCapacity: [],
       splitCapacity: [],
+      splitCosts: [],
       warehouses: [],
       pigOrders: [],
       partOrders: [],

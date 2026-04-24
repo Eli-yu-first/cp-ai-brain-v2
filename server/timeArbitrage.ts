@@ -1,4 +1,13 @@
 import {
+  buildConstraintCheck,
+  buildPenaltyConfig,
+  calculatePenaltyBreakdown,
+  calculateScoreCard,
+  type PenaltyConfig,
+  type RiskProfile,
+  type UnifiedStrategyResult,
+} from "./arbitrageShared";
+import {
   calculateCostOfCarryFairPrice,
   calculateRiskAdjustedHoldingReturn,
 } from "./porkIndustryModel";
@@ -75,7 +84,27 @@ export type TimeArbitrageResult = {
     monthlyAllocations: TimeOptimizationAllocation[];
     summary: TimeOptimizationSummary;
   };
+  analytics: {
+    grossProfit: number;
+    financingCost: number;
+    rollCost: number;
+    capitalOccupancyCost: number;
+    adjustedNetProfit: number;
+    annualizedReturnPct: number;
+    unitCapitalReturnPct: number;
+    carryCoverageRatio: number;
+    stressLoss: number;
+    penalties: {
+      riskPenalty: number;
+      capitalPenalty: number;
+      executionPenalty: number;
+    };
+    scoreCard: UnifiedStrategyResult["scoreCard"];
+    constraints: UnifiedStrategyResult["constraints"];
+    unifiedResult: UnifiedStrategyResult;
+  };
 };
+
 
 export type ArbitrageContext = {
   result: TimeArbitrageResult;
@@ -495,6 +524,144 @@ export function calculateArbitrage(
     optimization,
   });
 
+  const financingCost = round(spotPrice * storageTons * 1000 * 0.042 * (duration * 30 / 365), 0);
+  const rollCost = round(storageTons * 18 * Math.max(0, duration - 1), 0);
+  const capitalOccupancyCost = round(storageTons * spotPrice * 1000 * 0.006 * duration, 0);
+  const grossProfit = round(maxTotalProfit * 10000, 0);
+  const peakInventory = Math.max(...optimizationPlan.monthlyAllocations.map((item) => item.storageTons), 0);
+  const penaltyConfig = buildPenaltyConfig("balanced");
+  const stressLoss = round(Math.max(0, grossProfit * 0.18 + financingCost * 0.4 + capitalOccupancyCost * 0.35), 0);
+  const penaltyBreakdown = calculatePenaltyBreakdown({
+    volatilityRisk: Math.abs(maxProfit) * storageTons * 90,
+    basisRisk: Math.abs((futurePriceCurve[futurePriceCurve.length - 1] ?? spotPrice) - socialBreakevenCost) * storageTons * 55,
+    spreadRisk: Math.abs((futurePriceCurve[0] ?? spotPrice) - (futurePriceCurve[futurePriceCurve.length - 1] ?? spotPrice)) * storageTons * 45,
+    maxDrawdownProxy: Math.abs(maxTotalProfit * 10000) * 0.2,
+    stressLoss,
+    marginUsed: 0,
+    peakCapitalOccupied: spotPrice * storageTons * 1000 + capitalOccupancyCost,
+    leverageRatio: (spotPrice * storageTons * 1000 + capitalOccupancyCost) / Math.max(spotPrice * storageTons * 1000, 1),
+    liquidityRisk: storageTons * 4,
+    executionComplexity: optimizationPlan.summary.constrainedBy.length * 8 + duration * 2,
+    config: penaltyConfig,
+  });
+
+  const constraints = [
+    buildConstraintCheck("storage_capacity", peakInventory, optimizationPlan.summary.recommendedStorageTons * 1.05 || storageTons, penaltyConfig.executionPenaltyWeight),
+    buildConstraintCheck("service_level", 100 - optimizationPlan.summary.serviceLevel, 15, penaltyConfig.executionPenaltyWeight),
+    buildConstraintCheck("average_utilization", optimizationPlan.summary.averageUtilization, 92, penaltyConfig.executionPenaltyWeight * 1.2),
+  ];
+
+  const adjustedNetProfit = round(
+    grossProfit - financingCost - rollCost - capitalOccupancyCost - penaltyBreakdown.riskPenalty - penaltyBreakdown.capitalPenalty - penaltyBreakdown.executionPenalty,
+    0,
+  );
+  const annualizedReturnPct = round((adjustedNetProfit / Math.max(spotPrice * storageTons * 1000, 1)) * (365 / Math.max(duration * 30, 1)) * 100, 2);
+  const unitCapitalReturnPct = round((adjustedNetProfit / Math.max(spotPrice * storageTons * 1000, 1)) * 100, 2);
+  const carryCoverageRatio = round(grossProfit / Math.max(financingCost + capitalOccupancyCost + rollCost, 1), 2);
+  const scoreCard = calculateScoreCard({
+    netPnL: grossProfit - financingCost - rollCost - capitalOccupancyCost,
+    adjustedObjective: adjustedNetProfit,
+    stressLoss,
+    hedgeEffectiveness: Math.max(0, Math.min(1, (optimizationPlan.summary.serviceLevel / 100) * 0.65 + (carryCoverageRatio > 1 ? 0.25 : 0.1))),
+    returnOnCapital: unitCapitalReturnPct,
+    returnOnMargin: annualizedReturnPct,
+    executionPenalty: penaltyBreakdown.executionPenalty + constraints.reduce((sum, item) => sum + item.penaltyContribution, 0),
+    riskPenalty: penaltyBreakdown.riskPenalty,
+  });
+
+  const unifiedResult: UnifiedStrategyResult = {
+    strategyType: "time_arbitrage",
+    strategyName: "时间（跨期）套利",
+    summary: {
+      recommendedAction: maxProfit > 0 ? `在 ${maxProfitMonth} 月择机释放库存` : "暂缓入储并等待更优期限结构",
+      headline: maxProfit > 0 ? "跨期窗口存在正向持有收益" : "当前持有成本不足以支撑跨期套利",
+      keyDriver: maxProfit > 0 ? "期限结构抬升与窗口释放" : "持有成本偏高",
+    },
+    pnl: {
+      grossPnL: grossProfit,
+      spotPnL: grossProfit,
+      futuresPnL: 0,
+      basisPnL: 0,
+      spreadPnL: round(maxProfit * storageTons * 1000, 0),
+      transportPnL: 0,
+      processingPnL: 0,
+      marginCost: 0,
+      financingCost,
+      storageCost: optimizationPlan.summary.totalOperatingCost,
+      slippageCost: 0,
+      transactionCost: rollCost,
+      otherCost: capitalOccupancyCost,
+      netPnL: round(grossProfit - financingCost - rollCost - capitalOccupancyCost, 0),
+      riskPenalty: penaltyBreakdown.riskPenalty,
+      capitalPenalty: penaltyBreakdown.capitalPenalty,
+      executionPenalty: penaltyBreakdown.executionPenalty,
+      adjustedObjective: adjustedNetProfit,
+    },
+    riskMetrics: {
+      priceRisk: round(Math.abs(maxProfit) * storageTons * 90, 0),
+      basisRisk: round(Math.abs((futurePriceCurve[futurePriceCurve.length - 1] ?? spotPrice) - socialBreakevenCost) * storageTons * 55, 0),
+      spreadRisk: round(Math.abs((futurePriceCurve[0] ?? spotPrice) - (futurePriceCurve[futurePriceCurve.length - 1] ?? spotPrice)) * storageTons * 45, 0),
+      volatilityRisk: round(Math.abs(maxProfit) * storageTons * 90, 0),
+      var95: round(stressLoss * 0.75, 0),
+      cvar95: round(stressLoss, 0),
+      maxDrawdownProxy: round(grossProfit * 0.2, 0),
+      stressLoss,
+      hedgeEffectiveness: round(Math.max(0, Math.min(100, optimizationPlan.summary.serviceLevel * 0.9)), 2),
+      confidenceScore: round(Math.max(0, 100 - optimizationPlan.summary.averageUtilization * 0.4), 2),
+    },
+    capitalMetrics: {
+      initialCapitalUsed: round(spotPrice * storageTons * 1000, 0),
+      marginUsed: 0,
+      peakCapitalOccupied: round(spotPrice * storageTons * 1000 + capitalOccupancyCost, 0),
+      capitalTurnoverDays: duration * 30,
+      returnOnCapital: unitCapitalReturnPct,
+      returnOnMargin: annualizedReturnPct,
+      leverageRatio: 1,
+    },
+    constraints,
+    sensitivities: profits.map((item) => ({
+      scenario: `${item.month}月`,
+      netPnL: round(item.totalProfit * 10000, 0),
+      adjustedObjective: round(item.totalProfit * 10000 - financingCost / Math.max(duration, 1), 0),
+      metricA: item.priceGap,
+      metricB: item.holdingCost,
+    })),
+    stressTests: [
+      {
+        name: "carry_up",
+        description: "持有成本上调 15%",
+        netPnL: round(grossProfit - financingCost * 1.15 - capitalOccupancyCost - rollCost, 0),
+        adjustedObjective: round(adjustedNetProfit - financingCost * 0.15, 0),
+        stressLoss: round(financingCost * 0.15, 0),
+        pass: grossProfit - financingCost * 1.15 - capitalOccupancyCost - rollCost > 0,
+      },
+      {
+        name: "curve_flattening",
+        description: "远月价格曲线下移 0.4 元/kg",
+        netPnL: round(grossProfit - storageTons * 400 - financingCost - capitalOccupancyCost - rollCost, 0),
+        adjustedObjective: round(adjustedNetProfit - storageTons * 220, 0),
+        stressLoss: round(storageTons * 400, 0),
+        pass: grossProfit - storageTons * 400 - financingCost - capitalOccupancyCost - rollCost > 0,
+      },
+    ],
+    scoreCard,
+    recommendations: [
+      {
+        headline: "控制持有周期",
+        action: "优先围绕利润峰值月前后 1-2 个月动态释放",
+        rationale: "当前策略对持有成本和曲线走平较敏感。",
+      },
+      {
+        headline: "缓解瓶颈环节",
+        action: `优先优化 ${optimizationPlan.summary.constrainedBy[0] ?? "storage"} 相关能力`,
+        rationale: "平均利用率和服务水平已成为风险调整收益的重要约束。",
+      },
+    ],
+    aiInsight: maxProfit > 0
+      ? `当前跨期结构支持入储至 ${maxProfitMonth} 月附近释放，风险调整后目标值 ${adjustedNetProfit.toLocaleString()} 元。`
+      : "当前期限结构不足以覆盖持有与执行成本，建议等待远月升水扩大。",
+  };
+
   return {
     currentSpotPrice: spotPrice,
     socialBreakevenCost,
@@ -524,6 +691,21 @@ export function calculateArbitrage(
     historySocialCostLine,
     historyProfitSpace,
     optimizationPlan,
+    analytics: {
+      grossProfit,
+      financingCost,
+      rollCost,
+      capitalOccupancyCost,
+      adjustedNetProfit,
+      annualizedReturnPct,
+      unitCapitalReturnPct,
+      carryCoverageRatio,
+      stressLoss,
+      penalties: penaltyBreakdown,
+      scoreCard,
+      constraints,
+      unifiedResult,
+    },
   };
 }
 

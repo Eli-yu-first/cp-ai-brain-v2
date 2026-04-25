@@ -101,6 +101,78 @@ describe("AI decision navigation registration", () => {
     expect(language).toContain('en: "AI Value Chain"');
   });
 
+  it("registers the AI dispatch execution page route and nav entry", () => {
+    const app = readProjectFile("client/src/App.tsx");
+    const shell = readProjectFile(
+      "client/src/components/platform/PlatformShell.tsx"
+    );
+    const language = readProjectFile("client/src/contexts/LanguageContext.tsx");
+
+    expect(app).toContain(
+      'import AiDispatchExecutionPage from "./pages/AiDispatchExecution";'
+    );
+    expect(app).toContain('id: "ai-dispatch-execution"');
+    expect(app).toContain('href: "/ai-dispatch-execution"');
+    expect(app).toContain("Component: AiDispatchExecutionPage");
+    expectNavigationItem(shell, {
+      id: "ai-dispatch-execution",
+      label: "nav.aiDispatchExecution",
+      href: "/ai-dispatch-execution",
+      shortLabel: "DX",
+    });
+    expect(language).toContain("aiDispatchExecution: {");
+    expect(language).toContain('zh: "AI 派单执行"');
+    expect(language).toContain('en: "AI Dispatch"');
+  });
+
+  it("registers the AI strategy simulation page route and nav entry", () => {
+    const app = readProjectFile("client/src/App.tsx");
+    const shell = readProjectFile(
+      "client/src/components/platform/PlatformShell.tsx"
+    );
+    const language = readProjectFile("client/src/contexts/LanguageContext.tsx");
+
+    expect(app).toContain(
+      'import AiStrategySimulationPage from "./pages/AiStrategySimulation";'
+    );
+    expect(app).toContain('id: "ai-strategy-simulation"');
+    expect(app).toContain('href: "/ai-strategy-simulation"');
+    expect(app).toContain("Component: AiStrategySimulationPage");
+    expectNavigationItem(shell, {
+      id: "ai-strategy-simulation",
+      label: "nav.aiStrategySimulation",
+      href: "/ai-strategy-simulation",
+      shortLabel: "WF",
+    });
+    expect(language).toContain("aiStrategySimulation: {");
+    expect(language).toContain('zh: "AI 战略模拟"');
+    expect(language).toContain('en: "AI What-if"');
+  });
+
+  it("registers the AI governance closure page route and nav entry", () => {
+    const app = readProjectFile("client/src/App.tsx");
+    const shell = readProjectFile(
+      "client/src/components/platform/PlatformShell.tsx"
+    );
+    const language = readProjectFile("client/src/contexts/LanguageContext.tsx");
+
+    expect(app).toContain(
+      'import AiGovernanceClosurePage from "./pages/AiGovernanceClosure";'
+    );
+    expect(app).toContain('id: "ai-governance-closure"');
+    expect(app).toContain('href: "/ai-governance-closure"');
+    expect(app).toContain("Component: AiGovernanceClosurePage");
+    expectNavigationItem(shell, {
+      id: "ai-governance-closure",
+      label: "nav.aiGovernanceClosure",
+      href: "/ai-governance-closure",
+      shortLabel: "GV",
+    });
+    expect(language).toContain("aiGovernanceClosure: {");
+    expect(language).toContain('zh: "AI 闭环治理"');
+    expect(language).toContain('en: "AI Governance"');
+  });
+
   it("defines multilingual nav.ai translations", () => {
     const content = readProjectFile("client/src/contexts/LanguageContext.tsx");
 

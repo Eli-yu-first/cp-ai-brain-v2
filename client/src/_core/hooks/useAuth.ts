@@ -41,11 +41,24 @@ export function useAuth(options?: UseAuthOptions) {
     }
   }, [logoutMutation, utils]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const user = meQuery.data
+        ? {
+            id: meQuery.data.id,
+            name: meQuery.data.name,
+            role: meQuery.data.role,
+            loginMethod: meQuery.data.loginMethod,
+          }
+        : null;
+      window.localStorage.setItem("manus-runtime-user-info", JSON.stringify(user));
+    } catch {
+      // localStorage can be unavailable in private browsing or locked-down webviews.
+    }
+  }, [meQuery.data]);
+
   const state = useMemo(() => {
-    localStorage.setItem(
-      "manus-runtime-user-info",
-      JSON.stringify(meQuery.data)
-    );
     return {
       user: meQuery.data ?? null,
       loading: meQuery.isLoading || logoutMutation.isPending,

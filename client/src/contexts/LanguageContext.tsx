@@ -150,6 +150,24 @@ const translations: TranslationBranch = {
       ja: "AI価値連鎖",
       th: "ห่วงโซ่มูลค่า AI",
     },
+    aiDispatchExecution: {
+      zh: "AI 派单执行",
+      en: "AI Dispatch",
+      ja: "AI派遣実行",
+      th: "การมอบหมาย AI",
+    },
+    aiStrategySimulation: {
+      zh: "AI 战略模拟",
+      en: "AI What-if",
+      ja: "AI戦略シミュレーション",
+      th: "จำลองกลยุทธ์ AI",
+    },
+    aiGovernanceClosure: {
+      zh: "AI 闭环治理",
+      en: "AI Governance",
+      ja: "AI閉ループ統治",
+      th: "ธรรมาภิบาล AI",
+    },
     audit: {
       zh: "审计日志",
       en: "Audit Log",

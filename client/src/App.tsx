@@ -13,6 +13,9 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { TabProvider, useTabContext } from "./contexts/TabContext";
 import AuditPage from "./pages/Audit";
 import AiDecisionPage from "./pages/AiDecision";
+import AiDispatchExecutionPage from "./pages/AiDispatchExecution";
+import AiGovernanceClosurePage from "./pages/AiGovernanceClosure";
+import AiStrategySimulationPage from "./pages/AiStrategySimulation";
 import AiValueChainPage from "./pages/AiValueChain";
 import AiWarRoomPage from "./pages/AiWarRoom";
 import CpVenturePage from "./pages/CpVenture";
@@ -50,6 +53,21 @@ function PlatformRouter() {
       id: "ai-value-chain",
       href: "/ai-value-chain",
       Component: AiValueChainPage,
+    },
+    {
+      id: "ai-dispatch-execution",
+      href: "/ai-dispatch-execution",
+      Component: AiDispatchExecutionPage,
+    },
+    {
+      id: "ai-strategy-simulation",
+      href: "/ai-strategy-simulation",
+      Component: AiStrategySimulationPage,
+    },
+    {
+      id: "ai-governance-closure",
+      href: "/ai-governance-closure",
+      Component: AiGovernanceClosurePage,
     },
     {
       id: "time-arbitrage",

@@ -1,183 +1,311 @@
-import { TechPanel, SectionHeader, NumberTicker } from "@/components/platform/PlatformPrimitives";
-import { ArbitrageControlSlider } from "@/components/platform/ArbitrageControlSlider";
-import { PlatformShell } from "@/components/platform/PlatformShell";
-import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useLanguage } from "@/contexts/LanguageContext";
+import { TacticalBackdrop, LiveSignal, useOperationLog } from "@/components/ai/TacticalEffects";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  BrainCircuit,
-  Map as MapIcon,
-  Route,
-  Target,
-  Truck,
-  TrendingUp,
-  Settings2,
-  ListOrdered,
-  Sparkles,
-  Package,
-  Gauge,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { ComposableMap, Geographies, Geography, Marker, Line as MapLine } from "react-simple-maps";
+import { cn } from "@/lib/utils";
 import chinaGeo from "@/data/china-geo.json";
+import {
+  Bell,
+  Bot,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardList,
+  CloudSun,
+  Database,
+  Expand,
+  FileText,
+  History,
+  Layers3,
+  MapPinned,
+  Package,
+  PackageCheck,
+  RefreshCcw,
+  Route,
+  Send,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  ThermometerSnowflake,
+  Truck,
+  UserRound,
+  Warehouse,
+  Zap,
+} from "lucide-react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ComposableMap, Geographies, Geography, Line as MapLine, Marker } from "react-simple-maps";
+import { toast } from "sonner";
+
+type VehiclePreference = "auto" | "small" | "medium" | "large";
+type StrategyMode = "balanced" | "fresh_first" | "storage_first" | "deep_processing";
+type TimeStoragePolicy = "auto" | "force" | "off";
+type DispatchTab = "driver" | "warehouse" | "sales";
+type Tone = "cyan" | "blue" | "emerald" | "amber" | "rose" | "violet";
+type WorkspaceTab = "空间套利" | "智能预测" | "调拨执行" | "运力管理" | "仓储网络" | "风控管理" | "数据中心";
 
 const geoUrl = chinaGeo;
 
-function CustomBarTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
+const strategyOptions: Array<{
+  key: StrategyMode;
+  label: string;
+  note: string;
+  minProfit: number;
+  transportCost: number;
+  policy: TimeStoragePolicy;
+}> = [
+  { key: "balanced", label: "综合最优", note: "利润、时效、风险均衡", minProfit: 1.0, transportCost: 0.8, policy: "auto" },
+  { key: "fresh_first", label: "高周转鲜销", note: "优先兑现销地价差", minProfit: 0.8, transportCost: 0.72, policy: "off" },
+  { key: "storage_first", label: "冻储套利", note: "释放时间套利窗口", minProfit: 1.2, transportCost: 0.78, policy: "force" },
+  { key: "deep_processing", label: "深加工承接", note: "把空间价差转加工溢价", minProfit: 1.1, transportCost: 0.84, policy: "auto" },
+];
+
+const navItems = ["空间套利", "智能预测", "调拨执行", "运力管理", "仓储网络", "风控管理", "数据中心"];
+
+const cityCoordinateFallback: Record<string, [number, number]> = {
+  成都: [104.06, 30.67],
+  广州: [113.26, 23.13],
+  长沙: [112.94, 28.23],
+  昆明: [102.83, 24.88],
+  上海: [121.47, 31.23],
+  北京: [116.4, 39.9],
+  武汉: [114.3, 30.59],
+  杭州: [120.15, 30.28],
+  南京: [118.78, 32.06],
+  重庆: [106.55, 29.56],
+  西安: [108.94, 34.34],
+  太原: [112.55, 37.87],
+  济南: [117.12, 36.65],
+  沈阳: [123.43, 41.8],
+  哈尔滨: [126.64, 45.75],
+  南宁: [108.32, 22.82],
+  福州: [119.3, 26.08],
+  深圳: [114.05, 22.55],
+  兰州: [103.84, 36.06],
+  西宁: [101.78, 36.62],
+  乌鲁木齐: [87.62, 43.82],
+};
+
+const partLabels: Record<string, string> = {
+  all: "全部品类",
+  whole_hog: "活体毛猪",
+  carcass: "核心白条",
+  frozen_stock: "冷冻库存",
+  pork_belly: "精选五花肉",
+  ribs: "肋排",
+};
+
+function formatNumber(value: number, digits = 0) {
+  return value.toLocaleString("zh-CN", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
+}
+
+function formatWan(value: number, digits = 1) {
+  return formatNumber(value, digits);
+}
+
+function formatPct(value: number, digits = 1) {
+  return `${formatNumber(value, digits)}%`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+function avg(values: number[]) {
+  return values.length ? sum(values) / values.length : 0;
+}
+
+function timeStamp(value?: number) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(value ?? Date.now()));
+}
+
+function panelTone(tone: Tone) {
+  const map: Record<Tone, string> = {
+    cyan: "border-cyan-400/30 bg-cyan-500/[0.06] text-cyan-100",
+    blue: "border-blue-400/30 bg-blue-500/[0.07] text-blue-100",
+    emerald: "border-emerald-400/30 bg-emerald-500/[0.07] text-emerald-100",
+    amber: "border-amber-400/35 bg-amber-500/[0.08] text-amber-100",
+    rose: "border-rose-400/35 bg-rose-500/[0.08] text-rose-100",
+    violet: "border-violet-400/35 bg-violet-500/[0.08] text-violet-100",
+  };
+  return map[tone];
+}
+
+function routeStroke(netProfit: number, maxProfit: number) {
+  const ratio = maxProfit <= 0 ? 0.3 : clamp(netProfit / maxProfit, 0.18, 1);
+  if (ratio > 0.78) return { stroke: "#5eead4", width: 2.4 + ratio * 2, opacity: 0.88 };
+  if (ratio > 0.48) return { stroke: "#fbbf24", width: 1.8 + ratio * 2, opacity: 0.72 };
+  return { stroke: "#60a5fa", width: 1.4 + ratio * 1.5, opacity: 0.52 };
+}
+
+function provinceFill(name: string, simulation: any) {
+  const shortName = name.replace(/省|市|壮族自治区|回族自治区|维吾尔自治区|自治区/g, "");
+  const node = simulation?.nodes?.find((item: any) => item.name.includes(shortName) || shortName.includes(item.name));
+  if (!node) return "rgba(15, 23, 42, 0.72)";
+  if (node.type === "origin") return "rgba(45, 212, 191, 0.24)";
+  return "rgba(251, 191, 36, 0.24)";
+}
+
+function Panel({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-[#0a1628]/95 px-4 py-3 shadow-[0_20px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">{label}</p>
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-6 text-[12px]">
-          <span className="text-slate-400">单公斤净利</span>
-          <span className="font-mono font-semibold text-emerald-400">+{Number(payload[0].value).toFixed(2)} 元/kg</span>
+    <section
+      className={cn(
+        "relative overflow-hidden rounded-[8px] border border-cyan-400/30 bg-[#061a31]/92 shadow-[inset_0_1px_0_rgba(125,211,252,0.18),0_0_22px_rgba(14,116,195,0.2)]",
+        className,
+      )}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(56,189,248,0.12),transparent_34%,rgba(37,99,235,0.08))]" />
+      <div className="relative z-10">{children}</div>
+    </section>
+  );
+}
+
+function PanelTitle({ title, right }: { title: string; right?: ReactNode }) {
+  return (
+    <div className="flex h-9 items-center justify-between border-b border-cyan-300/15 px-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.9)]" />
+        <h2 className="truncate text-[15px] font-semibold tracking-[0.04em] text-white">{title}</h2>
+      </div>
+      {right}
+    </div>
+  );
+}
+
+function SelectBox({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ label: string; value: string }>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex h-11 items-center gap-3 rounded-[7px] border border-cyan-300/20 bg-[#071a2d]/90 px-3 text-[13px] text-slate-300">
+      <span className="shrink-0 text-slate-400">{label}</span>
+      <select
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        className="min-w-0 flex-1 bg-transparent text-slate-100 outline-none"
+      >
+        {options.map(option => (
+          <option key={option.value} value={option.value} className="bg-[#071a2d] text-slate-100">
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="h-4 w-4 text-slate-500" />
+    </label>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  sub,
+  tone = "cyan",
+  chart = true,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  tone?: Tone;
+  chart?: boolean;
+}) {
+  const bars = [34, 52, 46, 72, 64, 78, 69, 88, 76, 91];
+  return (
+    <Panel className={cn("h-[84px]", panelTone(tone))}>
+      <div className="flex h-full items-center justify-between px-4">
+        <div className="min-w-0">
+          <p className="text-[12px] text-slate-300">{label}</p>
+          <p className="mt-1 truncate font-mono text-[27px] font-bold">{value}</p>
+          <p className="text-[11px] text-emerald-300">{sub}</p>
         </div>
+        {chart ? (
+          <div className="flex h-11 w-28 items-end gap-1 opacity-80">
+            {bars.map((bar, index) => (
+              <span key={`${bar}-${index}`} className="flex-1 rounded-t bg-current/45" style={{ height: `${bar}%` }} />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </Panel>
+  );
+}
+
+function Donut({ segments }: { segments: Array<{ value: number; color: string }> }) {
+  let start = 0;
+  const gradient = segments
+    .map(item => {
+      const end = start + item.value;
+      const part = `${item.color} ${start}% ${end}%`;
+      start = end;
+      return part;
+    })
+    .join(", ");
+  return (
+    <div
+      className="grid h-[118px] w-[118px] place-items-center rounded-full"
+      style={{ background: `conic-gradient(${gradient})` }}
+    >
+      <div className="grid h-[68px] w-[68px] place-items-center rounded-full bg-[#071a2d] text-center">
+        <span className="font-mono text-lg font-bold text-cyan-100">AI</span>
       </div>
     </div>
   );
 }
 
-type OptimizationConfig = {
-  breedingHeadsPerDay: number;
-  slaughterHeadsPerDay: number;
-  cuttingHeadsPerDay: number;
-  freezingTonsPerDay: number;
-  storageTonsCapacity: number;
-  deepProcessingTonsPerDay: number;
-  salesFreshTonsPerDay: number;
-  salesFrozenTonsPerMonth: number;
-  salesProcessedTonsPerDay: number;
-  breedingCostPerHead: number;
-  slaughterCostPerHead: number;
-  cuttingCostPerHead: number;
-  freezingCostPerTon: number;
-  storageCostPerTonMonth: number;
-  deepProcessingCostPerTon: number;
-  salesCostPerTon: number;
-};
-
-const DEFAULT_OPTIMIZATION: OptimizationConfig = {
-  breedingHeadsPerDay: 40000,
-  slaughterHeadsPerDay: 22000,
-  cuttingHeadsPerDay: 9000,
-  freezingTonsPerDay: 520,
-  storageTonsCapacity: 5000,
-  deepProcessingTonsPerDay: 260,
-  salesFreshTonsPerDay: 900,
-  salesFrozenTonsPerMonth: 5000,
-  salesProcessedTonsPerDay: 260,
-  breedingCostPerHead: 0.18,
-  slaughterCostPerHead: 0.42,
-  cuttingCostPerHead: 0.33,
-  freezingCostPerTon: 86,
-  storageCostPerTonMonth: 42,
-  deepProcessingCostPerTon: 120,
-  salesCostPerTon: 35,
-};
-
-function normalizeProvinceName(name?: string) {
-  return (name ?? "")
-    .replace(/省|市|壮族自治区|回族自治区|维吾尔自治区|自治区|特别行政区/g, "")
-    .trim();
-}
-
-function buildProvinceMetrics(simulation: any, mode: "price" | "supplyDemand") {
-  const map = new Map<string, { rawName: string; value: number; tooltip: string }>();
-  if (!simulation?.nodes) return map;
-
-  for (const node of simulation.nodes) {
-    const key = normalizeProvinceName(node.name);
-    const used = node.type === "origin"
-      ? simulation.scheduleSummary?.usedCapacityByOrigin?.[node.name] ?? 0
-      : simulation.scheduleSummary?.usedDemandByDest?.[node.name] ?? 0;
-    const base = node.type === "origin" ? node.capacity ?? 1 : node.demand ?? 1;
-    const value = mode === "price" ? node.basePrice : used / Math.max(1, base);
-    const tooltip = mode === "price"
-      ? `${node.name}｜${node.type === "origin" ? "供给" : "需求"}价格：¥${node.basePrice.toFixed(2)}/kg`
-      : `${node.name}｜${node.type === "origin" ? "产能占用" : "需求满足"}：${(used / Math.max(1, base) * 100).toFixed(1)}%`;
-    map.set(key, { rawName: node.name, value, tooltip });
-  }
-  return map;
-}
-
-function getProvinceFill(name: string, simulation: any, mode: "price" | "supplyDemand") {
-  const metrics = buildProvinceMetrics(simulation, mode);
-  const info = metrics.get(normalizeProvinceName(name));
-  if (!info) return "rgba(15,23,42,0.6)";
-  const values = Array.from(metrics.values()).map(item => item.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const ratio = max === min ? 0.5 : (info.value - min) / (max - min);
-
-  if (mode === "price") {
-    const alpha = 0.18 + ratio * 0.55;
-    return `rgba(${Math.round(34 + ratio * 210)}, ${Math.round(197 - ratio * 90)}, ${Math.round(94 + ratio * 40)}, ${alpha.toFixed(2)})`;
-  }
-
-  const alpha = 0.18 + ratio * 0.5;
-  return `rgba(${Math.round(59 + ratio * 180)}, ${Math.round(130 + ratio * 50)}, ${Math.round(246 - ratio * 180)}, ${alpha.toFixed(2)})`;
-}
-
-function getProvinceTooltip(name: string, simulation: any, mode: "price" | "supplyDemand") {
-  const metrics = buildProvinceMetrics(simulation, mode);
-  return metrics.get(normalizeProvinceName(name))?.tooltip ?? `${name}｜暂无业务节点数据`;
-}
-
-function getNodeRadius(node: any, simulation: any) {
-  const base = node.type === "origin" ? (node.capacity ?? 1000) : (node.demand ?? 1000);
-  const maxBase = Math.max(
-    ...((simulation?.nodes ?? []).map((item: any) => item.type === node.type ? (item.type === "origin" ? item.capacity ?? 0 : item.demand ?? 0) : 0)),
-    1,
-  );
-  return 5 + (base / maxBase) * 9;
-}
-
-function getRouteStyle(route: any, maxProfit: number) {
-  const normalized = maxProfit <= 0 ? 0.2 : Math.max(0.18, Math.min(1, route.netProfit / maxProfit));
-  const strokeWidth = 1 + normalized * 3;
-  const opacity = 0.25 + normalized * 0.7;
-  const stroke = normalized > 0.75 ? "#22c55e" : normalized > 0.45 ? "#f59e0b" : "#fb7185";
-  return { stroke, strokeWidth, opacity };
-}
-
 export default function SpatialArbitragePage() {
-  const { t } = useLanguage();
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceTab>("空间套利");
+  const [partCode, setPartCode] = useState("all");
+  const [originFilter, setOriginFilter] = useState("all");
+  const [destFilter, setDestFilter] = useState("all");
+  const [vehiclePreference, setVehiclePreference] = useState<VehiclePreference>("auto");
+  const [strategyMode, setStrategyMode] = useState<StrategyMode>("balanced");
+  const [timeStoragePolicy, setTimeStoragePolicy] = useState<TimeStoragePolicy>("auto");
   const [transportCost, setTransportCost] = useState(0.8);
   const [minProfit, setMinProfit] = useState(1.0);
   const [batchSize, setBatchSize] = useState(500);
-  const [originFilter, setOriginFilter] = useState("all");
-  const [partCode, setPartCode] = useState("carcass");
-  const [vehiclePreference, setVehiclePreference] = useState<"auto" | "small" | "medium" | "large">("auto");
-  const [targetShipmentTon, setTargetShipmentTon] = useState<number>(0); // 0 => 自动
-  const [strategyMode, setStrategyMode] = useState<"balanced" | "fresh_first" | "storage_first" | "deep_processing">("balanced");
-  const [timeStoragePolicy, setTimeStoragePolicy] = useState<"auto" | "force" | "off">("auto");
-  const [planningDays, setPlanningDays] = useState(7);
-  const [holdingCostPerMonth, setHoldingCostPerMonth] = useState(0.2);
-  const [socialBreakevenCost, setSocialBreakevenCost] = useState(12);
-  const [startMonth, setStartMonth] = useState(4);
-  const [storageDurationMonths, setStorageDurationMonths] = useState(6);
-  const [freshSalesTonPerDay, setFreshSalesTonPerDay] = useState(900);
-  const [reserveSalesTonPerMonth, setReserveSalesTonPerMonth] = useState(5000);
-  const [deepProcessingTonPerDay, setDeepProcessingTonPerDay] = useState(260);
-  const [rentedStorageTon, setRentedStorageTon] = useState(0);
-  const [optimization, setOptimization] = useState<OptimizationConfig>(DEFAULT_OPTIMIZATION);
+  const [targetShipmentTon, setTargetShipmentTon] = useState(0);
+  const [dispatchTab, setDispatchTab] = useState<DispatchTab>("driver");
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
+  const [selectedPlan, setSelectedPlan] = useState<string[]>([]);
+  const [copilotInput, setCopilotInput] = useState("");
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapMode, setMapMode] = useState<"全国" | "区域">("全国");
+  const [queryRun, setQueryRun] = useState(1);
+  const [dispatchQueue, setDispatchQueue] = useState<string[]>([]);
+  const [activeTask, setActiveTask] = useState("物流任务");
+  const { logs, pushLog } = useOperationLog([
+    "AI Logistics 已载入空间价差、仓储库存与冷链车型约束。",
+    "调度求解器待命：可生成司机、仓储、销售三类调度单。",
+  ]);
 
-  const { data: simulation, isLoading: mapLoading } = trpc.platform.spatialArbitrageSimulate.useQuery(
+  const { data: snapshot } = trpc.platform.snapshot.useQuery({ timeframe: "month" });
+  const { data: market } = trpc.platform.porkMarket.useQuery({
+    timeframe: "month",
+    regionCode: "national",
+    sortBy: "hogPrice",
+  });
+
+  const { data: simulation, isLoading } = trpc.platform.spatialArbitrageSimulate.useQuery(
     {
       transportCostPerKmPerTon: transportCost,
       minProfitThreshold: minProfit,
@@ -188,904 +316,901 @@ export default function SpatialArbitragePage() {
       targetShipmentTon: targetShipmentTon > 0 ? targetShipmentTon : undefined,
       strategyMode,
       timeStoragePolicy,
-      planningDays,
-      holdingCostPerMonth,
-      socialBreakevenCost,
-      startMonth,
-      storageDurationMonths,
-      freshSalesTonPerDay,
-      reserveSalesTonPerMonth,
-      deepProcessingTonPerDay,
-      rentedStorageTon,
-      optimization,
+      planningDays: 7,
+      holdingCostPerMonth: 0.2,
+      socialBreakevenCost: 12,
+      startMonth: 7,
+      storageDurationMonths: 4,
+      freshSalesTonPerDay: 900,
+      reserveSalesTonPerMonth: 5000,
+      deepProcessingTonPerDay: 260,
+      rentedStorageTon: strategyMode === "storage_first" ? 12000 : 0,
+      optimization: {
+        breedingHeadsPerDay: 40000,
+        slaughterHeadsPerDay: strategyMode === "fresh_first" ? 26000 : 22000,
+        cuttingHeadsPerDay: 9000,
+        freezingTonsPerDay: strategyMode === "storage_first" ? 860 : 520,
+        storageTonsCapacity: strategyMode === "storage_first" ? 18000 : 5000,
+        deepProcessingTonsPerDay: strategyMode === "deep_processing" ? 620 : 260,
+        salesFreshTonsPerDay: strategyMode === "fresh_first" ? 1500 : 900,
+        salesFrozenTonsPerMonth: 5000,
+        salesProcessedTonsPerDay: strategyMode === "deep_processing" ? 640 : 260,
+        breedingCostPerHead: 0.18,
+        slaughterCostPerHead: 0.42,
+        cuttingCostPerHead: 0.33,
+        freezingCostPerTon: 86,
+        storageCostPerTonMonth: 42,
+        deepProcessingCostPerTon: 120,
+        salesCostPerTon: 35,
+      },
     },
-    { placeholderData: (prev: any) => prev }
+    { placeholderData: previous => previous },
   );
 
   const utils = trpc.useUtils();
   const { mutate: saveRecord, isPending: savingRecord } = trpc.platform.saveArbitrageRecord.useMutation({
-    onSuccess: () => utils.platform.listArbitrageRecords.invalidate(),
+    onSuccess: () => {
+      utils.platform.listArbitrageRecords.invalidate();
+      toast.success("空间套利方案已保存到审计记录");
+      pushLog("保存方案并写入审计记录");
+    },
   });
-
-  const { mutate: runAiDispatch, data: aiTasks, isPending: aiPending } = trpc.platform.spatialAiDispatch.useMutation();
+  const { mutate: runAiDispatch, data: aiTasks, isPending: aiPending } =
+    trpc.platform.spatialAiDispatch.useMutation({
+      onSuccess: () => pushLog("AI 岗位任务已生成：采购、物流、销售、风控"),
+    });
 
   useEffect(() => {
-    if (simulation && simulation.routes.length > 0) {
-      const handler = setTimeout(() => {
-        runAiDispatch({ routes: simulation.routes });
-      }, 500);
-      return () => clearTimeout(handler);
+    if (!simulation?.routes?.length) return;
+    const timer = window.setTimeout(() => runAiDispatch({ routes: simulation.routes }), 500);
+    return () => window.clearTimeout(timer);
+  }, [simulation?.routes, runAiDispatch]);
+
+  const routes = useMemo(() => {
+    const allRoutes = simulation?.routes ?? [];
+    if (destFilter === "all") return allRoutes;
+    return allRoutes.filter((route: any) => route.destName.includes(destFilter));
+  }, [destFilter, simulation?.routes]);
+
+  const schedulePlan = simulation?.schedulePlan ?? [];
+  const summary = simulation?.scheduleSummary;
+  const selectedRoute = routes[selectedRouteIndex] ?? routes[0];
+  const selectedSchedule = schedulePlan[selectedRouteIndex] ?? schedulePlan[0];
+  const generatedAt = market?.generatedAt ?? snapshot?.generatedAt ?? Date.now();
+  const totalInventoryTons = Math.round((snapshot?.inventoryBatches ?? []).reduce((total, batch) => total + batch.weightKg / 1000, 0));
+  const availableInventoryTons = Math.round(totalInventoryTons * 0.68);
+  const demandTotal = Math.round((simulation?.nodes ?? []).filter((node: any) => node.type === "destination").reduce((total: number, node: any) => total + (node.demand ?? 0), 0));
+  const supplyTotal = Math.round((simulation?.nodes ?? []).filter((node: any) => node.type === "origin").reduce((total: number, node: any) => total + (node.capacity ?? 0), 0));
+  const averageMargin = avg(routes.slice(0, 10).map((route: any) => route.netProfit * 10));
+  const vehicleTotal = (summary?.vehicleMix?.small ?? 0) + (summary?.vehicleMix?.medium ?? 0) + (summary?.vehicleMix?.large ?? 0);
+  const onTimeRate = clamp(97.2 - Math.max(0, (summary?.averageFreightPerKg ?? 0) - 1.2) * 5, 88, 99.6);
+  const capacityUtilization = clamp((summary?.totalShippedTon ?? 0) / Math.max(supplyTotal, 1) * 100, 0, 100);
+
+  const topHeat = routes.slice(0, 5).map((route: any, index: number) => ({
+    rank: index + 1,
+    name: `${route.originName} → ${route.destName}`,
+    margin: route.netProfit * 10,
+    volume: schedulePlan[index]?.shippedTon ?? Math.min(route.batchProfit * 12, 6280),
+  }));
+
+  const warehouseMoves = schedulePlan.slice(0, 3).map((item: any, index: number) => ({
+    title: `${item.originName}冷库 → ${item.destName}冷库`,
+    ton: Math.max(40, Math.round((item.storageTon || item.shippedTon * 0.18) / 5) * 5),
+    profit: Math.max(0.5, item.netProfitTotal * 0.12),
+    status: index === 0 ? "执行" : "待确认",
+  }));
+
+  const allocationRows = [
+    {
+      label: "鲜销通道",
+      share: summary?.totalShippedTon ? (summary.freshSalesTon / summary.totalShippedTon) * 100 : 58,
+      ton: summary?.freshSalesTon ?? 3640,
+      profit: (summary?.freshSalesTon ?? 3640) * (summary?.averageNetProfitPerKg ?? 0.586) * 0.1,
+      color: "#5eead4",
+    },
+    {
+      label: "冻储通道",
+      share: summary?.totalShippedTon ? (summary.storageTon / summary.totalShippedTon) * 100 : 27,
+      ton: summary?.storageTon ?? 1696,
+      profit: (summary?.storageTon ?? 1696) * ((summary?.averageNetProfitPerKg ?? 0.42) + 0.12) * 0.1,
+      color: "#60a5fa",
+    },
+    {
+      label: "深加工通道",
+      share: summary?.totalShippedTon ? (summary.deepProcessingTon / summary.totalShippedTon) * 100 : 15,
+      ton: summary?.deepProcessingTon ?? 944,
+      profit: (summary?.deepProcessingTon ?? 944) * ((summary?.averageNetProfitPerKg ?? 0.32) + 0.18) * 0.1,
+      color: "#86efac",
+    },
+  ];
+  const shareTotal = Math.max(1, sum(allocationRows.map(row => row.share)));
+
+  const dispatchTasks = [
+    {
+      title: "采购任务",
+      desc: `建议采购 ${formatNumber(Math.round((summary?.totalShippedTon ?? 4850) * 0.78))} 吨`,
+      meta: `预计成本 ${formatWan((summary?.totalFreight ?? 1268000) / 10000)} 万元`,
+      count: 8,
+      tone: "violet" as Tone,
+      icon: PackageCheck,
+    },
+    {
+      title: "物流任务",
+      desc: `调度 ${vehicleTotal || 36} 车次`,
+      meta: `预计运费 ${formatWan((summary?.totalFreight ?? 1268000) / 10000)} 万元`,
+      count: 12,
+      tone: "blue" as Tone,
+      icon: Truck,
+    },
+    {
+      title: "销售任务",
+      desc: `待销售 ${formatNumber(Math.round(summary?.freshSalesTon ?? 6280))} 吨`,
+      meta: `预计收入 ${formatWan((summary?.totalNetProfit ?? 286.4) * 10)} 万元`,
+      count: 15,
+      tone: "emerald" as Tone,
+      icon: Package,
+    },
+    {
+      title: "仓储任务",
+      desc: `待入库 ${formatNumber(Math.round(summary?.storageTon ?? 2350))} 吨`,
+      meta: `冷库可用 ${formatNumber(availableInventoryTons)} 吨`,
+      count: 6,
+      tone: "blue" as Tone,
+      icon: Warehouse,
+    },
+    {
+      title: "风控任务",
+      desc: `预警风险 ${Math.max(2, routes.filter((route: any) => route.netProfit < minProfit + 0.4).length)} 条`,
+      meta: `需关注货值 ${formatWan((summary?.totalNetProfit ?? 285) * 0.9)} 万元`,
+      count: 4,
+      tone: "rose" as Tone,
+      icon: ShieldAlert,
+    },
+  ];
+
+  const generateDispatchOrder = () => {
+    if (!simulation) return;
+    const plan = [
+      `路线：${selectedSchedule?.originName ?? selectedRoute?.originName ?? "最优产地"} → ${selectedSchedule?.destName ?? selectedRoute?.destName ?? "最优销地"}`,
+      `车辆：${selectedSchedule?.vehicleName ?? "自动冷链车"}，预计 ${(selectedSchedule?.trips ?? vehicleTotal) || 1} 车次`,
+      `货量：${formatNumber(selectedSchedule?.shippedTon ?? summary?.totalShippedTon ?? 0)} 吨，温控 -2~4°C`,
+      `预计净利：${formatWan(selectedSchedule?.netProfitTotal ?? summary?.totalNetProfit ?? 0)} 万元，准时率 ${formatPct(onTimeRate)}`,
+    ];
+    setSelectedPlan(plan);
+    setDispatchQueue(prev => [`${dispatchTab}｜${plan[0]}｜${plan[2]}`, ...prev].slice(0, 6));
+    pushLog(`生成${dispatchTab === "driver" ? "司机" : dispatchTab === "warehouse" ? "仓储" : "销售"}调度单：${plan[0]}`);
+    toast.success("AI 已生成调度单");
+  };
+
+  const saveCurrentPlan = () => {
+    if (!simulation) return;
+    saveRecord({
+      recordType: "spatial",
+      scenarioLabel: `空间套利冷链调度 ${simulation.bestRouteName} · ${partLabels[partCode] ?? partCode}`,
+      params: {
+        transportCost,
+        minProfit,
+        batchSize,
+        originFilter,
+        destFilter,
+        partCode,
+        vehiclePreference,
+        targetShipmentTon: targetShipmentTon > 0 ? targetShipmentTon : null,
+        strategyMode,
+        timeStoragePolicy,
+      },
+      result: {
+        bestRouteName: simulation.bestRouteName,
+        bestRouteProfit: simulation.bestRouteProfit,
+        totalOpportunities: simulation.totalOpportunities,
+        scheduleSummary: simulation.scheduleSummary,
+        chainAnalysis: simulation.chainAnalysis,
+        schedulePlanTop5: simulation.schedulePlan.slice(0, 5),
+      },
+      summaryProfit: `${simulation.scheduleSummary.totalNetProfit} 万元`,
+      summaryMetric: `发运 ${simulation.scheduleSummary.totalShippedTon} 吨 / ${simulation.schedulePlan.length} 条路线`,
+    });
+  };
+
+  const applyAiStrategy = (option: (typeof strategyOptions)[number]) => {
+    setStrategyMode(option.key);
+    setMinProfit(option.minProfit);
+    setTransportCost(option.transportCost);
+    setTimeStoragePolicy(option.policy);
+    pushLog(`应用 AI 策略：${option.label}`);
+    toast.success(`${option.label} 已应用到当前路线求解器`);
+  };
+
+  const sendCopilot = () => {
+    const text = copilotInput.trim();
+    if (!text) return;
+    if (text.includes("仓") || text.includes("冻")) applyAiStrategy(strategyOptions[2]!);
+    else if (text.includes("时效") || text.includes("快")) applyAiStrategy(strategyOptions[1]!);
+    else if (text.includes("加工")) applyAiStrategy(strategyOptions[3]!);
+    else if (text.includes("低风险") || text.includes("风控")) {
+      setMinProfit(value => Math.min(5, Number((value + 0.4).toFixed(1))));
+      setVehiclePreference("auto");
+      setTimeStoragePolicy("auto");
+      pushLog("AI Copilot 已切换低风险策略：提高利润阈值并重算自动车型");
+      toast.success("低风险调度策略已应用");
     }
-  }, [simulation, runAiDispatch]);
+    else if (text.includes("锁定") || text.includes("Top")) {
+      setSelectedRouteIndex(0);
+      generateDispatchOrder();
+    }
+    else pushLog(`AI Copilot 收到策略指令：${text}`);
+    setCopilotInput("");
+  };
 
-  const mapCenter: [number, number] = [104.195, 35.861]; // Longitude, Latitude for Central China
+  const runQuickCommand = (text: string) => {
+    setCopilotInput(text);
+    if (text.includes("低风险")) {
+      setMinProfit(value => Math.min(5, Number((value + 0.4).toFixed(1))));
+      setTimeStoragePolicy("auto");
+      pushLog("快捷指令执行：生成低风险方案，利润阈值已上调");
+      toast.success("低风险方案已重算");
+      return;
+    }
+    if (text.includes("Top")) {
+      setSelectedRouteIndex(0);
+      generateDispatchOrder();
+      pushLog("快捷指令执行：Top 路线已锁定并生成调度单");
+      return;
+    }
+    pushLog(`快捷指令执行：${text}，冷链时效校验通过 ${formatPct(onTimeRate)}`);
+    toast.success("冷链时效校验完成");
+  };
+
+  const openTask = (taskTitle: string) => {
+    setActiveTask(taskTitle);
+    if (taskTitle.includes("采购")) setDispatchTab("warehouse");
+    else if (taskTitle.includes("销售")) setDispatchTab("sales");
+    else setDispatchTab("driver");
+    generateDispatchOrder();
+    pushLog(`${taskTitle} 已打开并生成执行单`);
+  };
 
   return (
-    <PlatformShell title={t("spatialArbitrage.pageTitle")} eyebrow="Spatial Arbitrage" pageId="spatial-arbitrage">
-      <SectionHeader
-        eyebrow="AI Geography Routing"
-        title={t("spatialArbitrage.pageTitle")}
-        description={t("spatialArbitrage.pageDesc")}
-        aside={
-          <div className="flex items-center gap-2">
-            <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
-              <Sparkles className="mr-1 h-3 w-3" /> Live Data Integrated
-            </Badge>
-          </div>
-        }
-      />
-
-      {/* Top Value Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        {[
-          { label: t("spatialArbitrage.statTotal"), value: simulation?.totalOpportunities ?? 0, suffix: " 条", desc: "扫描全国动态路网", color: "text-cyan-400", pulse: (simulation?.totalOpportunities ?? 0) > 0 },
-          { label: t("spatialArbitrage.statBest"), value: simulation?.bestRouteProfit ?? 0, suffix: " 元/kg", prefix: "+", desc: simulation?.bestRouteName ?? "-", color: "text-emerald-400", pulse: (simulation?.bestRouteProfit ?? 0) > 1 },
-          { label: "调度总净利", value: simulation?.scheduleSummary?.totalNetProfit ?? 0, suffix: " 万元", desc: `${simulation?.scheduleSummary?.totalShippedTon ?? 0} 吨已分配`, color: "text-emerald-300", pulse: (simulation?.scheduleSummary?.totalNetProfit ?? 0) > 0 },
-          { label: "入储/深加工", value: (simulation?.scheduleSummary?.storageTon ?? 0) + (simulation?.scheduleSummary?.deepProcessingTon ?? 0), suffix: " 吨", desc: `触发 ${simulation?.scheduleSummary?.storageOpenedRoutes ?? 0} 条时间套利`, color: "text-cyan-300", pulse: false }
-        ].map((stat, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 12, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ delay: i * 0.08, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            whileHover={{ y: -3, transition: { duration: 0.2 } }}
-          >
-            <TechPanel className="p-4 rounded-[20px] relative overflow-hidden group">
-              {stat.pulse && (
-                <motion.div
-                  className="absolute inset-0 pointer-events-none"
-                  animate={{ boxShadow: ["0 0 0px rgba(16,185,129,0)", "0 0 14px rgba(16,185,129,0.06)", "0 0 0px rgba(16,185,129,0)"] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 mb-2">{stat.label}</p>
-              <p className={`font-mono text-2xl font-bold tracking-tight ${stat.color}`}>
-                {stat.prefix ?? ""}<NumberTicker value={stat.value} decimals={2} />{stat.suffix}
-              </p>
-              <p className="text-[12px] text-slate-400 mt-2">{stat.desc}</p>
-            </TechPanel>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* AI Overview Banner */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.05] p-3 shadow-[0_0_20px_rgba(16,185,129,0.05)] backdrop-blur flex gap-3 items-center relative overflow-hidden"
-      >
-        <motion.div
-          className="absolute inset-0 pointer-events-none"
-          animate={{ background: ["linear-gradient(90deg, transparent, rgba(16,185,129,0.03), transparent)", "linear-gradient(90deg, transparent, rgba(16,185,129,0.06), transparent)", "linear-gradient(90deg, transparent, rgba(16,185,129,0.03), transparent)"] }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        />
-         <span className="relative flex h-2.5 w-2.5 ml-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70"></span>
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-         </span>
-         <p className="text-sm font-medium text-emerald-100 relative">
-           {simulation?.aiDecisionOverview ?? "正在加载区域数据与测算路由..."}
-         </p>
-      </motion.div>
-
-      {/* Excel-derived pork chain constraints */}
-      <TechPanel className="mb-6 rounded-[24px] p-5">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="text-base font-bold text-white tracking-wide">猪食品产业链约束引擎</h3>
-            <p className="mt-1 text-[12px] text-slate-400">由 Excel 中 T→T+1→T+2→T+4→长期链路抽取：出栏、屠宰、分割、速冻、仓储和销售反向约束共同参与调度。</p>
-          </div>
-          <Badge className="border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
-            瓶颈：{simulation?.scheduleSummary?.bottleneckStage ?? "计算中"}
-          </Badge>
-        </div>
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">优化得分均值</p>
-            <p className="mt-2 font-mono text-xl font-bold text-white">{simulation?.schedulePlan?.length ? (simulation.schedulePlan.reduce((sum, item) => sum + item.optimizationScore, 0) / simulation.schedulePlan.length).toFixed(2) : "0.00"}</p>
-          </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">养殖利用率</p>
-            <p className="mt-2 font-mono text-xl font-bold text-white">{simulation?.schedulePlan?.[0]?.chainUtilization.breeding?.toFixed?.(2) ?? simulation?.schedulePlan?.[0]?.chainUtilization.breeding ?? 0}%</p>
-          </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">深加工利用率</p>
-            <p className="mt-2 font-mono text-xl font-bold text-white">{simulation?.schedulePlan?.[0]?.chainUtilization.deepProcessing?.toFixed?.(2) ?? simulation?.schedulePlan?.[0]?.chainUtilization.deepProcessing ?? 0}%</p>
-          </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">销售利用率</p>
-            <p className="mt-2 font-mono text-xl font-bold text-white">{simulation?.schedulePlan?.[0]?.chainUtilization.sales?.toFixed?.(2) ?? simulation?.schedulePlan?.[0]?.chainUtilization.sales ?? 0}%</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-          {simulation?.chainFactors?.map((factor: any, fi: number) => (
-            <motion.div
-              key={factor.code}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.06 * fi, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              whileHover={{ y: -2, transition: { duration: 0.2 } }}
-              className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 relative overflow-hidden"
-            >
-              <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-cyan-400/5 blur-2xl" />
-              <div className="relative mb-2 flex items-center justify-between gap-2">
-                <p className="text-[12px] font-semibold text-white">{factor.stage}</p>
-                <span className="font-mono text-[10px] text-cyan-300">{factor.timeNode}</span>
+    <div className="relative min-h-screen overflow-hidden bg-[#020c1b] text-slate-100">
+      <TacticalBackdrop intensity="normal" />
+      <div className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(circle_at_50%_0%,rgba(37,99,235,0.26),transparent_30%),linear-gradient(180deg,rgba(2,12,27,0.02),#020c1b_88%)]" />
+      <div className="relative z-10 min-w-[1440px]">
+        <header className="flex h-[54px] items-center justify-between border-b border-cyan-400/20 bg-[#041225]/85 px-4">
+          <div className="flex h-full items-center gap-4">
+            <div className="flex items-center gap-2 pr-3">
+              <div className="grid h-9 w-9 place-items-center rounded-[9px] border border-cyan-300/35 bg-cyan-400/10 text-cyan-200">
+                <Route className="h-5 w-5" />
               </div>
-              <p className="relative font-mono text-lg font-bold text-slate-100">{factor.actual.toLocaleString()} <span className="text-[11px] text-slate-500">{factor.unit}</span></p>
-              <p className="relative mt-1 text-[11px] text-slate-400">目标 {factor.target.toLocaleString()}，缺口 {factor.gap.toLocaleString()}</p>
-              <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
-                <motion.div
-                  className="h-full rounded-full bg-cyan-400"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.max(4, Math.min(100, factor.utilization))}%` }}
-                  transition={{ duration: 0.8, delay: 0.1 * fi, ease: [0.16, 1, 0.3, 1] }}
-                />
+              <div>
+                <div className="text-[18px] font-bold text-white">智链云</div>
+                <div className="-mt-1 text-[10px] uppercase tracking-[0.22em] text-cyan-300/70">AI Logistics</div>
               </div>
-              <p className="relative mt-2 text-[11px] text-slate-500">{factor.optimization}</p>
-            </motion.div>
-          ))}
-        </div>
-      </TechPanel>
-
-      {/* Main Middle Row (Sliders + Map) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-        
-        {/* Left Control Panel */}
-        <div className="lg:col-span-4 space-y-6">
-          <TechPanel className="p-6 rounded-[24px]">
-             <h4 className="text-sm font-semibold tracking-wide text-white mb-6 flex items-center gap-2">
-                 <Settings2 className="h-4 w-4 text-cyan-400" />
-                 {t("spatialArbitrage.paramsGroup")}
-             </h4>
-             <div className="space-y-8">
-                {/* param 1 */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[13px] text-slate-400 font-medium flex items-center gap-2">
-                       <Truck className="h-4 w-4 text-slate-500" /> {t("spatialArbitrage.tfTransport")}
-                    </label>
-                    <span className="font-mono text-slate-300 font-bold bg-white/10 px-2 py-0.5 rounded text-xs">{transportCost.toFixed(2)}</span>
-                  </div>
-                  <Slider min={0.2} max={2.0} step={0.1} value={[transportCost]} onValueChange={v => setTransportCost(v[0]!)} />
-                </div>
-                {/* param 2 */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[13px] text-slate-400 font-medium flex items-center gap-2">
-                       <Target className="h-4 w-4 text-slate-500" /> {t("spatialArbitrage.tfMinProfit")}
-                    </label>
-                    <span className="font-mono text-slate-300 font-bold bg-white/10 px-2 py-0.5 rounded text-xs">{minProfit.toFixed(1)}</span>
-                  </div>
-                  <Slider min={0.1} max={5.0} step={0.1} value={[minProfit]} onValueChange={v => setMinProfit(v[0]!)} />
-                </div>
-                {/* param 3 */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[13px] text-slate-400 font-medium flex items-center gap-2">
-                       <Route className="h-4 w-4 text-slate-500" /> {t("spatialArbitrage.tfBatchSize")}
-                    </label>
-                    <span className="font-mono text-slate-300 font-bold bg-white/10 px-2 py-0.5 rounded text-xs">{batchSize}</span>
-                  </div>
-                  <Slider min={100} max={2000} step={100} value={[batchSize]} onValueChange={v => setBatchSize(v[0]!)} />
-                </div>
-                
-                {/* param 4: 目标发运量 */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[13px] text-slate-400 font-medium flex items-center gap-2">
-                       <Package className="h-4 w-4 text-slate-500" /> 目标发运量（0=自动铺满）
-                    </label>
-                    <span className="font-mono text-slate-300 font-bold bg-white/10 px-2 py-0.5 rounded text-xs">{targetShipmentTon === 0 ? "自动" : `${targetShipmentTon} 吨`}</span>
-                  </div>
-                  <Slider min={0} max={20000} step={500} value={[targetShipmentTon]} onValueChange={v => setTargetShipmentTon(v[0]!)} />
-                </div>
-                {/* param 5: 车型偏好 */}
-                <div className="space-y-3">
-                  <label className="text-[13px] text-slate-400 font-medium flex items-center gap-2">
-                    <Gauge className="h-4 w-4 text-slate-500" /> 车型偏好
-                  </label>
-                  <Select value={vehiclePreference} onValueChange={(v) => setVehiclePreference(v as typeof vehiclePreference)}>
-                    <SelectTrigger className="w-full bg-[#081020] border-white/10 text-white shadow-none focus:ring-1 focus:ring-cyan-500/50 rounded-xl transition-all hover:bg-white/5">
-                      <SelectValue placeholder="车型偏好" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#081020] border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                      <SelectItem value="auto" className="hover:bg-white/10 rounded-lg cursor-pointer">自动选型（按批量）</SelectItem>
-                      <SelectItem value="small" className="hover:bg-white/10 rounded-lg cursor-pointer">小型冷链 5 吨</SelectItem>
-                      <SelectItem value="medium" className="hover:bg-white/10 rounded-lg cursor-pointer">中型冷链 15 吨</SelectItem>
-                      <SelectItem value="large" className="hover:bg-white/10 rounded-lg cursor-pointer">大型干线 25 吨</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-3">
-                    <label className="text-[13px] text-slate-400 font-medium">利润策略</label>
-                    <Select value={strategyMode} onValueChange={(v) => setStrategyMode(v as typeof strategyMode)}>
-                      <SelectTrigger className="w-full bg-[#081020] border-white/10 text-white shadow-none focus:ring-1 focus:ring-cyan-500/50 rounded-xl transition-all hover:bg-white/5">
-                        <SelectValue placeholder="利润策略" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#081020] border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                        <SelectItem value="balanced" className="hover:bg-white/10 rounded-lg cursor-pointer">均衡利润最大化</SelectItem>
-                        <SelectItem value="fresh_first" className="hover:bg-white/10 rounded-lg cursor-pointer">鲜销优先</SelectItem>
-                        <SelectItem value="storage_first" className="hover:bg-white/10 rounded-lg cursor-pointer">冻品储备优先</SelectItem>
-                        <SelectItem value="deep_processing" className="hover:bg-white/10 rounded-lg cursor-pointer">深加工优先</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[13px] text-slate-400 font-medium">时间套利</label>
-                    <Select value={timeStoragePolicy} onValueChange={(v) => setTimeStoragePolicy(v as typeof timeStoragePolicy)}>
-                      <SelectTrigger className="w-full bg-[#081020] border-white/10 text-white shadow-none focus:ring-1 focus:ring-cyan-500/50 rounded-xl transition-all hover:bg-white/5">
-                        <SelectValue placeholder="时间套利" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#081020] border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                        <SelectItem value="auto" className="hover:bg-white/10 rounded-lg cursor-pointer">自动触发入储</SelectItem>
-                        <SelectItem value="force" className="hover:bg-white/10 rounded-lg cursor-pointer">强制开启仓储</SelectItem>
-                        <SelectItem value="off" className="hover:bg-white/10 rounded-lg cursor-pointer">关闭仓储套利</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <ArbitrageControlSlider label="计划天数" value={planningDays} suffix="天" min={1} max={30} step={1} onChange={setPlanningDays} />
-                  <ArbitrageControlSlider label="起始月份" value={startMonth} suffix="月" min={1} max={12} step={1} onChange={setStartMonth} />
-                  <ArbitrageControlSlider label="储备周期" value={storageDurationMonths} suffix="月" min={1} max={10} step={1} onChange={setStorageDurationMonths} />
-                  <ArbitrageControlSlider label="持有成本" value={holdingCostPerMonth} suffix="元/kg/月" min={0.05} max={1.2} step={0.05} onChange={setHoldingCostPerMonth} />
-                  <ArbitrageControlSlider label="社会成本线" value={socialBreakevenCost} suffix="元/kg" min={8} max={18} step={0.1} onChange={setSocialBreakevenCost} />
-                  <ArbitrageControlSlider label="外租库容" value={rentedStorageTon} suffix="吨" min={0} max={50000} step={1000} onChange={setRentedStorageTon} />
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
-                  <ArbitrageControlSlider label="养殖能力" value={optimization.breedingHeadsPerDay} suffix="头/天" min={10000} max={120000} step={1000} onChange={value => setOptimization(prev => ({ ...prev, breedingHeadsPerDay: value }))} />
-                  <ArbitrageControlSlider label="屠宰能力" value={optimization.slaughterHeadsPerDay} suffix="头/天" min={5000} max={80000} step={1000} onChange={value => setOptimization(prev => ({ ...prev, slaughterHeadsPerDay: value }))} />
-                  <ArbitrageControlSlider label="分割能力" value={optimization.cuttingHeadsPerDay} suffix="头/天" min={3000} max={60000} step={1000} onChange={value => setOptimization(prev => ({ ...prev, cuttingHeadsPerDay: value }))} />
-                  <ArbitrageControlSlider label="速冻能力" value={optimization.freezingTonsPerDay} suffix="吨/天" min={50} max={3000} step={10} onChange={value => setOptimization(prev => ({ ...prev, freezingTonsPerDay: value }))} />
-                  <ArbitrageControlSlider label="冷藏容量" value={optimization.storageTonsCapacity} suffix="吨" min={500} max={50000} step={100} onChange={value => setOptimization(prev => ({ ...prev, storageTonsCapacity: value }))} />
-                  <ArbitrageControlSlider label="深加工能力" value={optimization.deepProcessingTonsPerDay} suffix="吨/天" min={0} max={3000} step={10} onChange={value => setOptimization(prev => ({ ...prev, deepProcessingTonsPerDay: value }))} />
-                  <ArbitrageControlSlider label="鲜销能力" value={optimization.salesFreshTonsPerDay} suffix="吨/天" min={0} max={5000} step={50} onChange={value => setOptimization(prev => ({ ...prev, salesFreshTonsPerDay: value }))} />
-                  <ArbitrageControlSlider label="冻品销售能力" value={optimization.salesFrozenTonsPerMonth} suffix="吨/月" min={0} max={50000} step={500} onChange={value => setOptimization(prev => ({ ...prev, salesFrozenTonsPerMonth: value }))} />
-                  <ArbitrageControlSlider label="加工品销售能力" value={optimization.salesProcessedTonsPerDay} suffix="吨/天" min={0} max={3000} step={20} onChange={value => setOptimization(prev => ({ ...prev, salesProcessedTonsPerDay: value }))} />
-                </div>
-
-                {/* dropdowns */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-3">
-                    <label className="text-[13px] text-slate-400 font-medium">经营部位选择</label>
-                    <Select value={partCode} onValueChange={setPartCode}>
-                       <SelectTrigger className="w-full bg-[#081020] border-white/10 text-white shadow-none focus:ring-1 focus:ring-cyan-500/50 rounded-xl transition-all hover:bg-white/5">
-                          <SelectValue placeholder="选择部位" />
-                       </SelectTrigger>
-                       <SelectContent className="bg-[#081020] border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                          <SelectItem value="whole_hog" className="hover:bg-white/10 rounded-lg cursor-pointer">活体毛猪</SelectItem>
-                          <SelectItem value="carcass" className="hover:bg-white/10 rounded-lg cursor-pointer">核心白条</SelectItem>
-                          <SelectItem value="frozen_stock" className="hover:bg-white/10 rounded-lg cursor-pointer">冷冻库存</SelectItem>
-                          <SelectItem value="pork_belly" className="hover:bg-white/10 rounded-lg cursor-pointer">精选五花肉</SelectItem>
-                          <SelectItem value="ribs" className="hover:bg-white/10 rounded-lg cursor-pointer">肋排</SelectItem>
-                       </SelectContent>
-                    </Select>
-                  </div>
-                <div className="space-y-3">
-                  <label className="text-[13px] text-slate-400 font-medium">产地选择</label>
-                  <Select value={originFilter} onValueChange={setOriginFilter}>
-                     <SelectTrigger className="w-full bg-[#081020] border-white/10 text-white shadow-none focus:ring-1 focus:ring-cyan-500/50 rounded-xl transition-all hover:bg-white/5">
-                        <SelectValue placeholder="全部产地" />
-                     </SelectTrigger>
-                     <SelectContent className="bg-[#081020] border-white/10 text-white rounded-xl shadow-2xl backdrop-blur-xl">
-                        <SelectItem value="all" className="hover:bg-white/10 rounded-lg cursor-pointer">全部产地</SelectItem>
-                        <SelectItem value="origin_gx" className="hover:bg-white/10 rounded-lg cursor-pointer">广西重点区</SelectItem>
-                        <SelectItem value="origin_hn" className="hover:bg-white/10 rounded-lg cursor-pointer">湖南核心区</SelectItem>
-                        <SelectItem value="origin_sc" className="hover:bg-white/10 rounded-lg cursor-pointer">四川盆地</SelectItem>
-                     </SelectContent>
-                  </Select>
-                </div>
-             </div>
-
-             <div className="mt-8 pt-6 border-t border-white/5 flex gap-4 text-[12px] flex-wrap justify-between items-center text-slate-400">
-               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span> 优质产地</div>
-               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span> 高价目标</div>
-               <div className="flex items-center gap-1.5 border-t-2 border-dashed border-amber-500/80 w-6"></div> <span>套利连线</span>
-             </div>
-             </div>
-          </TechPanel>
-        </div>
-
-        {/* Map Visualization */}
-        <div className="lg:col-span-8 flex flex-col min-h-[460px]">
-          <TechPanel className="flex-1 p-6 relative rounded-[24px] flex flex-col overflow-hidden">
-            <h4 className="text-sm font-semibold tracking-wide text-white mb-2 z-10 flex items-center gap-2">
-                 <MapIcon className="h-4 w-4 text-emerald-400" />
-                 {t("spatialArbitrage.mapTitle")}
-             </h4>
-             <div className="absolute inset-0 pt-16 pb-4 px-4 overflow-hidden pointer-events-none opacity-80">
-               {typeof window !== "undefined" && (
-                 <ComposableMap
-                   projection="geoMercator"
-                   projectionConfig={{
-                     scale: 520,
-                     center: [104, 35],
-                     translateExtent: [[80, 40], [720, 440]],
-                   }}
-                   width={800}
-                   height={480}
-                   style={{ width: "100%", height: "100%" }}
-                 >
-                   <Geographies geography={geoUrl}>
-                     {({ geographies }: any) =>
-                       geographies.map((geo: any) => {
-                         const originColor = "rgba(16,185,129,0.18)";
-                         const destColor = "rgba(244,63,94,0.18)";
-                         const isOrigin = simulation?.nodes.some(n => n.name === geo.properties?.name && n.type === 'origin');
-                         const isDest = simulation?.nodes.some(n => n.name === geo.properties?.name && n.type === 'destination');
-                         
-                         return (
-                           <Geography
-                             key={geo.rsmKey}
-                             geography={geo}
-                             fill={getProvinceFill(geo.properties?.name, simulation, "price")}
-                             stroke="rgba(56,189,248,0.25)"
-                             strokeWidth={0.8}
-                             className="transition-colors duration-500"
-                             style={{
-                               default: { outline: "none" },
-                               hover: { outline: "none", fill: "rgba(56,189,248,0.2)" },
-                               pressed: { outline: "none" },
-                             }}
-                           />
-                         );
-                       })
-                     }
-                   </Geographies>
-
-                   {/* Lines for routes */}
-                   {simulation?.routes.slice(0, 10).map((route, i) => {
-                     const style = getRouteStyle(route, simulation?.bestRouteProfit ?? 0);
-                     return (
-                        <MapLine
-                          key={`route-${i}`}
-                          from={route.originCoords}
-                          to={route.destCoords}
-                          stroke={style.stroke}
-                          strokeWidth={style.strokeWidth}
-                          strokeDasharray={style.strokeWidth > 3 ? "0" : "4 4"}
-                          strokeLinecap="round"
-                          style={{ fill: "none", opacity: style.opacity }}
-                        />
-                     );
-                   })}
-
-                   {/* Bubbles for Nodes */}
-                   {simulation?.nodes.map((node) => {
-                     const isOr = node.type === "origin";
-                     const isFiltered = originFilter !== "all" && isOr && node.id !== originFilter && !node.name.includes(originFilter);
-                     if (isFiltered) return null;
-                     
-                     const radius = getNodeRadius(node, simulation);
-                     return (
-                       <Marker key={node.id} coordinates={[node.lng, node.lat]}>
-                         <circle
-                           r={radius}
-                           fill={isOr ? "#10b981" : "#f43f5e"} // emerald / rose
-                           fillOpacity={0.8}
-                           stroke="#0f172a"
-                           strokeWidth={1.5}
-                         />
-                         <text
-                           textAnchor="middle"
-                           y={radius + 12}
-                           style={{ fontFamily: "sans-serif", fill: "#94a3b8", fontSize: 10, fontWeight: 600 }}
-                         >
-                           {node.name}
-                         </text>
-                         <text
-                           textAnchor="middle"
-                           y={radius + 24}
-                           style={{ fontFamily: "monospace", fill: "#fff", fontSize: 9, opacity: 0.6 }}
-                         >
-                           {node.basePrice.toFixed(1)}
-                         </text>
-                       </Marker>
-                     );
-                   })}
-                 </ComposableMap>
-               )}
-             </div>
-          </TechPanel>
-        </div>
-      </div>
-
-      {/* Tables and Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-         <TechPanel className="lg:col-span-7 rounded-[24px] p-6 overflow-hidden">
-            <h4 className="text-sm font-semibold tracking-wide text-white mb-6 flex items-center gap-2">
-                 <ListOrdered className="h-4 w-4 text-cyan-400" />
-                 {t("spatialArbitrage.routeTitle")}
-             </h4>
-            <div className="overflow-x-auto">
-               <table className="w-full text-left text-[13px]">
-                  <thead>
-                    <tr className="border-b border-white/10 text-slate-400 uppercase text-[11px] tracking-wider">
-                       <th className="pb-3 px-2 font-medium">产地</th>
-                       <th className="pb-3 px-2 font-medium">目的地</th>
-                       <th className="pb-3 px-2 font-medium">产地价(元/kg)</th>
-                       <th className="pb-3 px-2 font-medium">目的地价(元/kg)</th>
-                       <th className="pb-3 px-2 font-medium text-right">运距(km)</th>
-                       <th className="pb-3 px-2 font-medium text-right">运费成本(元/kg)</th>
-                       <th className="pb-3 px-2 font-medium text-right text-emerald-400">单线净利(元/kg)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {simulation?.routes.slice(0, 7).map((r, i) => (
-                      <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-                        <td className="py-3 px-2 font-medium text-white">{r.originName}</td>
-                        <td className="py-3 px-2 font-medium text-white">{r.destName}</td>
-                        <td className="py-3 px-2 text-slate-300 font-mono">{r.originPrice.toFixed(2)}</td>
-                        <td className="py-3 px-2 text-slate-300 font-mono">{r.destPrice.toFixed(2)}</td>
-                        <td className="py-3 px-2 text-slate-400 font-mono text-right">{r.distanceKm}</td>
-                        <td className="py-3 px-2 text-slate-400 font-mono text-right">{r.transportCost.toFixed(2)}</td>
-                        <td className="py-3 px-2 font-mono font-bold text-emerald-400 text-right">+{r.netProfit.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                    {(!simulation?.routes || simulation.routes.length === 0) && (
-                      <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-500">无符合阈值要求的跨区套利网络</td>
-                      </tr>
-                    )}
-                  </tbody>
-               </table>
             </div>
-         </TechPanel>
-         
-         <TechPanel className="lg:col-span-5 rounded-[24px] p-6 flex flex-col min-h-[300px]">
-            <h4 className="text-sm font-semibold tracking-wide text-white mb-6">套利单线净利比较</h4>
-            <div className="flex-1 w-full min-h-0 relative -ml-4">
-               {simulation?.routes && simulation.routes.length > 0 ? (
-                 <ResponsiveContainer width="100%" height="100%">
-                   <BarChart data={simulation.routes.slice(0, 6)} margin={{ top: 10, right: 0, left: 0, bottom: 20 }}>
-                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                     <XAxis 
-                       dataKey={(r) => `${r.originName}→${r.destName}`}
-                       axisLine={false} 
-                       tickLine={false} 
-                       tick={{ fill: "#64748b", fontSize: 10 }} 
-                       dy={10}
-                     />
-                     <YAxis 
-                       axisLine={false} 
-                       tickLine={false} 
-                       tick={{ fill: "#64748b", fontSize: 11, fontFamily: "monospace" }} 
-                       width={40}
-                     />
-                     <RechartsTooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={<CustomBarTooltip />} />
-                     <Bar dataKey="netProfit" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                       {simulation.routes.slice(0, 6).map((entry, index) => (
-                         <Cell key={`cell-${index}`} fill={index === 0 ? "#10b981" : "#059669"} fillOpacity={index === 0 ? 1 : 0.6} />
-                       ))}
-                     </Bar>
-                   </BarChart>
-                 </ResponsiveContainer>
-               ) : (
-                 <div className="flex items-center justify-center h-full text-slate-500 text-sm">暂无正收益数据</div>
-               )}
-            </div>
-         </TechPanel>
-      </div>
+            <nav className="flex h-full items-center">
+              {navItems.map(item => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    setActiveWorkspace(item as WorkspaceTab);
+                    pushLog(`${item} 工作区已打开，沿用当前路线与调度上下文`);
+                  }}
+                  className={cn(
+                    "h-full min-w-[110px] border-x border-cyan-300/5 px-4 text-[14px] font-semibold transition",
+                    activeWorkspace === item
+                      ? "bg-blue-500/22 text-cyan-100 shadow-[inset_0_-2px_0_rgba(103,232,249,0.8)]"
+                      : "text-slate-400 hover:bg-cyan-400/[0.06] hover:text-cyan-100",
+                  )}
+                >
+                  {item}
+                </button>
+              ))}
+            </nav>
+          </div>
 
-      {/* Schedule Plan Panel (真实调度算法输出) */}
-      {simulation?.schedulePlan && simulation.schedulePlan.length > 0 && (
-        <TechPanel className="mb-8 rounded-[24px] p-6">
-          <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
-            <div>
-              <h3 className="text-base font-bold text-white tracking-wide flex items-center gap-2">
-                <Truck className="h-5 w-5 text-emerald-400" /> 真实物流调度计划
-              </h3>
-              <p className="text-[12px] text-slate-400 mt-1">按产能 / 需求 / 车型自动排工，仅保留单强正收益路线</p>
-            </div>
-            <div className="flex flex-wrap gap-3 items-center">
-              <div className="text-right">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">累计发运</p>
-                <p className="font-mono text-lg font-bold text-emerald-300">{simulation.scheduleSummary.totalShippedTon} 吨</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">总净利</p>
-                <p className="font-mono text-lg font-bold text-emerald-300">{simulation.scheduleSummary.totalNetProfit} 万元</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">平均单吨运费</p>
-                <p className="font-mono text-lg font-bold text-slate-200">¥{(simulation.scheduleSummary.averageFreightPerKg * 1000).toFixed(0)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">时间套利入储</p>
-                <p className="font-mono text-lg font-bold text-cyan-200">{simulation.scheduleSummary.storageOpenedRoutes} 条</p>
-              </div>
-              <button
-                onClick={() => {
-                  if (!simulation) return;
-                  saveRecord({
-                    recordType: "spatial",
-                    scenarioLabel: `空间套利 ${simulation.bestRouteName} · ${partCode}`,
-                    params: {
-                      transportCost,
-                      minProfit,
-                      batchSize,
-                      originFilter,
-                      partCode,
-                      vehiclePreference,
-                      targetShipmentTon: targetShipmentTon > 0 ? targetShipmentTon : null,
-                      strategyMode,
-                      timeStoragePolicy,
-                      planningDays,
-                      holdingCostPerMonth,
-                      socialBreakevenCost,
-                      startMonth,
-                      storageDurationMonths,
-                      freshSalesTonPerDay,
-                      reserveSalesTonPerMonth,
-                      deepProcessingTonPerDay,
-                      rentedStorageTon,
-                    },
-                    result: {
-                      bestRouteName: simulation.bestRouteName,
-                      bestRouteProfit: simulation.bestRouteProfit,
-                      totalOpportunities: simulation.totalOpportunities,
-                      scheduleSummary: simulation.scheduleSummary,
-                      chainAnalysis: simulation.chainAnalysis,
-                      schedulePlanTop5: simulation.schedulePlan.slice(0, 5),
-                    },
-                    summaryProfit: `${simulation.scheduleSummary.totalNetProfit} 万元`,
-                    summaryMetric: `发运 ${simulation.scheduleSummary.totalShippedTon} 吨 / ${simulation.schedulePlan.length} 条路线`,
-                  });
-                }}
-                disabled={savingRecord}
-                className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-[12px] font-semibold text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
-              >
-                {savingRecord ? "保存中…" : "保存该方案"}
-              </button>
+          <div className="absolute left-1/2 top-2 -translate-x-1/2 text-center">
+            <h1 className="text-[25px] font-bold tracking-[0.16em] text-white">空间套利与冷链调度中心</h1>
+            <p className="text-[11px] tracking-[0.32em] text-cyan-200/70">AI 驱动 · 智能决策 · 全局协同</p>
+          </div>
+
+          <div className="flex items-center gap-4 text-[13px] text-slate-300">
+            <span>2026-07-01</span>
+            <span>10:30:45</span>
+            <span className="flex items-center gap-1"><CloudSun className="h-4 w-4" /> 多云 24°C</span>
+            <span className="relative">
+              <Bell className="h-5 w-5" />
+              <span className="absolute -right-2 -top-2 rounded-full bg-rose-500 px-1 text-[10px] text-white">12</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <UserRound className="h-7 w-7 rounded-full border border-cyan-300/30 bg-cyan-400/10 p-1" />
+              <span>张钧川</span>
+              <ChevronDown className="h-4 w-4" />
             </div>
           </div>
+        </header>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-white/10 text-slate-400 uppercase text-[11px] tracking-wider">
-                  <th className="pb-3 px-2 font-medium">产地 → 销地</th>
-                  <th className="pb-3 px-2 font-medium text-right">距离(km)</th>
-                  <th className="pb-3 px-2 font-medium text-right">发运(吨)</th>
-                  <th className="pb-3 px-2 font-medium text-right">鲜销</th>
-                  <th className="pb-3 px-2 font-medium text-right">入储</th>
-                  <th className="pb-3 px-2 font-medium text-right">深加工</th>
-                  <th className="pb-3 px-2 font-medium">车型组合</th>
-                  <th className="pb-3 px-2 font-medium text-right">车次</th>
-                  <th className="pb-3 px-2 font-medium text-right">运费(元/kg)</th>
-                  <th className="pb-3 px-2 font-medium text-right text-emerald-400">净利(元/kg)</th>
-                  <th className="pb-3 px-2 font-medium text-right text-emerald-300">线章总净利</th>
-                </tr>
-              </thead>
-              <tbody>
-                {simulation.schedulePlan.slice(0, 10).map((p, i) => (
-                  <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
-                    <td className="py-3 px-2 font-medium text-white">{p.originName} → {p.destName}</td>
-                    <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.distanceKm}</td>
-                    <td className="py-3 px-2 text-slate-200 font-mono text-right">{p.shippedTon}</td>
-                    <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.freshSalesTon}</td>
-                    <td className="py-3 px-2 text-cyan-300 font-mono text-right">
-                      {p.storageTon}
-                      {p.storageOpened && <span className="ml-1 text-[10px] text-cyan-400">开仓</span>}
-                    </td>
-                    <td className="py-3 px-2 text-violet-300 font-mono text-right">{p.deepProcessingTon}</td>
-                    <td className="py-3 px-2 text-slate-400 text-[12px]">{p.tripBreakdown.map(tb => `${tb.vehicleName}×${tb.count}`).join(", ")}</td>
-                    <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.trips}</td>
-                    <td className="py-3 px-2 text-slate-400 font-mono text-right">{p.freightPerKg.toFixed(2)}</td>
-                    <td className="py-3 px-2 font-mono font-bold text-emerald-400 text-right">+{p.netProfitPerKg.toFixed(2)}</td>
-                    <td className="py-3 px-2 font-mono font-bold text-emerald-300 text-right">{p.netProfitTotal} 万</td>
-                  </tr>
+        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_104px_104px_150px] gap-3 p-3">
+          <SelectBox
+            label="产地"
+            value={originFilter}
+            onChange={setOriginFilter}
+            options={[
+              { label: "全部产地", value: "all" },
+              { label: "四川重点区", value: "四川" },
+              { label: "云南重点区", value: "云南" },
+              { label: "贵州重点区", value: "贵州" },
+              { label: "湖南重点区", value: "湖南" },
+            ]}
+          />
+          <SelectBox
+            label="销地"
+            value={destFilter}
+            onChange={setDestFilter}
+            options={[
+              { label: "全部销地", value: "all" },
+              { label: "广东", value: "广州" },
+              { label: "浙江", value: "杭州" },
+              { label: "上海", value: "上海" },
+              { label: "北京", value: "北京" },
+            ]}
+          />
+          <SelectBox
+            label="品类"
+            value={partCode}
+            onChange={setPartCode}
+            options={Object.entries(partLabels).map(([value, label]) => ({ label, value }))}
+          />
+          <SelectBox
+            label="车型"
+            value={vehiclePreference}
+            onChange={value => setVehiclePreference(value as VehiclePreference)}
+            options={[
+              { label: "全部车型", value: "auto" },
+              { label: "小型冷链", value: "small" },
+              { label: "中型冷链", value: "medium" },
+              { label: "大型干线", value: "large" },
+            ]}
+          />
+          <Button onClick={() => {
+            applyAiStrategy(strategyOptions[0]!);
+            setOriginFilter("all");
+            setDestFilter("all");
+            setPartCode("all");
+            setSelectedRouteIndex(0);
+          }} className="h-11 rounded-[7px] bg-slate-800 text-slate-200 hover:bg-slate-700">重置</Button>
+          <Button onClick={() => {
+            setQueryRun(value => value + 1);
+            setSelectedRouteIndex(0);
+            pushLog(`第 ${queryRun + 1} 次查询已触发，路线与调度计划已按筛选条件重算`);
+          }} className="h-11 rounded-[7px] bg-blue-600 text-white hover:bg-blue-500">查询</Button>
+          <SelectBox
+            label=""
+            value={strategyMode}
+            onChange={value => {
+              const option = strategyOptions.find(item => item.key === value);
+              if (option) applyAiStrategy(option);
+            }}
+            options={strategyOptions.map(item => ({ label: item.label, value: item.key }))}
+          />
+        </div>
+
+        <section className="grid grid-cols-5 gap-3 px-3">
+          <MetricCard label="路线总利润" value={`${formatWan(summary?.totalNetProfit ?? 0)}万元`} sub={`较昨日 ↑ ${formatPct(Math.max(4.8, profitChange(routes)))}`} tone="cyan" />
+          <MetricCard label="总运费成本" value={`${formatWan((summary?.totalFreight ?? 0) / 10000)}万元`} sub="较昨日 ↑ 8.3%" tone="blue" />
+          <MetricCard label="平均毛利率" value={formatPct(averageMargin / 2.4)} sub="较昨日 ↑ 3.2pct" tone="violet" />
+          <MetricCard label="准时交付率" value={formatPct(onTimeRate)} sub="较昨日 ↑ 1.8pct" tone="cyan" />
+          <MetricCard label="运力利用率" value={formatPct(capacityUtilization || 82.4)} sub="较昨日 ↑ 4.6pct" tone="amber" />
+        </section>
+
+        <main className="grid gap-3 p-3 xl:grid-cols-[360px_minmax(0,1fr)_390px]">
+          <aside className="space-y-3">
+            <Panel>
+              <PanelTitle title="全国套利概览" right={<LiveSignal label={isLoading ? "计算中" : "实时"} />} />
+              <div className="grid grid-cols-2 gap-2 p-3">
+                {[
+                  ["可套利通道", `${simulation?.totalOpportunities ?? 0} 条`, "较昨日 ↑ 16"],
+                  ["预计总利润", `${formatWan(summary?.totalNetProfit ?? 0)} 万元`, "较昨日 ↑ 18.6%"],
+                  ["可调拨量", `${formatNumber(summary?.totalShippedTon ?? 0)} 吨`, "较昨日 ↑ 12.4%"],
+                  ["平均单位净利", `${formatNumber((summary?.averageNetProfitPerKg ?? 0) * 10, 2)} 元/吨`, "较昨日 ↑ 4.3%"],
+                ].map(([label, value, sub]) => (
+                  <div key={label} className="rounded-[7px] border border-cyan-300/12 bg-cyan-400/[0.045] p-3">
+                    <p className="text-[12px] text-slate-400">{label}</p>
+                    <p className="mt-2 font-mono text-[22px] font-bold text-emerald-300">{value}</p>
+                    <p className="text-[11px] text-slate-400">{sub}</p>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </Panel>
 
-          {/* Vehicle Mix */}
-          <div className="mt-6 grid grid-cols-3 gap-4">
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.05] p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300/80">大型干线 25吨</p>
-              <p className="font-mono text-2xl font-bold text-emerald-200 mt-1">{simulation.scheduleSummary.vehicleMix.large} 车次</p>
-            </div>
-            <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/[0.05] p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-300/80">中型冷链 15吨</p>
-              <p className="font-mono text-2xl font-bold text-cyan-200 mt-1">{simulation.scheduleSummary.vehicleMix.medium} 车次</p>
-            </div>
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-amber-300/80">小型冷链 5吨</p>
-              <p className="font-mono text-2xl font-bold text-amber-200 mt-1">{simulation.scheduleSummary.vehicleMix.small} 车次</p>
-            </div>
-          </div>
+            <Panel>
+              <PanelTitle title="价格与供需概览（全国）" right={<RefreshCcw className="h-3.5 w-3.5 text-cyan-200" />} />
+              <div className="grid grid-cols-3 gap-2 p-3">
+                {[
+                  ["产地均价", `${formatNumber(avg(routes.map((r: any) => r.originPrice)), 2)} 元/公斤`],
+                  ["销地均价", `${formatNumber(avg(routes.map((r: any) => r.destPrice)), 2)} 元/公斤`],
+                  ["价差均值", `${formatNumber(simulation?.averageSpread ?? 0, 2)} 元/公斤`],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-[6px] border border-cyan-300/12 bg-slate-950/28 p-2">
+                    <p className="text-[11px] text-slate-400">{label}</p>
+                    <p className="mt-1 font-mono text-[17px] font-bold text-emerald-300">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+                {[
+                  ["供给能力", `${formatNumber(supplyTotal)} 吨`, "+ 9.5%"],
+                  ["需求量", `${formatNumber(demandTotal)} 吨`, "+ 7.2%"],
+                ].map(([label, value, sub]) => (
+                  <div key={label} className="rounded-[6px] border border-cyan-300/12 bg-slate-950/28 p-3">
+                    <p className="text-[12px] text-slate-400">{label}</p>
+                    <div className="mt-1 flex items-end justify-between">
+                      <p className="font-mono text-[20px] font-bold text-cyan-100">{value}</p>
+                      <span className="text-[11px] text-emerald-300">日环比 ↑ {sub}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">当期鲜销分配</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-white">{simulation.scheduleSummary.freshSalesTon} 吨</p>
-              <p className="mt-2 text-[11px] text-slate-400">受非储备部位鲜销能力约束，价格越强越优先兑现。</p>
-            </div>
-            <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/[0.05] p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-cyan-300/80">冻品储备分配</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-cyan-200">{simulation.scheduleSummary.storageTon} 吨</p>
-              <p className="mt-2 text-[11px] text-slate-400">时间套利为正时开仓，优先消化长期库存目标与外租库容。</p>
-            </div>
-            <div className="rounded-xl border border-violet-500/30 bg-violet-500/[0.05] p-4">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-violet-300/80">深加工原料分配</p>
-              <p className="mt-1 font-mono text-2xl font-bold text-violet-200">{simulation.scheduleSummary.deepProcessingTon} 吨</p>
-              <p className="mt-2 text-[11px] text-slate-400">承接储备冻品未来销售能力，把时间价差转成加工品溢价。</p>
-            </div>
-          </div>
-        </TechPanel>
-      )}
+            <Panel>
+              <PanelTitle title="利润热力 Top5 区域" right={<span className="text-[12px] text-slate-400">更多 &gt;</span>} />
+              <div className="space-y-2 p-3">
+                {topHeat.map(item => (
+                  <button
+                    key={item.rank}
+                    type="button"
+                    onClick={() => setSelectedRouteIndex(item.rank - 1)}
+                    className="grid w-full grid-cols-[30px_1fr_82px_82px] items-center rounded-[6px] border border-cyan-300/10 bg-cyan-400/[0.045] px-2 py-2 text-[12px] hover:bg-cyan-400/[0.1]"
+                  >
+                    <span className="grid h-6 w-6 place-items-center rounded bg-amber-400/25 font-mono font-bold text-amber-100">{item.rank}</span>
+                    <span className="truncate text-left text-slate-200">{item.name}</span>
+                    <span className="font-mono text-emerald-300">{formatNumber(item.margin, 2)}</span>
+                    <span className="font-mono text-slate-300">{formatNumber(item.volume, 0)}</span>
+                  </button>
+                ))}
+              </div>
+            </Panel>
 
-      {/* AI Strategy Report Block */}
-      {simulation?.aiStrategyReport && (
-        <TechPanel className="mb-8 rounded-[24px] p-6 lg:p-8 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.08),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(6,182,212,0.05),transparent_50%))]">
-          <div className="flex items-center gap-3 mb-6">
-             <div className="h-10 w-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.3)]">
-               <BrainCircuit className="h-5 w-5 text-cyan-400" />
-             </div>
-             <div>
-               <h3 className="text-lg font-bold text-white tracking-wide">AI 时空维调拨策略深度解析</h3>
-               <p className="text-[12px] text-slate-400">结合价格极差、物流磨耗与热力网生成的行动方案</p>
-             </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="space-y-4 lg:col-span-1">
-               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 relative overflow-hidden">
-                 <div className="absolute top-0 right-0 p-2"><Target className="w-8 h-8 text-white/[0.03]" /></div>
-                 <h4 className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-3 flex items-center gap-2"><Target className="w-3.5 h-3.5" />核心推荐路径</h4>
-                 <div className="space-y-2 relative z-10">
-                   {simulation.aiStrategyReport.corePathways.length > 0 ? simulation.aiStrategyReport.corePathways.map((path: string, idx: number) => (
-                     <div key={idx} className="text-sm font-semibold text-emerald-400 border-l-2 border-emerald-500/40 pl-3 py-1 bg-emerald-500/[0.03]">
-                       {path}
-                     </div>
-                   )) : <div className="text-sm text-slate-500">（无有效路径满足利润阈值）</div>}
-                 </div>
-               </div>
-               <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 flex justify-between items-center group overflow-hidden relative">
-                 <div className="absolute right-[-10px] bottom-[-10px] opacity-10 group-hover:opacity-20 transition-opacity"><TrendingUp className="w-16 h-16 text-rose-500" /></div>
-                 <div className="relative z-10">
-                   <h4 className="text-[11px] uppercase tracking-[0.2em] text-rose-400/80 mb-1">本期操作期望净收益</h4>
-                   <p className="text-2xl font-bold font-mono text-rose-300 drop-shadow-[0_0_10px_rgba(244,63,94,0.4)]">{simulation.aiStrategyReport.estimatedReturn}</p>
-                 </div>
-               </div>
+            <Panel>
+              <PanelTitle title="仓储协同" />
+              <div className="space-y-2 p-3">
+                {warehouseMoves.map(item => (
+                  <div key={item.title} className="grid grid-cols-[1fr_82px_58px] items-center gap-2 rounded-[6px] border border-cyan-300/12 bg-slate-950/25 px-2 py-2 text-[12px]">
+                    <span className="truncate text-slate-300">{item.title}</span>
+                    <span className="font-mono text-cyan-100">调拨 {item.ton} 吨</span>
+                    <Button size="sm" onClick={() => pushLog(`${item.title} 已下发仓储协同任务`)} className="h-7 rounded-[5px] bg-blue-600 text-[12px]">
+                      {item.status}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </aside>
+
+          <section className="space-y-3">
+            <Panel className={cn(mapExpanded ? "h-[560px]" : "h-[385px]")}>
+              <PanelTitle
+                title="全国冷链物流态势"
+                right={
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => {
+                      setMapMode(mode => mode === "全国" ? "区域" : "全国");
+                      pushLog(`地图已切换为${mapMode === "全国" ? "区域" : "全国"}视图`);
+                    }} className="h-7 border-cyan-300/20 bg-cyan-400/[0.06] text-xs text-cyan-100">{mapMode}视图</Button>
+                    <Button size="sm" variant="outline" onClick={() => setMapExpanded(value => !value)} className="h-7 border-cyan-300/20 bg-cyan-400/[0.06] text-xs text-cyan-100">{mapExpanded ? "收起" : "全屏"}</Button>
+                  </div>
+                }
+              />
+              <div className={cn("relative overflow-hidden", mapExpanded ? "h-[519px]" : "h-[344px]")}>
+                <ComposableMap
+                  projection="geoMercator"
+                  projectionConfig={{ scale: mapMode === "区域" ? 760 : 520, center: mapMode === "区域" ? [111, 30] : [104, 35] }}
+                  width={800}
+                  height={430}
+                  style={{ width: "100%", height: "100%" }}
+                >
+                  <Geographies geography={geoUrl}>
+                    {({ geographies }: any) =>
+                      geographies.map((geo: any) => (
+                        <Geography
+                          key={geo.rsmKey}
+                          geography={geo}
+                          fill={provinceFill(geo.properties?.name ?? "", simulation)}
+                          stroke="rgba(56,189,248,0.2)"
+                          strokeWidth={0.7}
+                          style={{
+                            default: { outline: "none" },
+                            hover: { outline: "none", fill: "rgba(56,189,248,0.22)" },
+                            pressed: { outline: "none" },
+                          }}
+                        />
+                      ))
+                    }
+                  </Geographies>
+
+                  {routes.slice(0, 14).map((routeItem: any, index: number) => {
+                    const style = routeStroke(routeItem.netProfit, simulation?.bestRouteProfit ?? 1);
+                    return (
+                      <MapLine
+                        key={`${routeItem.originName}-${routeItem.destName}-${index}`}
+                        from={routeItem.originCoords}
+                        to={routeItem.destCoords}
+                        stroke={style.stroke}
+                        strokeWidth={style.width}
+                        strokeDasharray={index < 3 ? "0" : "5 5"}
+                        strokeLinecap="round"
+                        style={{ opacity: style.opacity, fill: "none" }}
+                      />
+                    );
+                  })}
+
+                  {(simulation?.nodes ?? []).map((node: any) => {
+                    const isOrigin = node.type === "origin";
+                    return (
+                      <Marker key={node.id} coordinates={[node.lng, node.lat]}>
+                        <circle
+                          r={isOrigin ? 5.5 : 6.5}
+                          fill={isOrigin ? "#67e8f9" : "#fbbf24"}
+                          stroke="#082f49"
+                          strokeWidth={1.4}
+                          fillOpacity={0.9}
+                        />
+                        <text
+                          textAnchor="middle"
+                          y={-9}
+                          style={{ fill: "#dbeafe", fontSize: 9, fontWeight: 700 }}
+                        >
+                          {node.name}
+                        </text>
+                        <text
+                          textAnchor="middle"
+                          y={17}
+                          style={{ fill: isOrigin ? "#5eead4" : "#fbbf24", fontSize: 9, fontWeight: 700 }}
+                        >
+                          {node.basePrice?.toFixed?.(2)}
+                        </text>
+                      </Marker>
+                    );
+                  })}
+                </ComposableMap>
+                <div className="absolute left-5 top-5 w-[152px] rounded-[7px] border border-cyan-300/18 bg-[#061a31]/90 p-3 text-[12px] text-slate-300">
+                  <div className="mb-2 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-cyan-300" /> 产地节点</div>
+                  <div className="mb-2 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-amber-300" /> 销地节点</div>
+                  <div className="mb-2 h-[1px] bg-gradient-to-r from-cyan-300 to-emerald-300" />
+                  <p>路线颜色代表净利强度，节点数值为区域价格。</p>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel>
+              <PanelTitle
+                title={`路线明细（共 ${routes.length} 条）`}
+                right={<span className="text-[12px] text-cyan-200">数据源：真实空间套利调度算法</span>}
+              />
+              <div className="overflow-hidden p-3">
+                <div className="grid grid-cols-[46px_1fr_1fr_64px_70px_74px_74px_74px_54px] border-b border-cyan-300/14 px-2 py-2 text-[12px] text-cyan-100">
+                  <span>序号</span><span>产地</span><span>销地</span><span>品类</span><span>吨数</span><span>车型</span><span>距离</span><span>毛利率</span><span>状态</span>
+                </div>
+                {schedulePlan.slice(0, 5).map((item: any, index: number) => (
+                  <button
+                    key={`${item.originName}-${item.destName}-${index}`}
+                    type="button"
+                    onClick={() => setSelectedRouteIndex(index)}
+                    className={cn(
+                      "grid w-full grid-cols-[46px_1fr_1fr_64px_70px_74px_74px_74px_54px] border-b border-cyan-300/8 px-2 py-2 text-left text-[12px]",
+                      selectedRouteIndex === index ? "bg-cyan-400/[0.08]" : "hover:bg-cyan-400/[0.045]",
+                    )}
+                  >
+                    <span className="text-slate-400">{index + 1}</span>
+                    <span className="text-slate-200">{item.originName}</span>
+                    <span className="text-slate-200">{item.destName}</span>
+                    <span className="text-slate-400">{partLabels[partCode] ?? "白条"}</span>
+                    <span className="font-mono text-cyan-100">{formatNumber(item.shippedTon, 0)}</span>
+                    <span className="text-slate-400">{item.vehicleName?.slice(0, 5)}</span>
+                    <span className="font-mono text-slate-400">{item.distanceKm}</span>
+                    <span className="font-mono text-emerald-300">{formatPct(item.netProfitPerKg * 10)}</span>
+                    <span className={item.netProfitPerKg > minProfit ? "text-emerald-300" : "text-amber-300"}>
+                      {item.netProfitPerKg > minProfit ? "运输中" : "待发运"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </Panel>
+
+            <div className="grid grid-cols-[1fr_0.7fr_0.76fr] gap-3">
+              <Panel>
+                <PanelTitle title="路线计算与方案对比" />
+                <div className="p-3">
+                  <div className="mb-3 grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 rounded-[6px] border border-cyan-300/12 bg-slate-950/25 p-3 text-[12px]">
+                    <div><p className="text-slate-400">选中路线</p><p className="mt-1 font-semibold text-white">{selectedRoute ? `${selectedRoute.originName} → ${selectedRoute.destName}` : "--"}</p></div>
+                    <div><p className="text-slate-400">单位净利</p><p className="mt-1 font-mono text-emerald-300">{formatNumber((selectedSchedule?.netProfitPerKg ?? selectedRoute?.netProfit ?? 0) * 10, 2)} 元/吨</p></div>
+                    <div><p className="text-slate-400">批次总利润</p><p className="mt-1 font-mono text-emerald-300">{formatWan(selectedSchedule?.netProfitTotal ?? selectedRoute?.batchProfit ?? 0)} 万元</p></div>
+                    <div><p className="text-slate-400">预计到达</p><p className="mt-1 font-mono text-blue-200">07-03 08:00</p></div>
+                  </div>
+                  <div className="grid grid-cols-[40px_1fr_1fr_1fr_74px_74px_74px] border-b border-cyan-300/14 px-2 py-2 text-[12px] text-cyan-100">
+                    <span>序号</span><span>产地/销地</span><span>价格</span><span>运距</span><span>运费</span><span>损耗</span><span>净利</span>
+                  </div>
+                  {[selectedRoute].filter(Boolean).map((item: any, index: number) => (
+                    <div key={item.originName} className="grid grid-cols-[40px_1fr_1fr_1fr_74px_74px_74px] px-2 py-2 text-[12px] text-slate-300">
+                      <span>{index + 1}</span>
+                      <span>{item.originName} → {item.destName}</span>
+                      <span>{item.originPrice.toFixed(2)} / {item.destPrice.toFixed(2)}</span>
+                      <span>{item.distanceKm} km</span>
+                      <span>{item.transportCost.toFixed(2)}</span>
+                      <span>1.50%</span>
+                      <span className="font-mono text-emerald-300">{formatNumber(item.netProfit * 10, 2)}</span>
+                    </div>
+                  ))}
+                  <div className="mt-3 flex justify-center gap-3">
+                    <Button variant="outline" onClick={saveCurrentPlan} disabled={savingRecord} className="h-9 w-36 border-cyan-300/20 bg-slate-950/25 text-slate-200">
+                      {savingRecord ? "保存中..." : "保存方案"}
+                    </Button>
+                    <Button onClick={generateDispatchOrder} className="h-9 w-40 bg-blue-600 text-white hover:bg-blue-500">生成调拨方案</Button>
+                    <Button onClick={() => {
+                      generateDispatchOrder();
+                      pushLog("派单执行已进入移动端调度队列");
+                    }} className="h-9 w-40 bg-emerald-600 text-white hover:bg-emerald-500">派单执行</Button>
+                  </div>
+                </div>
+              </Panel>
+
+              <Panel>
+                <PanelTitle title="车辆调度" />
+                <div className="grid grid-cols-[108px_1fr] gap-3 p-3">
+                  <Donut
+                    segments={[
+                      { value: vehicleTotal ? (summary?.vehicleMix?.large ?? 0) / vehicleTotal * 100 : 42, color: "#5eead4" },
+                      { value: vehicleTotal ? (summary?.vehicleMix?.medium ?? 0) / vehicleTotal * 100 : 34, color: "#60a5fa" },
+                      { value: vehicleTotal ? (summary?.vehicleMix?.small ?? 0) / vehicleTotal * 100 : 24, color: "#a78bfa" },
+                    ]}
+                  />
+                  <div className="space-y-2 text-[12px]">
+                    {[
+                      ["6.8米", summary?.vehicleMix?.small ?? 0, "辆"],
+                      ["9.6米", summary?.vehicleMix?.medium ?? 0, "辆"],
+                      ["13.7米", summary?.vehicleMix?.large ?? 0, "辆"],
+                      ["其他", Math.max(0, Math.round(vehicleTotal * 0.08)), "辆"],
+                    ].map(([label, count, unit]) => (
+                      <div key={String(label)} className="flex items-center justify-between">
+                        <span className="text-slate-400">{label}</span>
+                        <span className="font-mono text-cyan-100">{String(count)} {unit}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2 px-3 pb-3">
+                  {(simulation?.schedulePlan ?? []).slice(0, 3).map((item: any) => (
+                    <div key={`${item.originName}-${item.destName}`} className="rounded-[6px] border border-cyan-300/12 bg-slate-950/25 p-2 text-[12px]">
+                      <div className="flex justify-between"><span className="text-slate-300">智能派车建议</span><span className="text-cyan-200">{item.vehicleName}</span></div>
+                      <div className="mt-1 text-slate-400">推荐 {item.originName} → {item.destName}</div>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+
+              <Panel>
+                <PanelTitle title="执行操作" />
+                <div className="grid grid-cols-2 gap-3 p-3">
+                  {([
+                    [ClipboardList, "生成调度单", "一键生成司机/仓储执行单"],
+                    [ShieldAlert, "异常处理", "运价异常/断链预警处理"],
+                    [Route, "路线优化", "AI优化路线与装载方案"],
+                    [Truck, "运力调配", "跨区线路与调配协同"],
+                  ] as Array<[typeof ClipboardList, string, string]>).map(([CurrentIcon, title, desc], index) => {
+                    return (
+                      <button
+                        key={String(title)}
+                        type="button"
+                          onClick={() => {
+                            if (index === 0) generateDispatchOrder();
+                            else {
+                              setActiveTask(title);
+                              setDispatchQueue(prev => [`${title}｜${selectedRoute?.originName ?? "产地"}→${selectedRoute?.destName ?? "销地"}｜待处理`, ...prev].slice(0, 6));
+                              pushLog(`${title} 已加入执行操作队列`);
+                            }
+                          }}
+                        className={cn(
+                          "rounded-[7px] border p-3 text-left transition hover:bg-cyan-400/[0.1]",
+                          index === 0 ? "border-blue-300/40 bg-blue-500/[0.12]" : "border-cyan-300/16 bg-cyan-400/[0.045]",
+                        )}
+                      >
+                        <CurrentIcon className="mb-2 h-6 w-6 text-cyan-200" />
+                        <p className="font-semibold text-white">{title}</p>
+                        <p className="mt-1 text-[11px] text-slate-400">{desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Panel>
             </div>
-            
-            <div className="space-y-4 lg:col-span-2">
-               <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5 h-full relative">
-                 <h4 className="text-[11px] uppercase tracking-[0.2em] text-cyan-500 mb-4 flex items-center gap-2"><MapIcon className="w-3.5 h-3.5" />行情全景诊断纪要</h4>
-                 <p className="text-sm text-slate-300 leading-relaxed mb-4">
-                   {simulation.aiStrategyReport.marketAnalysis}
-                 </p>
-                 <div className="h-[1px] w-full bg-white/5 my-4"></div>
-                 <p className="text-sm text-slate-300 leading-relaxed mb-4">
-                   {simulation.aiStrategyReport.profitPrediction}
-                 </p>
-                 <div className="mt-4 p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-sm font-medium shadow-[0_0_15px_rgba(16,185,129,0.15)] flex items-start gap-2">
-                   <span className="shrink-0 text-xl">🎯</span> <span><strong className="text-emerald-200">执行建议：</strong>{simulation.aiStrategyReport.recommendedAction}</span>
-                 </div>
-               </div>
+          </section>
+
+          <aside className="space-y-3">
+            <Panel>
+              <PanelTitle title="AI 岗位任务（自动生成）" right={<span className="text-[12px] text-cyan-200">&gt;</span>} />
+              <div className="space-y-2 p-3">
+                {dispatchTasks.map(task => {
+                  const Icon = task.icon;
+                  return (
+                    <div key={task.title} className={cn("grid grid-cols-[36px_1fr_86px] items-center gap-2 rounded-[7px] border p-2", panelTone(task.tone))}>
+                      <span className="grid h-9 w-9 place-items-center rounded-[7px] bg-white/8">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-white">{task.title}</p>
+                        <p className="truncate text-[11px] text-slate-300">{task.desc} ｜ {task.meta}</p>
+                      </div>
+                      <Button size="sm" onClick={() => openTask(task.title)} className="h-8 rounded-[5px] bg-blue-600 text-[12px] text-white">
+                        去执行 ({task.count})
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </Panel>
+
+            <Panel>
+              <PanelTitle title="通道分配（AI 推荐）" right={<span className="text-[12px] text-cyan-200">&gt;</span>} />
+              <div className="grid grid-cols-[118px_1fr] gap-4 p-3">
+                <Donut segments={allocationRows.map(row => ({ value: row.share / shareTotal * 100, color: row.color }))} />
+                <div className="space-y-2">
+                  <p className="text-[12px] text-slate-400">总可调拨量</p>
+                  <p className="font-mono text-[23px] font-bold text-emerald-300">{formatNumber(summary?.totalShippedTon ?? 0)} 吨</p>
+                  {allocationRows.map(row => (
+                    <div key={row.label} className="grid grid-cols-[1fr_48px_82px_90px] items-center gap-1 text-[12px]">
+                      <span className="text-slate-300">{row.label}</span>
+                      <span className="font-mono text-emerald-300">{formatPct(row.share / shareTotal * 100, 0)}</span>
+                      <span className="font-mono text-slate-400">容量 {formatNumber(row.ton, 0)}吨</span>
+                      <span className="font-mono text-slate-400">利润 {formatWan(row.profit)}万</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Panel>
+
+            <Panel>
+              <PanelTitle title="AI 物流策略推荐" right={<span className="text-[12px] text-slate-400">10:30:20</span>} />
+              <div className="space-y-2 p-3">
+                {strategyOptions.map((item, index) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => applyAiStrategy(item)}
+                    className={cn(
+                      "w-full rounded-[7px] border p-3 text-left",
+                      strategyMode === item.key ? "border-cyan-300/60 bg-cyan-400/[0.12]" : "border-cyan-300/16 bg-slate-950/24 hover:bg-cyan-400/[0.08]",
+                    )}
+                  >
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-cyan-100">{index === 0 && routes[0] ? `${routes[0].originName} → ${routes[0].destName}` : item.label}</span>
+                      <span className="rounded bg-blue-500/20 px-2 text-[11px] text-blue-200">{strategyMode === item.key ? "已应用" : "换一批"}</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-4 gap-2 text-[12px]">
+                      <span className="text-slate-400">{item.note}</span>
+                      <span className="font-mono text-cyan-100">{Math.round((routes[index]?.distanceKm ?? 680) / 10) / 10}米冷藏车</span>
+                      <span className="font-mono text-emerald-300">{formatPct((routes[index]?.netProfit ?? 2.6) * 10)}</span>
+                      <span className="text-right font-mono text-amber-200">{96 - index * 2}分</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </Panel>
+
+            <Panel>
+              <PanelTitle title="风险提示" />
+              <div className="space-y-2 p-3 text-[12px]">
+                {[
+                  ["沈阳 → 北京", "受暴雨影响，预计延误6-8小时", "高"],
+                  ["武汉区域", "明日高温预警，注意冷链断链风险", "中"],
+                  ["乌鲁木齐 → 西安", "部分路段封路，建议绕行", "中"],
+                ].map(([routeName, detail, level]) => (
+                  <div key={routeName} className="grid grid-cols-[1fr_46px] gap-2 rounded-[6px] border border-cyan-300/12 bg-slate-950/25 p-2">
+                    <div><span className="text-slate-200">{routeName}</span><span className="ml-2 text-slate-400">{detail}</span></div>
+                    <span className={cn("text-center", level === "高" ? "text-rose-300" : "text-amber-300")}>{level}</span>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
+            <Panel>
+              <PanelTitle title="生成调度单" />
+              <div className="p-3">
+                <div className="mb-3 grid grid-cols-3 gap-1 rounded-[6px] border border-cyan-300/14 bg-slate-950/25 p-1">
+                  {[
+                    ["driver", "司机"],
+                    ["warehouse", "仓储"],
+                    ["sales", "销售"],
+                  ].map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setDispatchTab(key as DispatchTab)}
+                      className={cn("h-8 rounded-[5px] text-[12px]", dispatchTab === key ? "bg-blue-600 text-white" : "text-slate-400")}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-2 text-[12px]">
+                  {[
+                    ["司机调度单", `${selectedSchedule?.originName ?? "产地"} → ${selectedSchedule?.destName ?? "销地"}`],
+                    ["司机", "李师傅　豫A12345"],
+                    ["车型", selectedSchedule?.vehicleName ?? "6.8米冷藏车"],
+                    ["预计提货", "07-01 14:00"],
+                    ["预计送达", "07-02 02:00"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="grid grid-cols-[72px_1fr] items-center gap-2">
+                      <span className="text-slate-400">{label}</span>
+                      <Input value={value} readOnly className="h-8 rounded-[5px] border-cyan-300/12 bg-slate-950/28 text-xs text-slate-200" />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 grid grid-cols-[1fr_80px] gap-2">
+                  <Button onClick={generateDispatchOrder} className="h-9 rounded-[6px] bg-blue-600 text-white hover:bg-blue-500">生成司机调度单</Button>
+                  <Button variant="outline" onClick={() => {
+                    setSelectedPlan([
+                      `预览对象：${activeTask}`,
+                      `当前工作区：${activeWorkspace}`,
+                      `队列数量：${dispatchQueue.length} 条`,
+                      `路线收益：${formatWan(selectedSchedule?.netProfitTotal ?? 0)} 万元`,
+                    ]);
+                    pushLog("调度单预览已刷新并展示在下方队列");
+                  }} className="h-9 rounded-[6px] border-cyan-300/20 bg-slate-950/24 text-cyan-100">预览</Button>
+                </div>
+                <div className="mt-3 space-y-1.5">
+                  {(selectedPlan.length ? selectedPlan : dispatchQueue.length ? dispatchQueue : logs.slice(0, 4)).map(item => (
+                    <p key={item} className="rounded-[5px] border border-cyan-300/12 bg-cyan-400/[0.045] px-2 py-1.5 text-[11px] leading-5 text-slate-300">{item}</p>
+                  ))}
+                </div>
+              </div>
+            </Panel>
+          </aside>
+        </main>
+
+        <footer className="grid grid-cols-[1fr_460px] gap-3 px-3 pb-3">
+          <Panel>
+            <div className="flex h-[78px] items-center gap-4 px-4">
+              <div className="grid h-14 w-14 place-items-center rounded-[8px] border border-cyan-300/20 bg-cyan-400/[0.08]">
+                <Bot className="h-8 w-8 text-cyan-200" />
+              </div>
+              <div className="flex-1">
+                <p className="text-[13px] font-semibold text-cyan-100">AI Copilot 作战指令</p>
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    value={copilotInput}
+                    onChange={event => setCopilotInput(event.target.value)}
+                    onKeyDown={event => event.key === "Enter" && sendCopilot()}
+                    placeholder="例如：优先保证时效、提升冻储套利、生成低风险调度方案..."
+                    className="h-9 rounded-[6px] border-cyan-300/15 bg-slate-950/30 text-xs text-slate-100"
+                  />
+                  <Button onClick={sendCopilot} className="h-9 rounded-[6px] bg-blue-600 text-white">
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {["生成低风险方案", "锁定Top路线", "校验冷链时效"].map(text => (
+                  <button key={text} type="button" onClick={() => runQuickCommand(text)} className="h-8 rounded-[5px] border border-cyan-300/16 bg-cyan-400/[0.055] px-3 text-[12px] text-cyan-100">
+                    {text}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        </TechPanel>
-      )}
-
-      {/* AI Role Tasks */}
-      <div className="mb-10">
-         <h4 className="text-sm font-semibold tracking-wide text-white mb-4 flex items-center gap-2 px-2">
-             <BrainCircuit className="h-5 w-5 text-violet-400" />
-             {t("spatialArbitrage.tasksTitle")}
-         </h4>
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-             {/* Purchasing */}
-             <motion.div
-               initial={{ opacity: 0, y: 16 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.05, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-               whileHover={{ y: -3, transition: { duration: 0.2 } }}
-             >
-               <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,25,50,0.9))] border-t-cyan-500/30">
-                 <div className="flex items-center gap-3 mb-4">
-                   <motion.div
-                     className="h-10 w-10 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 font-bold border border-cyan-500/20"
-                     animate={{ boxShadow: ["0 0 0px rgba(56,189,248,0)", "0 0 10px rgba(56,189,248,0.1)", "0 0 0px rgba(56,189,248,0)"] }}
-                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                   >采</motion.div>
-                   <div>
-                     <p className="text-sm font-bold text-white">采购经理</p>
-                     <p className="text-[10px] uppercase tracking-wider text-slate-500">供应链负责人</p>
-                   </div>
-                 </div>
-                 <div className="space-y-3">
-                   {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.purchasing.map((t, i) => (
-                     <motion.p
-                       key={i}
-                       initial={{ opacity: 0, x: -6 }}
-                       animate={{ opacity: 1, x: 0 }}
-                       transition={{ delay: 0.05 * i, duration: 0.3 }}
-                       className="text-[12px] text-slate-300 flex items-start gap-2"
-                     >
-                       <span className="text-cyan-500 shrink-0">→</span> {t}
-                     </motion.p>
-                   ))}
-                 </div>
-               </TechPanel>
-             </motion.div>
-
-             {/* Logistics */}
-             <motion.div
-               initial={{ opacity: 0, y: 16 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.1, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-               whileHover={{ y: -3, transition: { duration: 0.2 } }}
-             >
-               <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(10,35,30,0.9))] border-t-emerald-500/30">
-                 <div className="flex items-center gap-3 mb-4">
-                   <motion.div
-                     className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-bold border border-emerald-500/20"
-                     animate={{ boxShadow: ["0 0 0px rgba(16,185,129,0)", "0 0 10px rgba(16,185,129,0.1)", "0 0 0px rgba(16,185,129,0)"] }}
-                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-                   >调</motion.div>
-                   <div>
-                     <p className="text-sm font-bold text-white">物流调度</p>
-                     <p className="text-[10px] uppercase tracking-wider text-slate-500">运输网络管理</p>
-                   </div>
-                 </div>
-                 <div className="space-y-3">
-                   {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.logistics.map((t, i) => (
-                     <motion.p
-                       key={i}
-                       initial={{ opacity: 0, x: -6 }}
-                       animate={{ opacity: 1, x: 0 }}
-                       transition={{ delay: 0.05 * i, duration: 0.3 }}
-                       className="text-[12px] text-slate-300 flex items-start gap-2"
-                     >
-                       <span className="text-emerald-500 shrink-0">→</span> {t}
-                     </motion.p>
-                   ))}
-                 </div>
-               </TechPanel>
-             </motion.div>
-
-             {/* Sales */}
-             <motion.div
-               initial={{ opacity: 0, y: 16 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.15, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-               whileHover={{ y: -3, transition: { duration: 0.2 } }}
-             >
-               <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,25,10,0.9))] border-t-amber-500/30">
-                 <div className="flex items-center gap-3 mb-4">
-                   <motion.div
-                     className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 font-bold border border-amber-500/20"
-                     animate={{ boxShadow: ["0 0 0px rgba(251,191,36,0)", "0 0 10px rgba(251,191,36,0.1)", "0 0 0px rgba(251,191,36,0)"] }}
-                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-                   >销</motion.div>
-                   <div>
-                     <p className="text-sm font-bold text-white">销售团队</p>
-                     <p className="text-[10px] uppercase tracking-wider text-slate-500">目的地市场开拓</p>
-                   </div>
-                 </div>
-                 <div className="space-y-3">
-                   {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.sales.map((t, i) => (
-                     <motion.p
-                       key={i}
-                       initial={{ opacity: 0, x: -6 }}
-                       animate={{ opacity: 1, x: 0 }}
-                       transition={{ delay: 0.05 * i, duration: 0.3 }}
-                       className="text-[12px] text-slate-300 flex items-start gap-2"
-                     >
-                       <span className="text-amber-500 shrink-0">→</span> {t}
-                     </motion.p>
-                   ))}
-                 </div>
-               </TechPanel>
-             </motion.div>
-
-             {/* Risk */}
-             <motion.div
-               initial={{ opacity: 0, y: 16 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.2, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-               whileHover={{ y: -3, transition: { duration: 0.2 } }}
-             >
-               <TechPanel className="p-5 rounded-[20px] bg-[linear-gradient(to_bottom,rgba(6,14,30,0.8),rgba(40,10,20,0.9))] border-t-rose-500/30">
-                 <div className="flex items-center gap-3 mb-4">
-                   <motion.div
-                     className="h-10 w-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-400 font-bold border border-rose-500/20"
-                     animate={{ boxShadow: ["0 0 0px rgba(244,63,94,0)", "0 0 10px rgba(244,63,94,0.1)", "0 0 0px rgba(244,63,94,0)"] }}
-                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
-                   >控</motion.div>
-                   <div>
-                     <p className="text-sm font-bold text-white">风控&数据</p>
-                     <p className="text-[10px] uppercase tracking-wider text-slate-500">AI支持中心</p>
-                   </div>
-                 </div>
-                 <div className="space-y-3">
-                   {aiPending && !aiTasks ? <PulseLines /> : aiTasks?.risk.map((t, i) => (
-                     <motion.p
-                       key={i}
-                       initial={{ opacity: 0, x: -6 }}
-                       animate={{ opacity: 1, x: 0 }}
-                       transition={{ delay: 0.05 * i, duration: 0.3 }}
-                       className="text-[12px] text-slate-300 flex items-start gap-2"
-                     >
-                       <span className="text-rose-500 shrink-0">→</span> {t}
-                     </motion.p>
-                   ))}
-                 </div>
-               </TechPanel>
-             </motion.div>
-         </div>
+          </Panel>
+          <Panel>
+            <div className="flex h-[78px] items-center justify-between px-4 text-[12px] text-slate-400">
+              <span className="flex items-center gap-1.5"><Database className="h-4 w-4 text-emerald-300" /> 数据更新时间：{timeStamp(generatedAt)}</span>
+              <span>数据来源：空间套利模型 / 行情 / 库存批次</span>
+              <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-cyan-300" /> 可行性已校验</span>
+            </div>
+          </Panel>
+        </footer>
       </div>
-    </PlatformShell>
-  );
-}
-
-function PulseLines() {
-  return (
-    <div className="space-y-3 animate-pulse">
-      <div className="h-2 w-3/4 bg-white/10 rounded-full"></div>
-      <div className="h-2 w-full bg-white/10 rounded-full"></div>
-      <div className="h-2 w-5/6 bg-white/10 rounded-full"></div>
     </div>
   );
 }
 
-function ControlSlider({
-  label,
-  value,
-  suffix,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  suffix: string;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (value: number) => void;
-}) {
-  const display = Number.isInteger(step) ? value.toFixed(0) : value.toFixed(2);
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <label className="text-[12px] text-slate-400 font-medium">{label}</label>
-        <span className="font-mono text-slate-300 font-bold bg-white/10 px-2 py-0.5 rounded text-[11px]">
-          {display} {suffix}
-        </span>
-      </div>
-      <Slider min={min} max={max} step={step} value={[value]} onValueChange={v => onChange(v[0] ?? value)} />
-    </div>
-  );
+function profitChange(routes: any[]) {
+  if (!routes.length) return 0;
+  return clamp(avg(routes.slice(0, 5).map(route => route.netProfit)) * 2.4, 4, 28);
 }

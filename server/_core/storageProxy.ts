@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import { ENV } from "./env";
+import { assertValidStorageKey } from "./storageKey";
 
 export function registerStorageProxy(app: Express) {
   app.get("/manus-storage/*", async (req, res) => {
-    const key = (req.params as Record<string, string>)[0];
-    if (!key) {
+    const rawKey = (req.params as Record<string, string>)[0];
+    if (!rawKey) {
       res.status(400).send("Missing storage key");
       return;
     }
@@ -15,6 +16,7 @@ export function registerStorageProxy(app: Express) {
     }
 
     try {
+      const key = assertValidStorageKey(rawKey);
       const forgeUrl = new URL(
         "v1/storage/presign/get",
         ENV.forgeApiUrl.replace(/\/+$/, "") + "/",
@@ -41,6 +43,10 @@ export function registerStorageProxy(app: Express) {
       res.set("Cache-Control", "no-store");
       res.redirect(307, url);
     } catch (err) {
+      if (err instanceof Error && err.message === "Invalid storage key") {
+        res.status(400).send("Invalid storage key");
+        return;
+      }
       console.error("[StorageProxy] failed:", err);
       res.status(502).send("Storage proxy error");
     }

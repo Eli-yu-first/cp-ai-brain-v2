@@ -1,48 +1,53 @@
-import { PlatformShell } from "@/components/platform/PlatformShell";
-import { TechPanel, SectionHeader } from "@/components/platform/PlatformPrimitives";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useLanguage } from "@/contexts/LanguageContext";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { trpc } from "@/lib/trpc";
-import { buildMobileRoleView, getRoleStatusBadgeClass, type MobileRole, type MobileRoleFeedback } from "./aiDecisionMobileRoles";
+import { cn } from "@/lib/utils";
 import {
+  Bell,
+  Bot,
   BrainCircuit,
-  Calculator,
+  ChevronDown,
+  CircleAlert,
+  Clock3,
+  Database,
   Factory,
-  LineChart as LineChartIcon,
-  Radar,
-  Siren,
+  FlaskConical,
+  MapPin,
+  Package,
+  RefreshCcw,
+  ScanSearch,
+  ScrollText,
+  Send,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  Target,
   Truck,
-  Warehouse,
-  Zap,
+  UserCircle2,
+  Workflow,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
-type AgentCard = {
-  agentId: "global" | "business" | "field";
+type ChatTurn = {
+  role: "assistant" | "user";
+  content: string;
+  timestamp: string;
+};
+
+type EvidenceTab = "data" | "model" | "audit";
+
+type CollaborationAgent = {
+  agentId: string;
   agentName: string;
   objective: string;
   recommendation: string;
@@ -51,1462 +56,1919 @@ type AgentCard = {
   nextAction: string;
 };
 
-type AlertCard = {
-  alertId: string;
-  title: string;
-  status: "red" | "yellow" | "green";
-  summary: string;
-  impactScope: string;
-  estimatedLoss: number;
-  aiRecommendation: string;
-  rootCause: string;
-  actionOwner: string;
-};
+const panelClassName =
+  "rounded-[18px] border border-cyan-400/18 bg-[linear-gradient(180deg,rgba(7,22,44,0.96),rgba(4,14,30,0.9))] shadow-[0_0_0_1px_rgba(56,189,248,0.04),0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur";
 
-type ForecastStrategy = "steady" | "balanced" | "aggressive";
-type ForecastDisplayMetric = "projected" | "average" | "profit";
-
-const copy = {
-  zh: {
-    eyebrow: "AI Decision OS",
-    title: "AI 决策指挥中枢",
-    sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "先输入月份与预估价格，再生成价格波动曲线、What-If 沙盘、多 Agent 推理与动态预警",
-    sectionDesc:
-      "本页已升级为独立 AI 决策工作台。上半区负责 1 到 8 个月价格预测，中部负责多变量 What-If 与资源测算，下半区接入 Manus LLM 多 Agent 输出、红黄绿预警和根因分析弹窗。",
-    workbench: "预测工作台",
-    selectBatch: "库存批次",
-    selectMonth: "预测月份",
-    targetPrice: "预估价格（元/公斤）",
-    formulaHint: "系统将基于当前批次成本、持有成本和目标价格，自动推演 1-8 月价格波动与收益变化。",
-    projectedPrice: "预测售价",
-    breakEven: "保本价",
-    avgSell: "平均售价",
-    profit: "总收益",
-    monthlyCost: "月持有成本",
-    batchInfo: "批次信息",
-    chartTitle: "价格波动曲线",
-    chartDesc: "蓝线为预测售价，虚线为保本线，选择不同月份即可切换对应利润区间。",
-    currentMonth: "当前选择",
-    perKgProfit: "每公斤利润",
-    weight: "库存量",
-    chartPrice: "预测售价",
-    chartBreakEven: "保本价",
-    monthUnit: "个月",
-    yuanPerKg: "元/公斤",
-    tonnage: "kg",
-    whatIfEyebrow: "What-If Sandbox",
-    whatIfTitle: "多变量情景模拟",
-    whatIfDesc: "可同时调整价格、产能与需求，观察利润变化，并自动生成未来 1 到 3 个月的屠宰、速冻、入库和冷链资源计划。",
-    scenarioMonth: "模拟月份",
-    capacityAdjustment: "产能调整（%）",
-    demandAdjustment: "需求调整（%）",
-    baselineProfit: "基线收益",
-    simulatedProfit: "模拟收益",
-    incrementalProfit: "收益增量",
-    expectedRevenue: "预计收入",
-    utilizationRate: "资源利用率",
-    resourcesTitle: "1-3 个月资源需求",
-    slaughterHeads: "屠宰头数",
-    freezingTons: "速冻吨位",
-    storageTons: "仓储吨位",
-    warehousePallets: "托盘需求",
-    coldChainTrips: "冷链车次",
-    agentEyebrow: "Multi-Agent Reasoning",
-    agentTitle: "多 Agent 分层决策输出",
-    agentDesc: "调用 Manus 内置模型，将总部经营、业务调度和现场执行三层 Agent 的判断汇总为统一行动方案。",
-    generateAgents: "生成多 Agent 协同推理",
-    generatingAgents: "正在生成多 Agent 推理...",
-    overview: "总览判断",
-    coordinationSignal: "协同信号",
-    dispatchSummary: "执行摘要",
-    objective: "目标",
-    recommendation: "建议",
-    rationale: "依据",
-    nextAction: "下一步",
-    riskLevel: "风险等级",
-    alertEyebrow: "Traffic-Light Alerts",
-    alertTitle: "红黄绿动态预警",
-    alertDesc: "系统会根据利润、产能、仓储、冷链、需求与执行节奏生成动态告警。点击任意卡片可查看根因分析。",
-    alertOverview: "预警概览",
-    impactScope: "影响范围",
-    estimatedLoss: "预计损失",
-    aiRecommendation: "AI 建议",
-    rootCause: "问题根因",
-    actionOwner: "责任 Agent",
-    closeHint: "点击任意卡片查看详情",
-    alertStatusRed: "红色预警",
-    alertStatusYellow: "黄色预警",
-    alertStatusGreen: "绿色正常",
-    navReady: "预测工作台已联通",
-    chartReady: "曲线已生成",
-    whatIfReady: "What-If 沙盘已联通",
-    agentsReady: "多 Agent 已接入",
-    alertsReady: "动态预警已接入",
-    nextPending: "等待接入派单与执行反馈联动",
-    monthShort: "月",
-    modules: [
-      { icon: Truck, title: "派单与执行反馈", desc: "下一阶段把多 Agent 与预警结论转成工单、回传与超时升级。" },
-      { icon: Warehouse, title: "现场资源编排", desc: "继续强化屠宰、仓储、冷链和现场班次之间的联动。" },
-    ],
-  },
-  en: {
-    eyebrow: "AI Decision OS",
-    title: "AI Decision Command Center",
-    sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "Forecast, simulate, reason, and monitor alerts in one AI decision workspace",
-    sectionDesc:
-      "This page now combines 1-8 month forecasting, What-If resource simulation, Manus LLM multi-agent reasoning, and traffic-light alerts with root-cause dialogs.",
-    workbench: "Forecast Workbench",
-    selectBatch: "Inventory Batch",
-    selectMonth: "Forecast Month",
-    targetPrice: "Target Price (CNY/kg)",
-    formulaHint: "The system projects 1-8 month price and return changes from batch cost, holding cost, and target price inputs.",
-    projectedPrice: "Projected Price",
-    breakEven: "Break-even",
-    avgSell: "Average Sell",
-    profit: "Total Profit",
-    monthlyCost: "Monthly Holding Cost",
-    batchInfo: "Batch Info",
-    chartTitle: "Price Path Curve",
-    chartDesc: "The blue line shows projected price while the dashed line marks break-even for quick scenario reading.",
-    currentMonth: "Selected Horizon",
-    perKgProfit: "Profit per kg",
-    weight: "Inventory Weight",
-    chartPrice: "Projected Price",
-    chartBreakEven: "Break-even",
-    monthUnit: "months",
-    yuanPerKg: "CNY/kg",
-    tonnage: "kg",
-    whatIfEyebrow: "What-If Sandbox",
-    whatIfTitle: "Multi-variable What-If Simulation",
-    whatIfDesc: "Adjust price, capacity, and demand together to compare profit shifts and automatically generate slaughter, freezing, storage, and cold-chain plans for the next 1-3 months.",
-    scenarioMonth: "Scenario Month",
-    capacityAdjustment: "Capacity Adjustment (%)",
-    demandAdjustment: "Demand Adjustment (%)",
-    baselineProfit: "Baseline Profit",
-    simulatedProfit: "Simulated Profit",
-    incrementalProfit: "Incremental Profit",
-    expectedRevenue: "Expected Revenue",
-    utilizationRate: "Utilization Rate",
-    resourcesTitle: "1-3 Month Resource Demand",
-    slaughterHeads: "Slaughter Heads",
-    freezingTons: "Freezing Tons",
-    storageTons: "Storage Tons",
-    warehousePallets: "Pallet Demand",
-    coldChainTrips: "Cold-chain Trips",
-    agentEyebrow: "Multi-Agent Reasoning",
-    agentTitle: "Layered Multi-Agent Decision Output",
-    agentDesc: "Calls the built-in Manus model to summarize headquarters, business orchestration, and field execution agents into one action plan.",
-    generateAgents: "Generate Multi-Agent Reasoning",
-    generatingAgents: "Generating multi-agent reasoning...",
-    overview: "Overview",
-    coordinationSignal: "Coordination Signal",
-    dispatchSummary: "Dispatch Summary",
-    objective: "Objective",
-    recommendation: "Recommendation",
-    rationale: "Rationale",
-    nextAction: "Next Action",
-    riskLevel: "Risk Level",
-    alertEyebrow: "Traffic-Light Alerts",
-    alertTitle: "Dynamic Warning Board",
-    alertDesc: "The system generates dynamic warnings for profit, capacity, storage, cold-chain, demand, and execution rhythm. Click any card for root cause analysis.",
-    alertOverview: "Alert Overview",
-    impactScope: "Impact Scope",
-    estimatedLoss: "Estimated Loss",
-    aiRecommendation: "AI Recommendation",
-    rootCause: "Root Cause",
-    actionOwner: "Owner Agent",
-    closeHint: "Click any card to open details",
-    alertStatusRed: "Red Alert",
-    alertStatusYellow: "Yellow Alert",
-    alertStatusGreen: "Green / Normal",
-    navReady: "Forecast workspace connected",
-    chartReady: "Curve generated",
-    whatIfReady: "What-If sandbox connected",
-    agentsReady: "Multi-agent connected",
-    alertsReady: "Dynamic alerts connected",
-    nextPending: "Waiting for dispatch and execution feedback linkage",
-    monthShort: "M",
-    modules: [
-      { icon: Truck, title: "Dispatch & Feedback", desc: "Next phase converts reasoning and alerts into jobs, feedback loops, and escalation handling." },
-      { icon: Warehouse, title: "Field Resource Orchestration", desc: "Further connect slaughter, storage, cold-chain, and field shifts." },
-    ],
-  },
-  ja: {
-    eyebrow: "AI Decision OS",
-    title: "AI意思決定コマンドセンター",
-    sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "予測、What-If、マルチエージェント、警報を一つの画面で実行",
-    sectionDesc:
-      "このページは1〜8か月予測、資源シミュレーション、Manus LLM 多エージェント推論、赤黄緑警報と根因分析ダイアログを統合しています。",
-    workbench: "予測ワークベンチ",
-    selectBatch: "在庫バッチ",
-    selectMonth: "予測月数",
-    targetPrice: "目標価格（元/kg）",
-    formulaHint: "バッチ原価、保有コスト、目標価格を基に1〜8か月の価格と収益を自動推計します。",
-    projectedPrice: "予測売価",
-    breakEven: "損益分岐点",
-    avgSell: "平均売価",
-    profit: "総利益",
-    monthlyCost: "月次保有コスト",
-    batchInfo: "バッチ情報",
-    chartTitle: "価格変動カーブ",
-    chartDesc: "青線は予測売価、破線は保本線を示し、月数変更で利益帯を即時に確認できます。",
-    currentMonth: "選択期間",
-    perKgProfit: "kg当たり利益",
-    weight: "在庫重量",
-    chartPrice: "予測売価",
-    chartBreakEven: "保本線",
-    monthUnit: "か月",
-    yuanPerKg: "元/kg",
-    tonnage: "kg",
-    whatIfEyebrow: "What-If Sandbox",
-    whatIfTitle: "多変量 What-If シミュレーション",
-    whatIfDesc: "価格、能力、需要を同時に調整し、利益差分と1〜3か月の屠殺・凍結・保管・冷鏈資源を自動算出します。",
-    scenarioMonth: "シナリオ月",
-    capacityAdjustment: "能力調整（%）",
-    demandAdjustment: "需要調整（%）",
-    baselineProfit: "基準利益",
-    simulatedProfit: "シミュレーション利益",
-    incrementalProfit: "利益増分",
-    expectedRevenue: "予想売上",
-    utilizationRate: "資源利用率",
-    resourcesTitle: "1〜3か月の資源需要",
-    slaughterHeads: "屠殺頭数",
-    freezingTons: "急速冷凍トン数",
-    storageTons: "保管トン数",
-    warehousePallets: "パレット需要",
-    coldChainTrips: "冷鏈便数",
-    agentEyebrow: "Multi-Agent Reasoning",
-    agentTitle: "多層エージェント意思決定出力",
-    agentDesc: "Manus 内蔵モデルを呼び出し、本部・業務調整・現場実行エージェントの判断を統合します。",
-    generateAgents: "多エージェント推論を生成",
-    generatingAgents: "多エージェント推論を生成中...",
-    overview: "全体判断",
-    coordinationSignal: "協調シグナル",
-    dispatchSummary: "実行概要",
-    objective: "目標",
-    recommendation: "提案",
-    rationale: "根拠",
-    nextAction: "次アクション",
-    riskLevel: "リスク",
-    alertEyebrow: "Traffic-Light Alerts",
-    alertTitle: "動的警報ボード",
-    alertDesc: "利益、能力、保管、冷鏈、需要、実行リズムに対する動的警報を生成します。カードを押すと根因分析を表示します。",
-    alertOverview: "警報概要",
-    impactScope: "影響範囲",
-    estimatedLoss: "想定損失",
-    aiRecommendation: "AI 提案",
-    rootCause: "根因",
-    actionOwner: "責任 Agent",
-    closeHint: "カードを押すと詳細を表示",
-    alertStatusRed: "赤警報",
-    alertStatusYellow: "黄警報",
-    alertStatusGreen: "緑 / 正常",
-    navReady: "予測ワークベンチ接続済み",
-    chartReady: "曲線生成済み",
-    whatIfReady: "What-If 接続済み",
-    agentsReady: "多エージェント接続済み",
-    alertsReady: "動的警報接続済み",
-    nextPending: "配車と実行反馈連携待ち",
-    monthShort: "月",
-    modules: [
-      { icon: Truck, title: "配車と実行反馈", desc: "次段階で推論と警報を工単、反馈、エスカレーションへ接続します。" },
-      { icon: Warehouse, title: "現場資源編成", desc: "屠殺、保管、冷鏈、班次の連動をさらに強化します。" },
-    ],
-  },
-  th: {
-    eyebrow: "AI Decision OS",
-    title: "ศูนย์บัญชาการการตัดสินใจ AI",
-    sectionEyebrow: "Prediction Workspace",
-    sectionTitle: "คาดการณ์ จำลอง ตรรกะหลายเอเจนต์ และคำเตือนในหน้าจอเดียว",
-    sectionDesc:
-      "หน้านี้รวมการคาดการณ์ 1-8 เดือน การจำลองทรัพยากร What-If การให้เหตุผลหลายเอเจนต์ของ Manus LLM และคำเตือนสามสีพร้อมหน้าต่างวิเคราะห์สาเหตุรากไว้ด้วยกัน",
-    workbench: "โต๊ะคาดการณ์",
-    selectBatch: "ล็อตคงคลัง",
-    selectMonth: "เดือนที่คาดการณ์",
-    targetPrice: "ราคาเป้าหมาย (หยวน/กก.)",
-    formulaHint: "ระบบจะประมาณการราคาและผลตอบแทน 1-8 เดือนจากต้นทุนล็อต ต้นทุนการถือ และราคาเป้าหมาย",
-    projectedPrice: "ราคาคาดการณ์",
-    breakEven: "จุดคุ้มทุน",
-    avgSell: "ราคาเฉลี่ยขาย",
-    profit: "กำไรรวม",
-    monthlyCost: "ต้นทุนการถือต่อเดือน",
-    batchInfo: "ข้อมูลล็อต",
-    chartTitle: "กราฟเส้นทางราคา",
-    chartDesc: "เส้นสีน้ำเงินคือราคาคาดการณ์ ส่วนเส้นประคือเส้นคุ้มทุนเพื่ออ่านสถานการณ์ได้รวดเร็ว",
-    currentMonth: "ช่วงเวลาที่เลือก",
-    perKgProfit: "กำไรต่อกก.",
-    weight: "น้ำหนักคงคลัง",
-    chartPrice: "ราคาคาดการณ์",
-    chartBreakEven: "จุดคุ้มทุน",
-    monthUnit: "เดือน",
-    yuanPerKg: "หยวน/กก.",
-    tonnage: "kg",
-    whatIfEyebrow: "What-If Sandbox",
-    whatIfTitle: "การจำลอง What-If หลายตัวแปร",
-    whatIfDesc: "ปรับราคา กำลังผลิต และอุปสงค์พร้อมกันเพื่อเปรียบเทียบกำไร และสร้างแผนเชือด แช่แข็ง เก็บคลัง และรถห้องเย็นสำหรับ 1-3 เดือนอัตโนมัติ",
-    scenarioMonth: "เดือนสถานการณ์",
-    capacityAdjustment: "การปรับกำลังผลิต (%)",
-    demandAdjustment: "การปรับอุปสงค์ (%)",
-    baselineProfit: "กำไรฐาน",
-    simulatedProfit: "กำไรจำลอง",
-    incrementalProfit: "กำไรเพิ่มขึ้น",
-    expectedRevenue: "รายได้คาดการณ์",
-    utilizationRate: "อัตราใช้ทรัพยากร",
-    resourcesTitle: "ความต้องการทรัพยากร 1-3 เดือน",
-    slaughterHeads: "จำนวนหัวเชือด",
-    freezingTons: "ตันแช่แข็ง",
-    storageTons: "ตันจัดเก็บ",
-    warehousePallets: "ความต้องการพาเลต",
-    coldChainTrips: "เที่ยวรถห้องเย็น",
-    agentEyebrow: "Multi-Agent Reasoning",
-    agentTitle: "ผลลัพธ์การตัดสินใจหลายเอเจนต์",
-    agentDesc: "เรียกโมเดลในตัวของ Manus เพื่อสรุปการตัดสินใจของผู้บริหาร การจัดคิวธุรกิจ และการปฏิบัติหน้างานเป็นแผนเดียวกัน",
-    generateAgents: "สร้างตรรกะหลายเอเจนต์",
-    generatingAgents: "กำลังสร้างตรรกะหลายเอเจนต์...",
-    overview: "ภาพรวม",
-    coordinationSignal: "สัญญาณการประสาน",
-    dispatchSummary: "สรุปการปฏิบัติ",
-    objective: "เป้าหมาย",
-    recommendation: "ข้อเสนอ",
-    rationale: "เหตุผล",
-    nextAction: "ขั้นถัดไป",
-    riskLevel: "ระดับความเสี่ยง",
-    alertEyebrow: "Traffic-Light Alerts",
-    alertTitle: "กระดานคำเตือนแบบไดนามิก",
-    alertDesc: "ระบบจะสร้างคำเตือนสำหรับกำไร กำลังผลิต คลัง ห้องเย็น อุปสงค์ และจังหวะการปฏิบัติ คลิกการ์ดเพื่อดูสาเหตุราก",
-    alertOverview: "ภาพรวมคำเตือน",
-    impactScope: "ขอบเขตผลกระทบ",
-    estimatedLoss: "ความเสียหายคาดการณ์",
-    aiRecommendation: "คำแนะนำ AI",
-    rootCause: "สาเหตุราก",
-    actionOwner: "เอเจนต์รับผิดชอบ",
-    closeHint: "คลิกการ์ดเพื่อเปิดรายละเอียด",
-    alertStatusRed: "คำเตือนสีแดง",
-    alertStatusYellow: "คำเตือนสีเหลือง",
-    alertStatusGreen: "สีเขียว / ปกติ",
-    navReady: "เชื่อมโต๊ะคาดการณ์แล้ว",
-    chartReady: "สร้างกราฟแล้ว",
-    whatIfReady: "เชื่อม What-If แล้ว",
-    agentsReady: "เชื่อมหลายเอเจนต์แล้ว",
-    alertsReady: "เชื่อมคำเตือนแล้ว",
-    nextPending: "รอเชื่อมการสั่งงานและฟีดแบ็ก",
-    monthShort: "ด.",
-    modules: [
-      { icon: Truck, title: "การสั่งงานและฟีดแบ็ก", desc: "ขั้นถัดไปจะแปลงผลลัพธ์การตัดสินใจและคำเตือนเป็นงานและการยกระดับ" },
-      { icon: Warehouse, title: "การจัดทรัพยากรหน้างาน", desc: "เชื่อมการเชือด คลัง ห้องเย็น และกะทำงานให้แน่นขึ้น" },
-    ],
-  },
+const queueStatusLabel = {
+  approved: "已批准",
+  rejected: "已驳回",
 } as const;
 
-function MetricCard({ label, value, suffix, icon: Icon, pulse }: { label: string; value: string; suffix?: string; icon: typeof Calculator; pulse?: boolean }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      whileHover={{ y: -2, transition: { duration: 0.2 } }}
-      className="group rounded-[22px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015)),rgba(6,14,30,0.92)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_40px_rgba(0,0,0,0.24)] transition-all hover:border-cyan-400/15 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_14px_40px_rgba(0,0,0,0.24),0_0_20px_rgba(56,189,248,0.08)]"
-    >
-      <div className="flex items-center gap-3">
-        <motion.div
-          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-200"
-          animate={pulse ? { scale: [1, 1.08, 1], boxShadow: ["0 0 0px rgba(56,189,248,0)", "0 0 12px rgba(56,189,248,0.2)", "0 0 0px rgba(56,189,248,0)"] } : {}}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <Icon className="h-4 w-4" />
-        </motion.div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">{label}</p>
-      </div>
-      <p className="mt-5 text-3xl font-bold tracking-tight text-white">
-        {value}
-        {suffix ? <span className="ml-2 text-sm font-medium text-slate-500">{suffix}</span> : null}
-      </p>
-    </motion.div>
-  );
+function formatDateTime(value: number | string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
-function getAlertColors(status: AlertCard["status"]) {
+function formatTime(date: Date) {
+  return date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatCurrencyWan(value: number) {
+  return `${value >= 0 ? "+" : ""}${(value / 10000).toFixed(Math.abs(value) >= 100000 ? 0 : 1)} 万元`;
+}
+
+function formatNumber(value: number, digits = 0) {
+  return value.toLocaleString("zh-CN", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getAlertTone(status: "red" | "yellow" | "green") {
   if (status === "red") {
     return {
-      badge: "border-rose-400/20 bg-rose-400/10 text-rose-200",
-      panel: "border-rose-400/20 bg-rose-400/[0.06]",
+      border: "border-red-500/35",
+      bg: "bg-red-500/[0.08]",
+      text: "text-red-200",
+      badge: "高风险",
     };
   }
   if (status === "yellow") {
     return {
-      badge: "border-amber-400/20 bg-amber-400/10 text-amber-100",
-      panel: "border-amber-400/20 bg-amber-400/[0.06]",
+      border: "border-amber-500/35",
+      bg: "bg-amber-500/[0.08]",
+      text: "text-amber-200",
+      badge: "中风险",
     };
   }
   return {
-    badge: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100",
-    panel: "border-emerald-400/20 bg-emerald-400/[0.06]",
+    border: "border-emerald-500/35",
+    bg: "bg-emerald-500/[0.08]",
+    text: "text-emerald-200",
+    badge: "低风险",
   };
 }
 
-function getActionButtonClass(tone: "neutral" | "success" | "danger") {
-  if (tone === "success") {
-    return "rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-50 hover:bg-emerald-400/20";
-  }
-  if (tone === "danger") {
-    return "rounded-full border-rose-400/20 bg-rose-400/10 text-rose-50 hover:bg-rose-400/20";
-  }
-  return "rounded-full border-white/[0.12] bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]";
+function getRiskLevelTone(riskLevel: "低" | "中" | "高") {
+  if (riskLevel === "高") return "text-red-300";
+  if (riskLevel === "中") return "text-amber-300";
+  return "text-emerald-300";
+}
+
+function buildRadarPolygon(values: number[]) {
+  const centerX = 110;
+  const centerY = 110;
+  const radius = 74;
+  return values
+    .map((value, index) => {
+      const angle = (Math.PI * 2 * index) / values.length - Math.PI / 2;
+      const currentRadius = radius * clamp(value, 0.1, 1);
+      const x = centerX + Math.cos(angle) * currentRadius;
+      const y = centerY + Math.sin(angle) * currentRadius;
+      return `${x},${y}`;
+    })
+    .join(" ");
+}
+
+function Panel({
+  title,
+  eyebrow,
+  action,
+  className,
+  children,
+}: {
+  title: string;
+  eyebrow?: string;
+  action?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={cn(panelClassName, className)}>
+      <div className="flex items-center justify-between border-b border-cyan-400/10 px-4 py-3">
+        <div>
+          {eyebrow ? (
+            <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/60">
+              {eyebrow}
+            </div>
+          ) : null}
+          <h2 className="text-[22px] font-semibold tracking-[0.06em] text-slate-50">
+            {title}
+          </h2>
+        </div>
+        {action}
+      </div>
+      <div className="px-4 py-4">{children}</div>
+    </section>
+  );
 }
 
 export default function AiDecisionPage() {
-  const { language } = useLanguage();
-  const current = copy[language];
-  const [batchCode, setBatchCode] = useState("CP-PK-240418-A1");
-  const [selectedMonth, setSelectedMonth] = useState("3");
-  const [targetPriceInput, setTargetPriceInput] = useState("15");
-  const [forecastStrategy, setForecastStrategy] = useState<ForecastStrategy>("balanced");
-  const [basisAdjustmentInput, setBasisAdjustmentInput] = useState("0");
-  const [historyWindow, setHistoryWindow] = useState("6");
-  const [displayMetric, setDisplayMetric] = useState<ForecastDisplayMetric>("projected");
-  const [scenarioMonth, setScenarioMonth] = useState("2");
-  const [capacityAdjustmentInput, setCapacityAdjustmentInput] = useState("12");
-  const [demandAdjustmentInput, setDemandAdjustmentInput] = useState("8");
-  const [activeAlert, setActiveAlert] = useState<AlertCard | null>(null);
-  const [mobileRole, setMobileRole] = useState<MobileRole>("厂长");
-
-  const selectedMonthNumber = useMemo(() => Number(selectedMonth), [selectedMonth]);
-  const scenarioMonthNumber = useMemo(() => Number(scenarioMonth), [scenarioMonth]);
-  const targetPrice = useMemo(() => {
-    const parsed = Number(targetPriceInput);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  }, [targetPriceInput]);
-  const basisAdjustment = useMemo(() => {
-    const parsed = Number(basisAdjustmentInput);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }, [basisAdjustmentInput]);
-  const capacityAdjustment = useMemo(() => {
-    const parsed = Number(capacityAdjustmentInput);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }, [capacityAdjustmentInput]);
-  const demandAdjustment = useMemo(() => {
-    const parsed = Number(demandAdjustmentInput);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }, [demandAdjustmentInput]);
-
-  const forecastUi = useMemo(() => {
-    if (language === "en") {
-      return {
-        strategy: "Forecast strategy",
-        basisAdjustment: "Basis adjustment (¥/kg)",
-        historyWindow: "Lookback window",
-        displayMetric: "Trend overlay",
-        strategyOptions: { steady: "Steady", balanced: "Balanced", aggressive: "Aggressive" },
-        displayOptions: { projected: "Break-even", average: "Average sell", profit: "Profit/kg" },
-        actualLine: "Actual price",
-        forecastLine: "Forecast price",
-        splitLine: "Forecast split",
-        view4: "4 points",
-        view6: "6 points",
-        batchSnapshot: "Decision snapshot",
-        livePrice: "Current spot",
-        effectiveTarget: "Effective target",
-        trendHint: "The actual series stays solid, while the forecast section turns into a dashed line after the split marker.",
-      };
-    }
-    if (language === "ja") {
-      return {
-        strategy: "予測戦略",
-        basisAdjustment: "基差補正（元/kg）",
-        historyWindow: "回看ウィンドウ",
-        displayMetric: "トレンド補助線",
-        strategyOptions: { steady: "慎重", balanced: "標準", aggressive: "積極" },
-        displayOptions: { projected: "損益分岐", average: "平均売価", profit: "kg当たり利益" },
-        actualLine: "実績価格",
-        forecastLine: "予測価格",
-        splitLine: "予測分界",
-        view4: "4点",
-        view6: "6点",
-        batchSnapshot: "意思決定スナップショット",
-        livePrice: "現在現物",
-        effectiveTarget: "有効目標",
-        trendHint: "実績区間は実線、分界点以降の予測区間は破線で表示します。",
-      };
-    }
-    if (language === "th") {
-      return {
-        strategy: "กลยุทธ์คาดการณ์",
-        basisAdjustment: "การปรับ Basis (หยวน/กก.)",
-        historyWindow: "ช่วงมองย้อนหลัง",
-        displayMetric: "เส้นช่วยวิเคราะห์",
-        strategyOptions: { steady: "ระมัดระวัง", balanced: "สมดุล", aggressive: "เชิงรุก" },
-        displayOptions: { projected: "จุดคุ้มทุน", average: "ราคาเฉลี่ยขาย", profit: "กำไรต่อกก." },
-        actualLine: "ราคาจริง",
-        forecastLine: "ราคาคาดการณ์",
-        splitLine: "จุดแบ่งคาดการณ์",
-        view4: "4 จุด",
-        view6: "6 จุด",
-        batchSnapshot: "สแน็ปช็อตการตัดสินใจ",
-        livePrice: "ราคาสปอตปัจจุบัน",
-        effectiveTarget: "เป้าหมายจริง",
-        trendHint: "ช่วงข้อมูลจริงใช้เส้นทึบ และหลังเส้นแบ่งจะใช้เส้นประสำหรับการคาดการณ์",
-      };
-    }
-    return {
-      strategy: "预测策略",
-      basisAdjustment: "基差修正（元/公斤）",
-      historyWindow: "回看窗口",
-      displayMetric: "趋势叠加",
-      strategyOptions: { steady: "稳健", balanced: "基准", aggressive: "进取" },
-      displayOptions: { projected: "保本线", average: "平均售价", profit: "公斤利润" },
-      actualLine: "真实价格",
-      forecastLine: "预测价格",
-      splitLine: "预测分界",
-      view4: "近 4 点",
-      view6: "近 6 点",
-      batchSnapshot: "决策快照",
-      livePrice: "当前现货",
-      effectiveTarget: "有效目标价",
-      trendHint: "真实价格使用实线，经过分界竖线后的预测区间使用虚线显示，并可切换不同叠加指标。",
-    };
-  }, [language]);
-
-  const workspaceInput = {
-    batchCode,
-    forecastMonth: selectedMonthNumber,
-    scenarioMonth: Math.max(1, Math.min(3, scenarioMonthNumber)),
-    targetPrice: targetPrice ?? 15,
-    strategy: forecastStrategy,
-    basisAdjustment,
-    capacityAdjustment,
-    demandAdjustment,
-  };
-
-  const queryInput = {
-    batchCode,
-    selectedMonth: Math.max(1, Math.min(3, scenarioMonthNumber)),
-    targetPrice: targetPrice ?? 15,
-    capacityAdjustment,
-    demandAdjustment,
-  };
-
   const utils = trpc.useUtils();
-  const { data: snapshot } = trpc.platform.snapshot.useQuery({ timeframe: "month" });
-  const { data: workspace, isLoading: workspaceLoading } = trpc.platform.aiDecisionWorkspace.useQuery(workspaceInput, { enabled: Boolean(batchCode) });
-  const data = workspace?.forecast;
-  const whatIfData = workspace?.simulation;
-  const alertsData = workspace?.alertBoard;
-  const dispatchData = workspace?.dispatchBoard;
-  const dispatchHistory = workspace?.dispatchHistory;
+  const [now, setNow] = useState(() => new Date());
+  const [regionCode, setRegionCode] = useState("510000");
+  const [batchCode, setBatchCode] = useState("CP-PK-240418-A1");
+  const [selectedMonth, setSelectedMonth] = useState(3);
+  const [targetPrice, setTargetPrice] = useState<number>(29.4);
+  const [capacityAdjustment, setCapacityAdjustment] = useState(12);
+  const [demandAdjustment, setDemandAdjustment] = useState(10);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(
+    null
+  );
+  const [evidenceTab, setEvidenceTab] = useState<EvidenceTab>("data");
+  const [chatInput, setChatInput] = useState("");
+  const [chatTurns, setChatTurns] = useState<ChatTurn[]>([]);
+  const [queueState, setQueueState] = useState<
+    Record<string, "approved" | "rejected">
+  >({});
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const { data: snapshot } = trpc.platform.snapshot.useQuery({
+    timeframe: "month",
+  });
+  const { data: market } = trpc.platform.porkMarket.useQuery({
+    timeframe: "month",
+    regionCode,
+    sortBy: "hogPrice",
+  });
+  const { data: scenarioData } = trpc.platform.scenarios.useQuery({
+    batchCode,
+    regionCode,
+  });
+  const { data: auditLogs } = trpc.platform.auditLogs.useQuery();
+
+  const workspaceInput = useMemo(
+    () => ({
+      batchCode,
+      forecastMonth: selectedMonth,
+      scenarioMonth: selectedMonth,
+      targetPrice,
+      strategy: "balanced" as const,
+      basisAdjustment: 0,
+      capacityAdjustment,
+      demandAdjustment,
+    }),
+    [
+      batchCode,
+      selectedMonth,
+      targetPrice,
+      capacityAdjustment,
+      demandAdjustment,
+    ]
+  );
+
+  const agentInput = useMemo(
+    () => ({
+      batchCode,
+      selectedMonth,
+      targetPrice,
+      capacityAdjustment,
+      demandAdjustment,
+    }),
+    [
+      batchCode,
+      selectedMonth,
+      targetPrice,
+      capacityAdjustment,
+      demandAdjustment,
+    ]
+  );
+
+  const { data: workspace, isLoading } =
+    trpc.platform.aiDecisionWorkspace.useQuery(workspaceInput, {
+      enabled: Boolean(batchCode && targetPrice > 0),
+    });
+
   const persistDispatch = trpc.platform.persistAiDispatch.useMutation({
     onSuccess: async () => {
-      await utils.platform.aiDecisionWorkspace.invalidate(workspaceInput);
-      await utils.platform.auditLogs.invalidate();
-      toast.success("派单已落库，并已触发通知链路。");
+      await Promise.all([
+        utils.platform.aiDecisionWorkspace.invalidate(workspaceInput),
+        utils.platform.auditLogs.invalidate(),
+      ]);
+      toast.success("执行工单已生成并写入派单链路。");
     },
     onError: error => {
-      toast.error(error.message || "派单落库失败，请稍后重试。");
+      toast.error(error.message || "工单生成失败，请稍后重试。");
     },
   });
-  const updateDispatchReceiptMutation = trpc.platform.updateAiDispatchReceipt.useMutation({
-    onSuccess: async result => {
-      await utils.platform.aiDecisionWorkspace.invalidate(workspaceInput);
-      await utils.platform.auditLogs.invalidate();
-      if (result.notifications.wecom === "sent" || result.notifications.sms === "sent") {
-        toast.success("回执已更新，升级通知已发送。", { duration: 3500 });
-        return;
-      }
-      toast.success("回执状态已更新。", { duration: 2500 });
-    },
-    onError: error => {
-      toast.error(error.message || "回执更新失败，请稍后重试。");
-    },
-  });
-  const aiAgents = trpc.platform.aiAgents.useMutation();
 
-  const effectiveDispatchData = persistDispatch.data ?? dispatchData;
-  const dispatchJson = useMemo(() => JSON.stringify(effectiveDispatchData?.workOrders ?? [], null, 2), [effectiveDispatchData]);
-  const chartWindowSize = useMemo(() => Math.max(2, Number(historyWindow)), [historyWindow]);
-  const chartData = useMemo(() => {
-    const timeline = data?.timeline ?? [];
-    const actualSeries = timeline.filter(point => point.phase === "actual");
-    const forecastSeries = timeline.filter(point => point.phase === "forecast");
-    return [...actualSeries.slice(Math.max(0, actualSeries.length - chartWindowSize)), ...forecastSeries];
-  }, [chartWindowSize, data?.timeline]);
-  const splitLabel = useMemo(() => chartData.find(point => point.phase === "actual" && point.step === 0)?.label ?? "当前", [chartData]);
-  const selectedForecastPoint = useMemo(
-    () => data?.curve.find(point => point.month === selectedMonthNumber) ?? data?.curve[data?.curve.length ? data.curve.length - 1 : 0],
-    [data?.curve, selectedMonthNumber],
+  const confirmDecision = trpc.platform.confirmDecision.useMutation({
+    onSuccess: async (_result, variables) => {
+      setQueueState(prev => ({ ...prev, [variables.scenarioId]: "approved" }));
+      await utils.platform.auditLogs.invalidate();
+      toast.success("策略已写入审计日志并进入审批状态。");
+    },
+    onError: error => {
+      toast.error(error.message || "审批提交失败。");
+    },
+  });
+
+  const aiAgents = trpc.platform.aiAgents.useMutation({
+    onSuccess: () => {
+      toast.success("多 Agent 协同建议已刷新。");
+    },
+    onError: error => {
+      toast.error(error.message || "多 Agent 刷新失败。");
+    },
+  });
+
+  const aiChat = trpc.platform.aiChat.useMutation({
+    onSuccess: result => {
+      const content =
+        typeof result.content === "string"
+          ? result.content
+          : JSON.stringify(result.content);
+      setChatTurns(prev => [
+        ...prev,
+        {
+          role: "assistant",
+          content,
+          timestamp: formatTime(new Date()),
+        },
+      ]);
+    },
+    onError: error => {
+      toast.error(error.message || "AI 助理暂时无法响应。");
+    },
+  });
+
+  const selectedBatch =
+    snapshot?.inventoryBatches.find(item => item.batchCode === batchCode) ??
+    snapshot?.inventoryBatches[0];
+  const liveHogQuote = market?.benchmarkQuotes.find(
+    item => item.code === "live_hog"
   );
+  const cornQuote = market?.benchmarkQuotes.find(
+    item => item.code === "corn_spot"
+  );
+  const soymealQuote = market?.benchmarkQuotes.find(
+    item => item.code === "soymeal_spot"
+  );
+  const batchScenarios = scenarioData?.scenarios ?? [];
+  const bestScenario =
+    batchScenarios.length > 0
+      ? [...batchScenarios].sort(
+          (a, b) => b.netProfitPerKg - a.netProfitPerKg
+        )[0]
+      : null;
 
-  const persistedFeedback = useMemo(() => {
-    if (!dispatchHistory?.length) {
-      return (effectiveDispatchData?.feedback ?? []).map(item => ({
-        orderId: `preview-${item.role}`,
-        role: item.role,
-        status: item.status,
-        etaMinutes: item.etaMinutes,
-        note: item.note,
-        priority: "P2",
-      }));
+  useEffect(() => {
+    if (!snapshot?.inventoryBatches.length) return;
+    if (!snapshot.inventoryBatches.some(item => item.batchCode === batchCode)) {
+      setBatchCode(snapshot.inventoryBatches[0]!.batchCode);
     }
+  }, [snapshot?.inventoryBatches, batchCode]);
 
-    return dispatchHistory
-      .map(order => {
-        const latest = order.receipts[0];
-        if (!latest) {
-          return undefined;
-        }
-        return {
-          orderId: order.orderId,
-          role: latest.role,
-          status: latest.status,
-          etaMinutes: latest.etaMinutes,
-          note: latest.note,
-          priority: order.priority,
-        };
-      })
-      .filter((item): item is MobileRoleFeedback => Boolean(item));
-  }, [dispatchHistory, effectiveDispatchData]);
+  useEffect(() => {
+    if (!selectedBatch) return;
+    setTargetPrice(Number((selectedBatch.futuresMappedPrice - 0.2).toFixed(1)));
+  }, [batchCode, selectedBatch?.futuresMappedPrice]);
 
-  const notificationStatus = persistDispatch.data?.notifications;
-  const mobileRoleTabs = useMemo(
-    () => [
-      { role: "厂长" as const, label: language === "en" ? "Plant" : "厂长" },
-      { role: "司机" as const, label: language === "en" ? "Driver" : "司机" },
-      { role: "仓储管理员" as const, label: language === "en" ? "Warehouse" : "仓储" },
-    ],
-    [language],
-  );
-  const mobileRoleFeedbackMap = useMemo<Record<MobileRole, MobileRoleFeedback>>(() => {
-    const factoryFeedback = persistedFeedback.find(item => item.role === "厂长");
-    const driverFeedback = persistedFeedback.find(item => item.role === "司机");
-    const warehouseFeedback = persistedFeedback.find(item => item.role === "仓储管理员");
+  useEffect(() => {
+    if (!bestScenario) return;
+    setSelectedScenarioId(current =>
+      current && batchScenarios.some(item => item.scenarioId === current)
+        ? current
+        : bestScenario.scenarioId
+    );
+  }, [bestScenario, batchScenarios]);
 
+  useEffect(() => {
+    if (!workspace || !selectedBatch) return;
+    setChatTurns([
+      {
+        role: "assistant",
+        content: `您好，我是 AI Copilot。当前批次 ${selectedBatch.batchCode} 的建议窗口为 ${selectedMonth} 个月，系统已读取库存、行情、量化公式和调度链路。`,
+        timestamp: formatTime(new Date()),
+      },
+      {
+        role: "user",
+        content: "当前利润改善空间来自哪里？是否值得立刻执行？",
+        timestamp: formatTime(new Date()),
+      },
+      {
+        role: "assistant",
+        content: `当前模拟收益 ${formatCurrencyWan(workspace.simulation.summary.simulatedProfit)}，相对基线变化 ${formatCurrencyWan(workspace.simulation.summary.incrementalProfit)}。主要影响项是 ${workspace.alertBoard.items[0]?.title ?? "利润偏差"} 和 ${workspace.alertBoard.items[1]?.title ?? "价格目标可达性"}。`,
+        timestamp: formatTime(new Date()),
+      },
+    ]);
+  }, [batchCode, selectedBatch, selectedMonth, workspace]);
+
+  const selectedScenario =
+    batchScenarios.find(item => item.scenarioId === selectedScenarioId) ??
+    batchScenarios[0] ??
+    null;
+  const selectedScenarioIndex = selectedScenario
+    ? batchScenarios.findIndex(
+        item => item.scenarioId === selectedScenario.scenarioId
+      )
+    : 0;
+  const selectedPlanLabel = `方案${String.fromCharCode(65 + Math.max(0, selectedScenarioIndex))}`;
+
+  const effectiveAgentDecision = aiAgents.data ?? workspace?.agentDecision;
+  const effectiveDispatch = persistDispatch.data ?? workspace?.dispatchBoard;
+
+  const syntheticAgents = useMemo<CollaborationAgent[]>(() => {
+    const currentAgents = effectiveAgentDecision?.agents ?? [];
+    if (currentAgents.length >= 4) return currentAgents;
+    if (!workspace) return currentAgents;
+
+    const dispatchConfidence = clamp(
+      92 -
+        workspace.executionSummary.escalatedCount * 10 -
+        Math.max(0, workspace.simulation.summary.utilizationRate - 100) * 0.3,
+      62,
+      95
+    );
+
+    return [
+      ...currentAgents,
+      {
+        agentId: "dispatch",
+        agentName: "调度执行 Agent",
+        objective: "保障工单闭环与现场节拍一致",
+        recommendation:
+          effectiveDispatch?.summary ?? "按派单链路推进现场协同。",
+        rationale: `当前共 ${workspace.executionSummary.totalOrders} 条工单，闭环率 ${workspace.executionSummary.closureRate.toFixed(1)}%。`,
+        riskLevel:
+          workspace.executionSummary.escalatedCount > 0
+            ? "高"
+            : workspace.executionSummary.inProgressCount > 0
+              ? "中"
+              : "低",
+        nextAction: `${dispatchConfidence.toFixed(0)}%`,
+      },
+    ];
+  }, [effectiveAgentDecision?.agents, effectiveDispatch?.summary, workspace]);
+
+  const planCards = batchScenarios.map((scenario, index) => {
+    const projectedProfit =
+      scenario.netProfitPerKg * (selectedBatch?.weightKg ?? 0);
+    const roi =
+      scenario.breakEvenPrice > 0
+        ? (scenario.expectedSellPrice - scenario.breakEvenPrice) /
+          scenario.breakEvenPrice
+        : 0;
+    const confidence = clamp(
+      96 - scenario.riskScore * 0.45 - scenario.holdMonths * 3,
+      58,
+      95
+    );
     return {
-      厂长: factoryFeedback ?? {
-        orderId: "preview-厂长",
-        role: "厂长",
-        status: "待确认",
-        etaMinutes: 25,
-        note: "等待厂长确认派单与预警联动。",
-        priority: "P1",
-      },
-      司机: driverFeedback ?? {
-        orderId: "preview-司机",
-        role: "司机",
-        status: "待确认",
-        etaMinutes: 45,
-        note: "等待司机确认装车与配送路线。",
-        priority: "P2",
-      },
-      仓储管理员: warehouseFeedback ?? {
-        orderId: "preview-仓储",
-        role: "仓储管理员",
-        status: "待确认",
-        etaMinutes: 35,
-        note: "等待仓储管理员确认入库回执。",
-        priority: "P2",
-      },
+      ...scenario,
+      id: scenario.scenarioId,
+      planLabel: `方案${String.fromCharCode(65 + index)}`,
+      projectedProfit,
+      roi,
+      confidence,
+      tag: index === 0 ? "推荐" : index === 1 ? "稳进" : "观察",
     };
-  }, [persistedFeedback]);
-  const activeMobileRoleFeedback = mobileRoleFeedbackMap[mobileRole];
-  const mobileRoleView = useMemo(
-    () => buildMobileRoleView({
-      language,
-      role: mobileRole,
-      feedback: activeMobileRoleFeedback,
-      alertsCount: alertsData?.items.length ?? 0,
-      projectedPrice: data?.summary.projectedPrice ?? 0,
-      incrementalProfit: whatIfData?.summary.incrementalProfit ?? 0,
-      workOrderCount: effectiveDispatchData?.workOrders.length ?? 0,
-    }),
-    [activeMobileRoleFeedback, alertsData?.items.length, data?.summary.projectedPrice, effectiveDispatchData?.workOrders.length, language, mobileRole, whatIfData?.summary.incrementalProfit],
+  });
+
+  const selectedPlanCard =
+    planCards.find(item => item.id === selectedScenario?.scenarioId) ??
+    planCards[0];
+  const radarValues = useMemo(() => {
+    if (!workspace || !selectedPlanCard) return [0.7, 0.64, 0.52, 0.8];
+    return [
+      clamp((selectedPlanCard.projectedProfit / 300000 + 1) / 2, 0.28, 0.96),
+      clamp(
+        (workspace.simulation.summary.expectedRevenue / 600000 + 0.2) / 1.5,
+        0.26,
+        0.94
+      ),
+      clamp(1 - selectedPlanCard.riskScore / 110, 0.2, 0.9),
+      clamp(
+        1 -
+          Math.max(0, workspace.simulation.summary.utilizationRate - 100) / 35,
+        0.22,
+        0.92
+      ),
+    ];
+  }, [selectedPlanCard, workspace]);
+
+  const queueItems = useMemo(() => {
+    if (!workspace || !selectedBatch) return [];
+    const scenarioQueue = planCards.map((plan, index) => ({
+      id: plan.id,
+      type: "scenario" as const,
+      order: index + 1,
+      title: `${selectedBatch.partName}${selectedMonth}个月利润提升方案（${plan.planLabel}）`,
+      sender: syntheticAgents[index]?.agentName ?? "经营 Agent",
+      confidence: `${plan.confidence.toFixed(0)}%`,
+      impact: formatCurrencyWan(plan.projectedProfit),
+      timestamp: formatTime(new Date(now.getTime() - index * 60 * 1000)),
+      riskLevel: plan.riskLevel,
+      status: queueState[plan.id],
+    }));
+
+    const dispatchQueue = {
+      id: `dispatch-${batchCode}-${selectedMonth}`,
+      type: "dispatch" as const,
+      order: scenarioQueue.length + 1,
+      title: `${effectiveDispatch?.escalation ? "紧急" : "标准"}派单执行方案`,
+      sender:
+        syntheticAgents[syntheticAgents.length - 1]?.agentName ??
+        "调度执行 Agent",
+      confidence: `${clamp(95 - workspace.executionSummary.blockingExceptions * 12, 58, 93).toFixed(0)}%`,
+      impact: formatCurrencyWan(
+        workspace.optimizationSnapshot.spatialOptimization.totalNetProfit
+      ),
+      timestamp: formatTime(new Date(now.getTime() - 3 * 60 * 1000)),
+      riskLevel: workspace.lifecycle.hasEscalation ? "高" : "中",
+      status: queueState[`dispatch-${batchCode}-${selectedMonth}`],
+    };
+
+    return [...scenarioQueue, dispatchQueue];
+  }, [
+    batchCode,
+    effectiveDispatch?.escalation,
+    now,
+    planCards,
+    queueState,
+    selectedBatch,
+    selectedMonth,
+    syntheticAgents,
+    workspace,
+  ]);
+
+  const evidenceRows = useMemo(() => {
+    if (!workspace || !selectedBatch) return [];
+    const generatedAt =
+      market?.generatedAt ?? snapshot?.generatedAt ?? Date.now();
+    return [
+      {
+        name: "库存批次主数据",
+        scope: `${selectedBatch.batchCode} / ${selectedBatch.warehouse}`,
+        freshness: formatDateTime(generatedAt),
+        contribution: `${Math.round(selectedBatch.weightKg / 1000)} 吨`,
+      },
+      {
+        name: "现货与期货映射",
+        scope: `现货 ${selectedBatch.currentSpotPrice} / 期货映射 ${selectedBatch.futuresMappedPrice}`,
+        freshness: formatDateTime(generatedAt),
+        contribution: `${Math.round(((selectedBatch.futuresMappedPrice - selectedBatch.currentSpotPrice) / selectedBatch.currentSpotPrice) * 100)}%`,
+      },
+      {
+        name: "量化决策公式",
+        scope: `${selectedPlanCard?.holdMonths ?? 1} 个月持有`,
+        freshness: formatDateTime(generatedAt),
+        contribution: selectedPlanCard
+          ? formatCurrencyWan(selectedPlanCard.projectedProfit)
+          : "--",
+      },
+      {
+        name: "What-if 资源仿真",
+        scope: `${workspace.simulation.resources[0]?.slaughterHeads ?? 0} 头屠宰 / ${workspace.simulation.resources[0]?.coldChainTrips ?? 0} 车次`,
+        freshness: formatDateTime(generatedAt),
+        contribution: `${workspace.simulation.summary.utilizationRate.toFixed(1)}%`,
+      },
+      {
+        name: "派单与审计闭环",
+        scope: `${workspace.executionSummary.totalOrders} 条工单 / ${workspace.executionSummary.completedCount} 已完成`,
+        freshness: formatDateTime(Date.now()),
+        contribution: `${workspace.executionSummary.blockingExceptions} 个阻塞异常`,
+      },
+    ];
+  }, [
+    market?.generatedAt,
+    selectedBatch,
+    selectedPlanCard,
+    snapshot?.generatedAt,
+    workspace,
+  ]);
+
+  const realismChecks = useMemo(() => {
+    if (!workspace || !selectedBatch || !selectedScenario) return [];
+    const storageAge = selectedBatch.ageDays + selectedScenario.holdMonths * 30;
+    const targetGap = workspace.forecast.summary.projectedPrice - targetPrice;
+    return [
+      {
+        label: "目标价可达性",
+        value: targetGap >= -0.5 ? "可执行" : "需下调预期",
+        tone: targetGap >= -0.5 ? "emerald" : "amber",
+        detail: `预测价与目标价偏差 ${targetGap.toFixed(2)} 元/公斤`,
+      },
+      {
+        label: "库龄与持有期",
+        value: storageAge <= 90 ? "可控" : "偏高",
+        tone: storageAge <= 90 ? "emerald" : "red",
+        detail: `当前库龄 ${selectedBatch.ageDays} 天，执行后约 ${storageAge} 天`,
+      },
+      {
+        label: "产能可行性",
+        value:
+          workspace.simulation.summary.utilizationRate <= 110
+            ? "可排产"
+            : "需扩容",
+        tone:
+          workspace.simulation.summary.utilizationRate <= 110
+            ? "emerald"
+            : "red",
+        detail: `资源利用率 ${workspace.simulation.summary.utilizationRate.toFixed(1)}%`,
+      },
+      {
+        label: "执行闭环风险",
+        value:
+          workspace.executionSummary.blockingExceptions === 0
+            ? "可控"
+            : "需人工盯防",
+        tone:
+          workspace.executionSummary.blockingExceptions === 0
+            ? "emerald"
+            : "amber",
+        detail: `${workspace.executionSummary.blockingExceptions} 个阻塞异常`,
+      },
+    ];
+  }, [selectedBatch, selectedScenario, targetPrice, workspace]);
+
+  const scenarioCompareRows = useMemo(() => {
+    if (!selectedPlanCard) return [];
+    return [
+      {
+        label: "基准场景",
+        profit: selectedPlanCard.projectedProfit,
+        roi: selectedPlanCard.roi,
+        grossMargin:
+          selectedPlanCard.expectedSellPrice > 0
+            ? selectedPlanCard.netProfitPerKg /
+              selectedPlanCard.expectedSellPrice
+            : 0,
+        probability: 0.6,
+      },
+      {
+        label: "乐观场景",
+        profit: selectedPlanCard.projectedProfit * 1.28,
+        roi: selectedPlanCard.roi * 1.22,
+        grossMargin:
+          selectedPlanCard.expectedSellPrice > 0
+            ? (selectedPlanCard.netProfitPerKg + 0.6) /
+              (selectedPlanCard.expectedSellPrice + 0.6)
+            : 0,
+        probability: 0.25,
+      },
+      {
+        label: "压力场景",
+        profit: selectedPlanCard.projectedProfit * 0.56,
+        roi: selectedPlanCard.roi * 0.62,
+        grossMargin:
+          selectedPlanCard.expectedSellPrice > 0
+            ? Math.max(0, selectedPlanCard.netProfitPerKg - 0.8) /
+              selectedPlanCard.expectedSellPrice
+            : 0,
+        probability: 0.15,
+      },
+    ];
+  }, [selectedPlanCard]);
+
+  const timelineItems = useMemo(() => {
+    const logs = (auditLogs ?? []).slice(0, 5).map(item => ({
+      id: item.id,
+      time: formatDateTime(item.createdAt),
+      title: item.actionType,
+      subtitle: item.decision,
+      status: item.status,
+      metric: item.afterValue,
+      risk: item.riskLevel,
+    }));
+
+    if (logs.length >= 4) return logs;
+
+    const dispatchItems =
+      effectiveDispatch?.workOrders.map(order => ({
+        id: order.orderId,
+        time: order.scheduledTime,
+        title: `${order.factory}${order.role}执行单`,
+        subtitle: `${order.quantity.toLocaleString()} ${order.role === "司机" ? "车次" : order.role === "仓储管理员" ? "托盘" : "头"}`,
+        status: order.priority,
+        metric: order.operationRequirement,
+        risk:
+          order.priority === "P1"
+            ? "高"
+            : order.priority === "P2"
+              ? "中"
+              : "低",
+      })) ?? [];
+
+    return [...logs, ...dispatchItems].slice(0, 5);
+  }, [auditLogs, effectiveDispatch?.workOrders]);
+
+  const quickPrompts = [
+    "优化当前利润最好的执行方案",
+    "评估原料成本再下降 10% 的影响",
+    "下一步应该优先审批哪一项？",
+  ];
+
+  const selectedRegionName =
+    market?.regionOptions.find(option => option.code === regionCode)?.name ??
+    market?.selectedRegionName ??
+    "四川";
+  const refreshLabel = formatDateTime(
+    market?.generatedAt ?? snapshot?.generatedAt ?? Date.now()
   );
 
-  const runAiAgents = () => {
-    aiAgents.mutate(queryInput);
+  const sendChat = () => {
+    const content = chatInput.trim();
+    if (!content) return;
+
+    const nextTurns = [
+      ...chatTurns,
+      {
+        role: "user" as const,
+        content,
+        timestamp: formatTime(new Date()),
+      },
+    ];
+
+    setChatTurns(nextTurns);
+    setChatInput("");
+    aiChat.mutate({
+      messages: nextTurns.map(item => ({
+        role: item.role,
+        content: item.content,
+      })),
+      context: {
+        batchCode,
+        timeframe: "month",
+        regionCode,
+      },
+    });
   };
 
-  const persistCurrentDispatch = () => {
-    persistDispatch.mutate(queryInput);
-  };
-
-  const updateRoleReceipt = (
-    role: "厂长" | "司机" | "仓储管理员",
-    status: "已接单" | "已完成" | "超时升级",
-    orderId?: string,
-  ) => {
-    if (!orderId) {
-      toast.error("当前角色尚未生成可更新的工单。", { duration: 2500 });
-      return;
-    }
-
-    updateDispatchReceiptMutation.mutate({
-      orderId,
-      role,
-      status,
-      etaMinutes: status === "已完成" ? 0 : status === "超时升级" ? 90 : 25,
-      note:
-        status === "已完成"
-          ? `${role} 已完成签收回执并留痕。`
-          : status === "超时升级"
-            ? `${role} 工单超时，已触发升级通知。`
-            : `${role} 已确认接单，准备执行。`,
-      acknowledgedBy: status === "已接单" ? `${role}-现场确认` : undefined,
-      receiptBy: status === "已完成" ? `${role}-签收回执` : undefined,
+  const runQueueApprove = (scenarioId: string) => {
+    confirmDecision.mutate({
+      batchCode,
+      scenarioId,
+      operatorRole: "strategist",
+      operatorName: "AI 决策工作台",
     });
   };
 
   return (
-    <PlatformShell eyebrow={current.eyebrow} title={current.title} pageId="ai">
-      <SectionHeader
-        eyebrow={current.sectionEyebrow}
-        title={current.sectionTitle}
-        description={current.sectionDesc}
-        aside={
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-200">{current.navReady}</Badge>
-            <Badge className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">{current.chartReady}</Badge>
-            <Badge className="rounded-full border border-fuchsia-400/20 bg-fuchsia-400/10 px-3 py-1 text-[11px] font-semibold text-fuchsia-200">{current.whatIfReady}</Badge>
-            <Badge className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1 text-[11px] font-semibold text-violet-200">{current.agentsReady}</Badge>
-            <Badge className="rounded-full border border-rose-400/20 bg-rose-400/10 px-3 py-1 text-[11px] font-semibold text-rose-100">{current.alertsReady}</Badge>
-            <Badge className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold text-amber-200">{current.nextPending}</Badge>
-          </div>
-        }
-      />
+    <div className="min-h-screen overflow-hidden bg-[#020814] text-slate-100">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_22%),radial-gradient(circle_at_50%_35%,rgba(59,130,246,0.12),transparent_32%),linear-gradient(180deg,#03101f_0%,#020814_55%,#041427_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-[linear-gradient(90deg,transparent,rgba(56,189,248,0.28),transparent)] opacity-40 blur-3xl" />
 
-      <TechPanel>
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/60">{current.workbench}</p>
-              <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.workbench} · {current.chartTitle}</h4>
-              <p className="mt-3 max-w-3xl text-[13px] leading-6 text-slate-400">{current.formulaHint}</p>
-            </div>
-            <div className="grid min-w-[240px] gap-3 sm:grid-cols-2 xl:w-[420px]">
-              <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-400/[0.06] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">Workflow stage</p>
-                <p className="mt-2 text-xl font-semibold text-white">{workspace?.lifecycle.stage ?? "decision"}</p>
-                <p className="mt-1 text-[12px] text-cyan-50/75">{workspace?.lifecycle.hasEscalation ? current.alertStatusRed : current.alertStatusGreen}</p>
+      <div className="relative z-10">
+        <header className="border-b border-cyan-400/10 px-4 py-3">
+          <div className="grid items-center gap-4 xl:grid-cols-[1fr,auto,1fr]">
+            <div className="flex items-center gap-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/25 bg-cyan-400/10 text-cyan-200">
+                <MapPin className="h-5 w-5" />
               </div>
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Dispatch closure</p>
-                <p className="mt-2 text-xl font-semibold text-white">{workspace?.executionSummary.closureRate ?? 0}%</p>
-                <p className="mt-1 text-[12px] text-slate-400">{workspace?.executionSummary.completedCount ?? 0}/{workspace?.executionSummary.totalOrders ?? 0} completed</p>
-              </div>
-              <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-400/[0.06] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/80">{current.currentMonth}</p>
-                <p className="mt-2 text-xl font-semibold text-white">{data?.selectedMonth ?? selectedMonthNumber} {current.monthUnit}</p>
-                <p className="mt-1 text-[12px] text-cyan-50/75">{current.perKgProfit} ¥{selectedForecastPoint ? selectedForecastPoint.profitPerKg.toFixed(2) : "--"}</p>
-              </div>
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{forecastUi.batchSnapshot}</p>
-                <p className="mt-2 text-base font-semibold text-white">{data?.batch.partName ?? batchCode}</p>
-                <p className="mt-1 text-[12px] text-slate-400">{forecastUi.livePrice} ¥{data?.summary.currentSpotPrice.toFixed(2) ?? "--"}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-slate-300">{current.selectBatch}</p>
-              <Select value={batchCode} onValueChange={setBatchCode}>
-                <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.selectBatch} /></SelectTrigger>
-                <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
-                  {(snapshot?.inventoryBatches ?? []).map(batch => <SelectItem key={batch.batchCode} value={batch.batchCode}>{batch.batchCode}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-slate-300">{current.selectMonth}</p>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.selectMonth} /></SelectTrigger>
-                <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
-                  {Array.from({ length: 8 }, (_, index) => <SelectItem key={index + 1} value={String(index + 1)}>{index + 1} {current.monthUnit}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p>
-              <Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
-            </div>
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-slate-300">{forecastUi.strategy}</p>
-              <Select value={forecastStrategy} onValueChange={value => setForecastStrategy(value as ForecastStrategy)}>
-                <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={forecastUi.strategy} /></SelectTrigger>
-                <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
-                  <SelectItem value="steady">{forecastUi.strategyOptions.steady}</SelectItem>
-                  <SelectItem value="balanced">{forecastUi.strategyOptions.balanced}</SelectItem>
-                  <SelectItem value="aggressive">{forecastUi.strategyOptions.aggressive}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-slate-300">{forecastUi.basisAdjustment}</p>
-              <Input value={basisAdjustmentInput} onChange={event => setBasisAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" />
-            </div>
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-slate-300">{forecastUi.historyWindow}</p>
-              <Select value={historyWindow} onValueChange={setHistoryWindow}>
-                <SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={forecastUi.historyWindow} /></SelectTrigger>
-                <SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">
-                  <SelectItem value="4">{forecastUi.view4}</SelectItem>
-                  <SelectItem value="6">{forecastUi.view6}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label={forecastUi.livePrice} value={`¥${data?.summary.currentSpotPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={Radar} />
-            <MetricCard label={current.projectedPrice} value={`¥${data?.summary.projectedPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={LineChartIcon} />
-            <MetricCard label={current.breakEven} value={`¥${data?.summary.breakEvenPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={Calculator} />
-            <MetricCard label={current.avgSell} value={`¥${data?.summary.averageSellPrice.toFixed(2) ?? "--"}`} suffix={current.yuanPerKg} icon={Factory} />
-            <MetricCard label={current.profit} value={`¥${data?.summary.totalProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={BrainCircuit} />
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
-            <div className="rounded-[24px] border border-white/[0.06] bg-slate-950/50 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-slate-500">{forecastUi.displayMetric}</p>
-                  <p className="mt-2 text-sm text-slate-400">{forecastUi.trendHint}</p>
+              <div>
+                <div className="flex items-center gap-2 text-[18px] font-semibold tracking-[0.05em] text-white">
+                  <span>四川眉山</span>
+                  <ChevronDown className="h-4 w-4 text-cyan-300/70" />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    ["projected", forecastUi.displayOptions.projected],
-                    ["average", forecastUi.displayOptions.average],
-                    ["profit", forecastUi.displayOptions.profit],
-                  ] as Array<[ForecastDisplayMetric, string]>).map(([metric, label]) => (
-                    <button
-                      key={metric}
-                      type="button"
-                      onClick={() => setDisplayMetric(metric)}
-                      className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition-all ${displayMetric === metric ? "border-cyan-400/30 bg-cyan-400/[0.1] text-cyan-100" : "border-white/[0.08] bg-white/[0.03] text-slate-400 hover:bg-white/[0.06] hover:text-slate-200"}`}
+                <div className="mt-1 text-xs text-slate-400">
+                  AI 决策工作台 &nbsp;&gt;&nbsp; 决策协同空间 &nbsp;&nbsp;
+                  省级行情映射：{selectedRegionName}
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center">
+              <div className="text-[42px] font-semibold tracking-[0.12em] text-white">
+                AI 决策工作台
+              </div>
+              <div className="mt-1 text-xs tracking-[0.42em] text-cyan-300/55">
+                人机共创 · 智能决策 · 价值闭环
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+              <div className="text-right">
+                <div className="text-xs text-slate-400">数据刷新</div>
+                <div className="text-sm font-medium text-cyan-100">
+                  {refreshLabel}
+                </div>
+              </div>
+              <div className="rounded-full border border-cyan-400/15 p-2 text-slate-300">
+                <RefreshCcw className="h-4 w-4" />
+              </div>
+              <div className="relative rounded-full border border-cyan-400/15 p-2 text-slate-300">
+                <Bell className="h-4 w-4" />
+                <span className="absolute -right-1 -top-1 rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">
+                  {(workspace?.alertBoard.items.filter(
+                    item => item.status === "red"
+                  ).length ?? 0) + 8}
+                </span>
+              </div>
+              <div className="rounded-full border border-cyan-400/15 p-2 text-slate-300">
+                <Settings2 className="h-4 w-4" />
+              </div>
+              <div className="flex items-center gap-3 rounded-full border border-cyan-400/15 bg-white/[0.04] px-3 py-1.5">
+                <UserCircle2 className="h-8 w-8 text-cyan-200" />
+                <div>
+                  <div className="text-sm font-semibold text-white">潘猛</div>
+                  <div className="text-xs text-slate-400">公司决策主管</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="px-3 pt-3">
+          <div className={cn(panelClassName, "px-4 py-3")}>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.1fr,1.2fr,0.7fr,0.9fr,1fr,1fr]">
+              <div className="space-y-1">
+                <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/55">
+                  Region
+                </div>
+                <Select value={regionCode} onValueChange={setRegionCode}>
+                  <SelectTrigger className="h-11 rounded-xl border-cyan-400/15 bg-[#071628] text-white">
+                    <SelectValue placeholder="选择区域" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(
+                      market?.regionOptions ?? [
+                        { code: "510000", name: "四川" },
+                      ]
+                    ).map(option => (
+                      <SelectItem key={option.code} value={option.code}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/55">
+                  Batch
+                </div>
+                <Select value={batchCode} onValueChange={setBatchCode}>
+                  <SelectTrigger className="h-11 rounded-xl border-cyan-400/15 bg-[#071628] text-white">
+                    <SelectValue placeholder="选择批次" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(snapshot?.inventoryBatches ?? []).map(batch => (
+                      <SelectItem key={batch.batchCode} value={batch.batchCode}>
+                        {batch.batchCode} · {batch.partName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/55">
+                  Window
+                </div>
+                <Select
+                  value={String(selectedMonth)}
+                  onValueChange={value => setSelectedMonth(Number(value))}
+                >
+                  <SelectTrigger className="h-11 rounded-xl border-cyan-400/15 bg-[#071628] text-white">
+                    <SelectValue placeholder="决策周期" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3].map(month => (
+                      <SelectItem key={month} value={String(month)}>
+                        {month} 个月
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-300/55">
+                  Target
+                </div>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={targetPrice}
+                  onChange={event => setTargetPrice(Number(event.target.value))}
+                  className="h-11 rounded-xl border-cyan-400/15 bg-[#071628] text-white"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.28em] text-cyan-300/55">
+                  <span>Capacity</span>
+                  <span>{capacityAdjustment}%</span>
+                </div>
+                <Slider
+                  value={[capacityAdjustment]}
+                  min={-20}
+                  max={40}
+                  step={1}
+                  onValueChange={value => setCapacityAdjustment(value[0] ?? 0)}
+                  className="[&_[data-slot=slider-range]]:bg-cyan-400 [&_[data-slot=slider-thumb]]:border-cyan-300"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.28em] text-cyan-300/55">
+                  <span>Demand</span>
+                  <span>{demandAdjustment}%</span>
+                </div>
+                <Slider
+                  value={[demandAdjustment]}
+                  min={-20}
+                  max={40}
+                  step={1}
+                  onValueChange={value => setDemandAdjustment(value[0] ?? 0)}
+                  className="[&_[data-slot=slider-range]]:bg-violet-400 [&_[data-slot=slider-thumb]]:border-violet-300"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <main className="grid gap-3 px-3 py-3 xl:grid-cols-[360px,minmax(0,1fr),390px]">
+          <div className="flex min-h-0 flex-col gap-3">
+            <Panel
+              title="AI Copilot"
+              eyebrow="GPT-4o 企业版"
+              className="min-h-[720px]"
+              action={
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Bot className="h-4 w-4 text-cyan-200" />
+                  <Sparkles className="h-4 w-4 text-cyan-200" />
+                </div>
+              }
+            >
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.06] p-4">
+                  <div className="mb-3 flex items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/25 bg-cyan-400/10 text-cyan-100">
+                      <BrainCircuit className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold text-white">
+                        您好，潘猛
+                      </div>
+                      <div className="mt-1 text-sm text-slate-300">
+                        当前批次 {selectedBatch?.batchCode ?? "--"}{" "}
+                        已联通库存、行情、量化公式、审计日志与执行回执。
+                      </div>
+                    </div>
+                  </div>
+                  <ul className="space-y-2 text-sm leading-6 text-slate-300">
+                    <li>解析库存与行情耦合，识别真实利润改善空间。</li>
+                    <li>根据 What-if 参数推演产能、冷链与仓储可行性。</li>
+                    <li>协调多 Agent，生成审批建议与执行工单。</li>
+                  </ul>
+                </div>
+
+                <ScrollArea className="h-[360px] rounded-2xl border border-cyan-400/10 bg-[#061223]/70 p-3">
+                  <div className="space-y-4 pr-3">
+                    {chatTurns.map((turn, index) => (
+                      <div
+                        key={`${turn.timestamp}-${index}`}
+                        className={cn(
+                          "flex",
+                          turn.role === "user" ? "justify-end" : "justify-start"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "max-w-[92%] rounded-2xl border px-4 py-3 text-sm leading-7",
+                            turn.role === "user"
+                              ? "border-cyan-400/25 bg-cyan-500/[0.14] text-cyan-50"
+                              : "border-white/8 bg-white/[0.04] text-slate-200"
+                          )}
+                        >
+                          <div>{turn.content}</div>
+                          <div className="mt-2 text-right text-[11px] text-slate-500">
+                            {turn.timestamp}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {aiChat.isPending ? (
+                      <div className="rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.05] px-4 py-3 text-sm text-cyan-100">
+                        AI 正在结合当前库存、行情和审批链路生成建议...
+                      </div>
+                    ) : null}
+                  </div>
+                </ScrollArea>
+
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-slate-200">
+                    您可以继续追问：
+                  </div>
+                  <div className="grid gap-2">
+                    {quickPrompts.map(prompt => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => setChatInput(prompt)}
+                        className="rounded-xl border border-cyan-400/12 bg-white/[0.03] px-3 py-2 text-left text-sm text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-400/[0.08]"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 rounded-2xl border border-cyan-400/12 bg-[#061223]/80 p-2">
+                  <Input
+                    value={chatInput}
+                    onChange={event => setChatInput(event.target.value)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        sendChat();
+                      }
+                    }}
+                    placeholder="请输入您的问题，或发起新的协同指令"
+                    className="h-12 border-0 bg-transparent text-white shadow-none focus-visible:ring-0"
+                  />
+                  <Button
+                    type="button"
+                    onClick={sendChat}
+                    disabled={aiChat.isPending}
+                    className="h-11 rounded-xl bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    发送
+                  </Button>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="真实性与可行性校验" eyebrow="Decision Audit">
+              <div className="space-y-3">
+                {realismChecks.map(item => (
+                  <div
+                    key={item.label}
+                    className={cn(
+                      "rounded-2xl border px-4 py-3",
+                      item.tone === "emerald"
+                        ? "border-emerald-500/25 bg-emerald-500/[0.08]"
+                        : item.tone === "amber"
+                          ? "border-amber-500/25 bg-amber-500/[0.08]"
+                          : "border-red-500/25 bg-red-500/[0.08]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-white">
+                        {item.label}
+                      </div>
+                      <div
+                        className={cn(
+                          "text-sm font-semibold",
+                          item.tone === "emerald"
+                            ? "text-emerald-300"
+                            : item.tone === "amber"
+                              ? "text-amber-300"
+                              : "text-red-300"
+                        )}
+                      >
+                        {item.value}
+                      </div>
+                    </div>
+                    <div className="mt-2 text-sm text-slate-300">
+                      {item.detail}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </div>
+
+          <div className="flex min-h-0 flex-col gap-3">
+            <Panel
+              title="多 Agent 协同空间"
+              eyebrow="Human + Machine Collaboration"
+              action={
+                <Button
+                  type="button"
+                  onClick={() => aiAgents.mutate(agentInput)}
+                  disabled={aiAgents.isPending}
+                  className="h-10 rounded-xl border border-cyan-400/18 bg-cyan-400/[0.08] text-cyan-100 hover:bg-cyan-400/[0.14]"
+                >
+                  <RefreshCcw className="mr-2 h-4 w-4" />
+                  刷新协同建议
+                </Button>
+              }
+            >
+              <div className="grid gap-3 xl:grid-cols-4">
+                {syntheticAgents.map(
+                  (agent: CollaborationAgent, index: number) => {
+                    const confidenceLabel =
+                      index === syntheticAgents.length - 1 &&
+                      agent.agentId === "dispatch"
+                        ? agent.nextAction
+                        : `${clamp(95 - (agent.riskLevel === "高" ? 12 : agent.riskLevel === "中" ? 7 : 3) - index * 2, 62, 96)}%`;
+                    const accent =
+                      index === 0
+                        ? "from-cyan-500/20 to-blue-500/10"
+                        : index === 1
+                          ? "from-emerald-500/20 to-teal-500/10"
+                          : index === 2
+                            ? "from-violet-500/20 to-indigo-500/10"
+                            : "from-amber-500/20 to-orange-500/10";
+                    return (
+                      <div
+                        key={`${agent.agentId}-${index}`}
+                        className={cn(
+                          "rounded-2xl border border-cyan-400/15 bg-gradient-to-br p-4",
+                          accent
+                        )}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="text-lg font-semibold text-white">
+                              {agent.agentName}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-300">
+                              置信度{" "}
+                              <span className="font-semibold text-cyan-200">
+                                {confidenceLabel}
+                              </span>
+                            </div>
+                          </div>
+                          <div
+                            className={cn(
+                              "text-sm font-semibold",
+                              getRiskLevelTone(agent.riskLevel)
+                            )}
+                          >
+                            {agent.riskLevel}
+                          </div>
+                        </div>
+                        <div className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
+                          <div>
+                            <div className="text-xs tracking-[0.24em] text-cyan-300/55">
+                              建议
+                            </div>
+                            <div className="mt-1">{agent.recommendation}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs tracking-[0.24em] text-cyan-300/55">
+                              依据
+                            </div>
+                            <div className="mt-1 text-slate-300">
+                              {agent.rationale}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+            </Panel>
+
+            <Panel
+              title="策略画布（人机共创）"
+              eyebrow="Strategy Canvas"
+              className="min-h-[520px]"
+            >
+              <div className="grid gap-4 xl:grid-cols-[0.92fr,1.18fr,0.76fr]">
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4">
+                    <div className="flex items-center gap-2 text-cyan-200">
+                      <Target className="h-4 w-4" />
+                      <div className="text-lg font-semibold text-white">
+                        当前目标
+                      </div>
+                    </div>
+                    <div className="mt-4 text-center">
+                      <div className="text-2xl font-semibold text-white">
+                        提升 {selectedBatch?.partName ?? "--"} 业务利润
+                      </div>
+                      <div className="mt-1 text-sm text-slate-400">
+                        {new Date().getFullYear()} Q2 决策窗口
+                      </div>
+                    </div>
+                    <div className="mt-5 grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-cyan-400/10 bg-cyan-400/[0.05] p-3">
+                        <div className="text-xs tracking-[0.24em] text-cyan-300/55">
+                          目标利润增量
+                        </div>
+                        <div className="mt-2 text-2xl font-semibold text-emerald-300">
+                          {workspace
+                            ? formatCurrencyWan(
+                                workspace.simulation.summary.incrementalProfit
+                              )
+                            : "--"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-cyan-400/10 bg-white/[0.03] p-3">
+                        <div className="text-xs tracking-[0.24em] text-cyan-300/55">
+                          目标毛利提升
+                        </div>
+                        <div className="mt-2 text-2xl font-semibold text-cyan-100">
+                          {selectedPlanCard
+                            ? `${((selectedPlanCard.netProfitPerKg / Math.max(selectedPlanCard.expectedSellPrice, 1)) * 100).toFixed(1)}%`
+                            : "--"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 text-sm leading-7 text-slate-300">
+                      当前选中{" "}
+                      <span className="font-semibold text-cyan-100">
+                        {selectedPlanLabel}
+                      </span>
+                      ，以
+                      <span className="font-semibold text-cyan-100">
+                        {" "}
+                        {selectedScenario?.holdMonths ?? "--"} 个月
+                      </span>
+                      持有窗口， 结合现货、期货映射与库存成本完成测算。
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4">
+                    <div className="text-lg font-semibold text-white">
+                      约束条件
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2 text-sm">
+                      <div className="rounded-full border border-cyan-400/12 bg-cyan-400/[0.06] px-3 py-2 text-slate-200">
+                        预算占用：
+                        {selectedBatch
+                          ? formatCurrencyWan(
+                              selectedBatch.weightKg * selectedBatch.unitCost
+                            )
+                          : "--"}
+                      </div>
+                      <div className="rounded-full border border-cyan-400/12 bg-white/[0.04] px-3 py-2 text-slate-200">
+                        库龄上限：
+                        {selectedBatch
+                          ? `${selectedBatch.ageDays + (selectedScenario?.holdMonths ?? 0) * 30} 天`
+                          : "--"}
+                      </div>
+                      <div className="rounded-full border border-cyan-400/12 bg-white/[0.04] px-3 py-2 text-slate-200">
+                        冷链服务水平：
+                        {workspace
+                          ? `${workspace.optimizationSnapshot.timeOptimization.serviceLevel.toFixed(1)}%`
+                          : "--"}
+                      </div>
+                      <div className="rounded-full border border-cyan-400/12 bg-white/[0.04] px-3 py-2 text-slate-200">
+                        合规风险：{selectedScenario?.riskLevel ?? "--"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div>
+                        <div className="text-lg font-semibold text-white">
+                          决策选项
+                        </div>
+                        <div className="text-sm text-slate-400">
+                          可多维组合，但当前以单方案主批示为主
+                        </div>
+                      </div>
+                      <div className="text-sm text-slate-400">
+                        基于当前系统真实批次与行情自动生成
+                      </div>
+                    </div>
+                    <div className="grid gap-3 xl:grid-cols-3">
+                      {planCards.map(plan => (
+                        <button
+                          key={plan.id}
+                          type="button"
+                          onClick={() => setSelectedScenarioId(plan.id)}
+                          className={cn(
+                            "rounded-2xl border p-4 text-left transition",
+                            selectedScenarioId === plan.id
+                              ? "border-cyan-300/45 bg-cyan-400/[0.08] shadow-[0_0_30px_rgba(34,211,238,0.12)]"
+                              : "border-cyan-400/12 bg-white/[0.03] hover:border-cyan-300/28 hover:bg-white/[0.05]"
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="text-lg font-semibold text-white">
+                              {plan.planLabel}
+                              {plan.tag === "推荐" ? "（推荐）" : ""}
+                            </div>
+                            <div className="rounded-full border border-cyan-400/12 px-2 py-1 text-xs text-cyan-200">
+                              {plan.tag}
+                            </div>
+                          </div>
+                          <div className="mt-3 text-sm text-slate-300">
+                            {plan.reason}
+                          </div>
+                          <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                              <div className="text-xs tracking-[0.2em] text-slate-500">
+                                预估增利
+                              </div>
+                              <div className="mt-1 font-semibold text-emerald-300">
+                                {formatCurrencyWan(plan.projectedProfit)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs tracking-[0.2em] text-slate-500">
+                                预估 ROI
+                              </div>
+                              <div className="mt-1 font-semibold text-cyan-100">
+                                {plan.roi.toFixed(2)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs tracking-[0.2em] text-slate-500">
+                                置信度
+                              </div>
+                              <div className="mt-1 font-semibold text-white">
+                                {plan.confidence.toFixed(0)}%
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4">
+                    <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
+                      <FlaskConical className="h-4 w-4 text-cyan-200" />
+                      假设与场景（What-if）
+                    </div>
+                    <div className="grid gap-4 xl:grid-cols-[1fr,0.96fr]">
+                      <div className="space-y-4">
+                        <div>
+                          <div className="mb-2 flex items-center justify-between text-sm text-slate-300">
+                            <span>目标价</span>
+                            <span>{targetPrice.toFixed(1)} 元/公斤</span>
+                          </div>
+                          <Slider
+                            value={[targetPrice]}
+                            min={Math.max(
+                              1,
+                              (selectedBatch?.currentSpotPrice ?? 10) - 2
+                            )}
+                            max={(selectedBatch?.futuresMappedPrice ?? 35) + 3}
+                            step={0.1}
+                            onValueChange={value =>
+                              setTargetPrice(
+                                Number((value[0] ?? targetPrice).toFixed(1))
+                              )
+                            }
+                            className="[&_[data-slot=slider-range]]:bg-cyan-400 [&_[data-slot=slider-thumb]]:border-cyan-300"
+                          />
+                        </div>
+                        <div>
+                          <div className="mb-2 flex items-center justify-between text-sm text-slate-300">
+                            <span>产能变化</span>
+                            <span>{capacityAdjustment}%</span>
+                          </div>
+                          <Slider
+                            value={[capacityAdjustment]}
+                            min={-20}
+                            max={40}
+                            step={1}
+                            onValueChange={value =>
+                              setCapacityAdjustment(value[0] ?? 0)
+                            }
+                            className="[&_[data-slot=slider-range]]:bg-sky-400 [&_[data-slot=slider-thumb]]:border-sky-300"
+                          />
+                        </div>
+                        <div>
+                          <div className="mb-2 flex items-center justify-between text-sm text-slate-300">
+                            <span>需求变化</span>
+                            <span>{demandAdjustment}%</span>
+                          </div>
+                          <Slider
+                            value={[demandAdjustment]}
+                            min={-20}
+                            max={40}
+                            step={1}
+                            onValueChange={value =>
+                              setDemandAdjustment(value[0] ?? 0)
+                            }
+                            className="[&_[data-slot=slider-range]]:bg-violet-400 [&_[data-slot=slider-thumb]]:border-violet-300"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-cyan-400/12 bg-[#061223]/80 p-4">
+                        <div className="mb-4 text-lg font-semibold text-white">
+                          场景对比（{selectedPlanLabel}）
+                        </div>
+                        <div className="space-y-3">
+                          {scenarioCompareRows.map(row => (
+                            <div
+                              key={row.label}
+                              className="grid grid-cols-[0.9fr,0.9fr,0.7fr,0.7fr] gap-3 rounded-xl border border-white/6 bg-white/[0.03] px-3 py-3 text-sm"
+                            >
+                              <div className="font-semibold text-white">
+                                {row.label}
+                              </div>
+                              <div
+                                className={cn(
+                                  "font-semibold",
+                                  row.label === "压力场景"
+                                    ? "text-red-300"
+                                    : "text-emerald-300"
+                                )}
+                              >
+                                {formatCurrencyWan(row.profit)}
+                              </div>
+                              <div className="text-cyan-100">
+                                {row.roi.toFixed(2)}
+                              </div>
+                              <div className="text-slate-300">
+                                {Math.round(row.probability * 100)}%
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4">
+                    <div className="mb-3 flex items-center gap-2 text-lg font-semibold text-white">
+                      <Workflow className="h-4 w-4 text-cyan-200" />
+                      影响分析（{selectedPlanLabel}）
+                    </div>
+                    <div className="flex items-center justify-center">
+                      <svg
+                        width="220"
+                        height="220"
+                        viewBox="0 0 220 220"
+                        className="overflow-visible"
+                      >
+                        {[1, 0.75, 0.5, 0.25].map(level => (
+                          <polygon
+                            key={level}
+                            points={buildRadarPolygon([
+                              level,
+                              level,
+                              level,
+                              level,
+                            ])}
+                            fill="none"
+                            stroke="rgba(148,163,184,0.18)"
+                            strokeWidth="1"
+                          />
+                        ))}
+                        <line
+                          x1="110"
+                          y1="18"
+                          x2="110"
+                          y2="202"
+                          stroke="rgba(148,163,184,0.18)"
+                        />
+                        <line
+                          x1="18"
+                          y1="110"
+                          x2="202"
+                          y2="110"
+                          stroke="rgba(148,163,184,0.18)"
+                        />
+                        <polygon
+                          points={buildRadarPolygon(radarValues)}
+                          fill="rgba(56,189,248,0.26)"
+                          stroke="rgba(96,165,250,0.92)"
+                          strokeWidth="2"
+                        />
+                        <circle cx="110" cy="110" r="3" fill="#7dd3fc" />
+                        <text
+                          x="110"
+                          y="10"
+                          textAnchor="middle"
+                          fill="#cbd5e1"
+                          fontSize="12"
+                        >
+                          财务影响
+                        </text>
+                        <text
+                          x="206"
+                          y="114"
+                          textAnchor="start"
+                          fill="#cbd5e1"
+                          fontSize="12"
+                        >
+                          客户影响
+                        </text>
+                        <text
+                          x="110"
+                          y="216"
+                          textAnchor="middle"
+                          fill="#cbd5e1"
+                          fontSize="12"
+                        >
+                          运营可行性
+                        </text>
+                        <text
+                          x="12"
+                          y="114"
+                          textAnchor="end"
+                          fill="#cbd5e1"
+                          fontSize="12"
+                        >
+                          风险水平
+                        </text>
+                      </svg>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                        <div className="text-slate-400">财务影响</div>
+                        <div className="mt-1 text-lg font-semibold text-cyan-100">
+                          {(radarValues[0] * 10).toFixed(1)}/10
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                        <div className="text-slate-400">客户影响</div>
+                        <div className="mt-1 text-lg font-semibold text-cyan-100">
+                          {(radarValues[1] * 10).toFixed(1)}/10
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                        <div className="text-slate-400">风险水平</div>
+                        <div className="mt-1 text-lg font-semibold text-cyan-100">
+                          {(radarValues[2] * 10).toFixed(1)}/10
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                        <div className="text-slate-400">运营可行性</div>
+                        <div className="mt-1 text-lg font-semibold text-cyan-100">
+                          {(radarValues[3] * 10).toFixed(1)}/10
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4">
+                    <div className="mb-3 text-lg font-semibold text-white">
+                      资源测算快照
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                        <div className="text-slate-400">屠宰头数</div>
+                        <div className="mt-1 text-xl font-semibold text-white">
+                          {workspace
+                            ? formatNumber(
+                                workspace.simulation.resources[0]
+                                  ?.slaughterHeads ?? 0
+                              )
+                            : "--"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                        <div className="text-slate-400">冷链车次</div>
+                        <div className="mt-1 text-xl font-semibold text-white">
+                          {workspace
+                            ? formatNumber(
+                                workspace.simulation.resources[0]
+                                  ?.coldChainTrips ?? 0
+                              )
+                            : "--"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                        <div className="text-slate-400">仓储吨位</div>
+                        <div className="mt-1 text-xl font-semibold text-white">
+                          {workspace
+                            ? `${workspace.simulation.resources[0]?.storageTons.toFixed(2) ?? "--"} 吨`
+                            : "--"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                        <div className="text-slate-400">服务水平</div>
+                        <div className="mt-1 text-xl font-semibold text-white">
+                          {workspace
+                            ? `${workspace.optimizationSnapshot.timeOptimization.serviceLevel.toFixed(1)}%`
+                            : "--"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Panel>
+
+            <Panel title="决策历史与行动跟踪" eyebrow="Timeline & Closure">
+              <div className="overflow-x-auto pb-2">
+                <div className="flex min-w-max gap-3">
+                  {timelineItems.map(item => (
+                    <div
+                      key={item.id}
+                      className="w-[240px] rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4"
                     >
-                      {label}
-                    </button>
+                      <div className="text-sm text-slate-400">{item.time}</div>
+                      <div className="mt-3 text-lg font-semibold text-white">
+                        {item.title}
+                      </div>
+                      <div className="mt-2 text-sm text-slate-300">
+                        {item.subtitle}
+                      </div>
+                      <div className="mt-4 text-sm text-slate-400">
+                        {item.metric}
+                      </div>
+                      <div className="mt-4 flex items-center justify-between">
+                        <div className="rounded-full border border-cyan-400/12 px-2 py-1 text-xs text-cyan-200">
+                          {item.status}
+                        </div>
+                        <div
+                          className={cn(
+                            "text-sm font-semibold",
+                            getRiskLevelTone(item.risk as "低" | "中" | "高")
+                          )}
+                        >
+                          {item.risk}
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
-              <div className="mt-4 h-[360px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="label" stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-                    <YAxis yAxisId="price" stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} domain={["dataMin - 0.8", "dataMax + 0.8"]} />
-                    <YAxis yAxisId="profit" orientation="right" hide={displayMetric !== "profit"} stroke="rgba(148,163,184,0.55)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ background: "#0a1628", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, fontSize: 11 }} />
-                    <ReferenceLine x={splitLabel} yAxisId="price" stroke="rgba(255,255,255,0.18)" strokeDasharray="4 4" label={{ value: forecastUi.splitLine, position: "insideTop", fill: "rgba(226,232,240,0.7)", fontSize: 10 }} />
-                    <Line yAxisId="price" type="monotone" dataKey="actualPrice" name={forecastUi.actualLine} stroke="#f8fafc" strokeWidth={2.2} dot={false} connectNulls={false} />
-                    <Line yAxisId="price" type="monotone" dataKey="projectedPrice" name={forecastUi.forecastLine} stroke="#38bdf8" strokeWidth={2.4} strokeDasharray="7 5" dot={false} connectNulls />
-                    {displayMetric === "projected" ? <Line yAxisId="price" type="monotone" dataKey="breakEvenPrice" name={current.chartBreakEven} stroke="#f59e0b" strokeWidth={1.6} dot={false} connectNulls strokeDasharray="5 3" /> : null}
-                    {displayMetric === "average" ? <Line yAxisId="price" type="monotone" dataKey="averageSellPrice" name={current.avgSell} stroke="#c084fc" strokeWidth={1.8} dot={false} connectNulls /> : null}
-                    {displayMetric === "profit" ? <Line yAxisId="profit" type="monotone" dataKey="profitPerKg" name={forecastUi.displayOptions.profit} stroke="#34d399" strokeWidth={1.8} dot={false} connectNulls /> : null}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.batchInfo}</p>
-                <p className="mt-3 text-base font-semibold text-white">{data?.batch.partName ?? batchCode}</p>
-                <div className="mt-4 space-y-2 text-[13px] text-slate-400">
-                  <div className="flex items-center justify-between gap-3"><span>{current.weight}</span><span className="font-medium text-slate-200">{data?.batch.weightKg.toLocaleString() ?? "--"} {current.tonnage}</span></div>
-                  <div className="flex items-center justify-between gap-3"><span>{current.monthlyCost}</span><span className="font-medium text-slate-200">¥{data?.monthlyHoldingCost.toFixed(2) ?? "--"}/{current.monthUnit}</span></div>
-                  <div className="flex items-center justify-between gap-3"><span>{forecastUi.effectiveTarget}</span><span className="font-medium text-slate-200">¥{data?.targetPrice.toFixed(2) ?? "--"}</span></div>
-                </div>
-              </div>
-              <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.chartDesc}</p>
-                <div className="mt-4 space-y-3 text-[13px] text-slate-400">
-                  <div className="flex items-center gap-2"><span className="h-[2px] w-7 rounded-full bg-white" /><span>{forecastUi.actualLine}</span></div>
-                  <div className="flex items-center gap-2"><span className="h-[2px] w-7 rounded-full border-t-2 border-dashed border-cyan-300" /><span>{forecastUi.forecastLine}</span></div>
-                  <div className="flex items-center gap-2"><span className="h-[2px] w-7 rounded-full border-t-2 border-dashed border-white/40" /><span>{forecastUi.splitLine}</span></div>
-                </div>
-              </div>
-              <div className="rounded-[22px] border border-cyan-400/12 bg-cyan-400/[0.05] p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-100/80">{current.currentMonth}</p>
-                <p className="mt-3 text-base font-semibold text-white">{selectedForecastPoint?.label ?? `${selectedMonthNumber}M`}</p>
-                <div className="mt-4 space-y-2 text-[13px] text-slate-300">
-                  <div className="flex items-center justify-between gap-3"><span>{current.chartPrice}</span><span className="font-medium text-white">¥{selectedForecastPoint?.projectedPrice.toFixed(2) ?? "--"}</span></div>
-                  <div className="flex items-center justify-between gap-3"><span>{current.avgSell}</span><span className="font-medium text-white">¥{selectedForecastPoint?.averageSellPrice.toFixed(2) ?? "--"}</span></div>
-                  <div className="flex items-center justify-between gap-3"><span>{current.perKgProfit}</span><span className={`font-medium ${selectedForecastPoint && selectedForecastPoint.profitPerKg >= 0 ? "text-emerald-300" : "text-rose-300"}`}>¥{selectedForecastPoint?.profitPerKg.toFixed(2) ?? "--"}</span></div>
-                </div>
-              </div>
-            </div>
+            </Panel>
           </div>
-          {workspaceLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
-        </div>
-      </TechPanel>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-        <TechPanel>
-          <div className="flex flex-col gap-6">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-fuchsia-300/60">{current.whatIfEyebrow}</p>
-              <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.whatIfTitle}</h4>
-              <p className="mt-3 text-[13px] leading-6 text-slate-400">{current.whatIfDesc}</p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05, duration: 0.4 }} className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.scenarioMonth}</p><Select value={scenarioMonth} onValueChange={setScenarioMonth}><SelectTrigger className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100"><SelectValue placeholder={current.scenarioMonth} /></SelectTrigger><SelectContent className="rounded-2xl border-white/[0.08] bg-[rgba(8,16,32,0.98)] text-slate-100">{[1, 2, 3].map(month => <SelectItem key={month} value={String(month)}>{month} {current.monthUnit}</SelectItem>)}</SelectContent></Select></motion.div>
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }} className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.targetPrice}</p><Input value={targetPriceInput} onChange={event => setTargetPriceInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></motion.div>
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.4 }} className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.capacityAdjustment}</p><Input value={capacityAdjustmentInput} onChange={event => setCapacityAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></motion.div>
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.4 }} className="space-y-2"><p className="text-[11px] font-semibold text-slate-300">{current.demandAdjustment}</p><Input value={demandAdjustmentInput} onChange={event => setDemandAdjustmentInput(event.target.value)} className="h-12 rounded-2xl border-white/[0.08] bg-white/[0.03] text-slate-100" /></motion.div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <MetricCard label={current.baselineProfit} value={`¥${whatIfData?.summary.baselineProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={Calculator} />
-              <MetricCard label={current.simulatedProfit} value={`¥${whatIfData?.summary.simulatedProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={LineChartIcon} pulse />
-              <MetricCard label={current.incrementalProfit} value={`¥${whatIfData?.summary.incrementalProfit.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={BrainCircuit} pulse />
-              <MetricCard label={current.expectedRevenue} value={`¥${whatIfData?.summary.expectedRevenue.toLocaleString() ?? "--"}`} suffix={current.tonnage} icon={Factory} />
-            </div>
-          </div>
-        </TechPanel>
-
-        <TechPanel>
-          <div className="flex h-full flex-col gap-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-fuchsia-300/60">{current.resourcesTitle}</p><h4 className="mt-3 text-xl font-bold tracking-tight text-white">{current.resourcesTitle}</h4></div>
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-right"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.utilizationRate}</p><p className="mt-2 text-lg font-semibold text-white">{whatIfData?.summary.utilizationRate.toFixed(2) ?? "--"}%</p></div>
-            </div>
-            <div className="rounded-[24px] border border-white/[0.06] bg-slate-950/50 p-4">
-              <div className="h-[260px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={whatIfData?.resources ?? []} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="month" tickFormatter={value => `${value}${current.monthShort}`} stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-                    <YAxis stroke="rgba(148,163,184,0.6)" tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-                    <Tooltip contentStyle={{ background: "#0a1628", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, fontSize: 11 }} />
-                    <Bar dataKey="slaughterHeads" fill="#38bdf8" radius={[8, 8, 0, 0]} />
-                    <Bar dataKey="warehousePallets" fill="#c084fc" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              {(whatIfData?.resources ?? []).map(resource => <div key={resource.month} className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{resource.month}{current.monthShort}</p><div className="mt-4 space-y-3 text-[13px] text-slate-400"><div className="flex items-center justify-between gap-3"><span>{current.slaughterHeads}</span><span className="font-medium text-slate-100">{resource.slaughterHeads.toLocaleString()}</span></div><div className="flex items-center justify-between gap-3"><span>{current.freezingTons}</span><span className="font-medium text-slate-100">{resource.freezingTons.toFixed(2)} t</span></div><div className="flex items-center justify-between gap-3"><span>{current.storageTons}</span><span className="font-medium text-slate-100">{resource.storageTons.toFixed(2)} t</span></div><div className="flex items-center justify-between gap-3"><span>{current.warehousePallets}</span><span className="font-medium text-slate-100">{resource.warehousePallets}</span></div><div className="flex items-center justify-between gap-3"><span>{current.coldChainTrips}</span><span className="font-medium text-slate-100">{resource.coldChainTrips}</span></div></div></div>)}
-            </div>
-            {workspaceLoading ? <p className="text-sm text-slate-500">Loading...</p> : null}
-          </div>
-        </TechPanel>
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[0.72fr_1.28fr]">
-        <TechPanel>
-          <div className="flex h-full flex-col gap-5">
-            <div><p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-violet-300/60">{current.agentEyebrow}</p><h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.agentTitle}</h4><p className="mt-3 text-[13px] leading-6 text-slate-400">{current.agentDesc}</p></div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1, duration: 0.4 }}
-                className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"
-              >
-                <div className="flex items-center gap-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.overview}</p>
-                  {aiAgents.isPending && (
-                    <motion.span
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 1.2, repeat: Infinity }}
-                      className="h-1.5 w-1.5 rounded-full bg-violet-400"
-                    />
-                  )}
-                </div>
-                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.overview ?? current.agentDesc}</p>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.4 }}
-                className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"
-              >
-                <div className="flex items-center gap-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.coordinationSignal}</p>
-                  {aiAgents.isPending && (
-                    <motion.span
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.3 }}
-                      className="h-1.5 w-1.5 rounded-full bg-cyan-400"
-                    />
-                  )}
-                </div>
-                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.coordinationSignal ?? current.nextPending}</p>
-              </motion.div>
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.4 }}
-                className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"
-              >
-                <div className="flex items-center gap-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.dispatchSummary}</p>
-                  {aiAgents.isPending && (
-                    <motion.span
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ duration: 1.2, repeat: Infinity, delay: 0.6 }}
-                      className="h-1.5 w-1.5 rounded-full bg-emerald-400"
-                    />
-                  )}
-                </div>
-                <p className="mt-3 text-sm leading-7 text-slate-300">{aiAgents.data?.dispatchSummary ?? current.generateAgents}</p>
-              </motion.div>
-            </div>
-            <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }}>
-              <Button onClick={runAiAgents} disabled={aiAgents.isPending} className="h-12 w-full rounded-2xl bg-violet-500/90 text-white hover:bg-violet-400">
-                {aiAgents.isPending ? (
-                  <span className="flex items-center gap-2">
-                    <motion.span
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="inline-block"
-                    >
-                      <BrainCircuit className="h-4 w-4" />
-                    </motion.span>
-                    {current.generatingAgents}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Zap className="h-4 w-4" />
-                    {current.generateAgents}
-                  </span>
-                )}
-              </Button>
-            </motion.div>
-          </div>
-        </TechPanel>
-
-        <div className="grid gap-6 xl:grid-cols-3">
-          {(aiAgents.data?.agents ?? []).map((agent: AgentCard, agentIndex: number) => (
-            <motion.div
-              key={agent.agentId}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ delay: agentIndex * 0.15, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+          <div className="flex min-h-0 flex-col gap-3">
+            <Panel
+              title={`决策审核队列（${queueItems.length}）`}
+              eyebrow="Approval Queue"
             >
-              <TechPanel className="h-full">
-                <div className="flex h-full flex-col gap-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <motion.div
-                      className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-400/[0.08] text-violet-200"
-                      animate={{ boxShadow: ["0 0 0px rgba(139,92,246,0)", "0 0 16px rgba(139,92,246,0.15)", "0 0 0px rgba(139,92,246,0)"] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: agentIndex * 0.5 }}
+              <ScrollArea className="h-[360px] pr-3">
+                <div className="space-y-3">
+                  {queueItems.map(item => (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4"
                     >
-                      {agent.agentId === "global" ? <BrainCircuit className="h-5 w-5" /> : agent.agentId === "business" ? <Factory className="h-5 w-5" /> : <Truck className="h-5 w-5" />}
-                    </motion.div>
-                    <Badge className={`rounded-full border px-3 py-1 text-[11px] ${
-                      agent.riskLevel === "高" ? "border-rose-400/20 bg-rose-400/10 text-rose-200" :
-                      agent.riskLevel === "中" ? "border-amber-400/20 bg-amber-400/10 text-amber-200" :
-                      "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
-                    }`}>{current.riskLevel} {agent.riskLevel}</Badge>
-                  </div>
-                  <div><h4 className="text-lg font-semibold text-white">{agent.agentName}</h4><div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400"><p><span className="font-semibold text-slate-200">{current.objective}：</span>{agent.objective}</p><p><span className="font-semibold text-slate-200">{current.recommendation}：</span>{agent.recommendation}</p><p><span className="font-semibold text-slate-200">{current.rationale}：</span>{agent.rationale}</p><p><span className="font-semibold text-slate-200">{current.nextAction}：</span>{agent.nextAction}</p></div></div>
-                </div>
-              </TechPanel>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-      <div className="mt-6 grid gap-3 md:hidden">
-        <TechPanel className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-300/70">Mobile War-Room</p>
-              <h4 className="mt-3 text-lg font-semibold text-white">{language === "en" ? "Mobile role views" : "移动端角色视图"}</h4>
-              <p className="mt-2 text-[12px] leading-5 text-slate-400">{language === "en" ? "Switch between plant, driver, and warehouse roles to execute work orders on site." : "在厂长、司机与仓储管理员之间切换，直接完成现场工单执行。"}</p>
-            </div>
-            <Badge className={`rounded-full border px-3 py-1 text-[10px] ${getRoleStatusBadgeClass(activeMobileRoleFeedback.status)}`}>{activeMobileRoleFeedback.status}</Badge>
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-2 rounded-[22px] border border-white/[0.06] bg-slate-950/55 p-2">
-            {mobileRoleTabs.map(tab => (
-              <button
-                key={tab.role}
-                type="button"
-                onClick={() => setMobileRole(tab.role)}
-                className={`rounded-2xl px-3 py-2 text-[11px] font-semibold transition-colors ${mobileRole === tab.role ? "bg-cyan-400/15 text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]" : "bg-white/[0.03] text-slate-400"}`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-4 rounded-[24px] border border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015)),rgba(6,14,30,0.92)] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-300/70">{mobileRoleView.modeEyebrow}</p>
-                <h5 className="mt-3 text-lg font-semibold text-white">{mobileRoleView.modeTitle}</h5>
-              </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-100">
-                {mobileRole === "厂长" ? <Factory className="h-5 w-5" /> : mobileRole === "司机" ? <Truck className="h-5 w-5" /> : <Warehouse className="h-5 w-5" />}
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
-                <p className="text-[11px] text-slate-400">{mobileRoleView.primaryMetricLabel}</p>
-                <p className="mt-2 text-sm font-semibold leading-5 text-white">{mobileRoleView.primaryMetricValue}</p>
-              </div>
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
-                <p className="text-[11px] text-slate-400">{mobileRoleView.secondaryMetricLabel}</p>
-                <p className="mt-2 text-sm font-semibold leading-5 text-white">{mobileRoleView.secondaryMetricValue}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-white/[0.08] bg-slate-950/45 p-3 text-[12px] leading-6 text-slate-300">
-              <p><span className="font-semibold text-slate-100">{mobileRoleView.summaryLabel}：</span>{mobileRoleView.summaryValue}</p>
-              <p className="mt-2"><span className="font-semibold text-slate-100">ETA：</span>{language === "en" ? `${activeMobileRoleFeedback.etaMinutes} min` : `${activeMobileRoleFeedback.etaMinutes} 分钟`}</p>
-              <p className="mt-2"><span className="font-semibold text-slate-100">{language === "en" ? "Note" : "说明"}：</span>{activeMobileRoleFeedback.note}</p>
-              <p className="mt-2"><span className="font-semibold text-slate-100">{language === "en" ? "Order" : "工单"}：</span>{activeMobileRoleFeedback.orderId}</p>
-            </div>
-
-            <p className="mt-4 text-[12px] leading-5 text-slate-400">{mobileRoleView.helperText}</p>
-
-            <div className="mt-4 grid gap-2">
-              {mobileRoleView.actions.map(action => (
-                <Button
-                  key={`${mobileRole}-${action.status}`}
-                  type="button"
-                  variant="outline"
-                  className={getActionButtonClass(action.tone)}
-                  onClick={() => updateRoleReceipt(mobileRole, action.status, activeMobileRoleFeedback.orderId)}
-                  disabled={updateDispatchReceiptMutation.isPending}
-                >
-                  {action.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </TechPanel>
-      </div>
-
-      <div className="mt-6 grid gap-4 xl:grid-cols-2">
-        <TechPanel className="p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Time Optimization Snapshot</p>
-          <h4 className="mt-3 text-xl font-bold tracking-tight text-white">时间套利优化快照</h4>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">推荐储备量</p>
-              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.recommendedStorageTons ?? 0} 吨</p>
-            </div>
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">推荐释放月</p>
-              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.recommendedReleaseMonth ?? 0} 月</p>
-            </div>
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">服务水平</p>
-              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.serviceLevel ?? 0}%</p>
-            </div>
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">平均利用率</p>
-              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.averageUtilization ?? 0}%</p>
-            </div>
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4 sm:col-span-2">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">约束瓶颈</p>
-              <p className="mt-2 text-sm font-semibold text-white">{workspace?.optimizationSnapshot.timeOptimization.constrainedBy?.join("、") || "暂无"}</p>
-            </div>
-          </div>
-        </TechPanel>
-
-        <TechPanel className="p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Spatial Optimization Snapshot</p>
-          <h4 className="mt-3 text-xl font-bold tracking-tight text-white">空间套利优化快照</h4>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">总发运量</p>
-              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.spatialOptimization.totalShippedTon ?? 0} 吨</p>
-            </div>
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">总净利</p>
-              <p className="mt-2 text-lg font-semibold text-white">¥{workspace?.optimizationSnapshot.spatialOptimization.totalNetProfit?.toLocaleString?.() ?? 0} 万</p>
-            </div>
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">平均链路利用率</p>
-              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.spatialOptimization.averageChainUtilization ?? 0}%</p>
-            </div>
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">开仓路线</p>
-              <p className="mt-2 text-lg font-semibold text-white">{workspace?.optimizationSnapshot.spatialOptimization.storageOpenedRoutes ?? 0}</p>
-            </div>
-            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4 sm:col-span-2">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">瓶颈阶段 / 车辆结构</p>
-              <p className="mt-2 text-sm font-semibold text-white">{workspace?.optimizationSnapshot.spatialOptimization.bottleneckStage ?? "暂无"} · {workspace?.optimizationSnapshot.spatialOptimization.vehicleMix ? Object.entries(workspace.optimizationSnapshot.spatialOptimization.vehicleMix).map(([key, value]) => `${key}:${value}`).join(" / ") : "无"}</p>
-            </div>
-          </div>
-        </TechPanel>
-      </div>
-
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <TechPanel>
-          <div className="flex h-full flex-col gap-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-rose-300/60">{current.alertEyebrow}</p>
-                <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">{current.alertTitle}</h4>
-                <p className="mt-3 text-[13px] leading-6 text-slate-400">{current.alertDesc}</p>
-              </div>
-              <motion.div
-                className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] text-rose-200"
-                animate={{ boxShadow: ["0 0 0px rgba(251,113,133,0)", "0 0 20px rgba(251,113,133,0.2)", "0 0 0px rgba(251,113,133,0)"] }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <Siren className="h-5 w-5" />
-              </motion.div>
-            </div>
-            <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4"><p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">{current.alertOverview}</p><p className="mt-3 text-sm leading-7 text-slate-300">{alertsData?.overview ?? current.closeHint}</p></div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Total orders</p>
-                <p className="mt-2 text-lg font-semibold text-white">{workspace?.executionSummary.totalOrders ?? 0}</p>
-              </div>
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">In progress</p>
-                <p className="mt-2 text-lg font-semibold text-white">{workspace?.executionSummary.inProgressCount ?? 0}</p>
-              </div>
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Completed</p>
-                <p className="mt-2 text-lg font-semibold text-white">{workspace?.executionSummary.completedCount ?? 0}</p>
-              </div>
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Escalated</p>
-                <p className="mt-2 text-lg font-semibold text-white">{workspace?.executionSummary.escalatedCount ?? 0}</p>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              {(alertsData?.items ?? []).slice(0, 3).map((alert: AlertCard, alertIndex: number) => {
-                const colors = getAlertColors(alert.status);
-                return (
-                  <motion.button
-                    key={alert.alertId}
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: alertIndex * 0.1, duration: 0.4 }}
-                    onClick={() => setActiveAlert(alert)}
-                    whileHover={{ y: -3, transition: { duration: 0.2 } }}
-                    whileTap={{ scale: 0.97 }}
-                    className={`group relative rounded-[22px] border p-4 text-left transition-all ${colors.panel}`}
-                  >
-                    {alert.status === "red" && (
-                      <motion.div
-                        className="absolute inset-0 rounded-[22px] pointer-events-none"
-                        animate={{ boxShadow: ["0 0 0px rgba(251,113,133,0)", "0 0 24px rgba(251,113,133,0.15)", "0 0 0px rgba(251,113,133,0)"] }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      />
-                    )}
-                    {alert.status === "yellow" && (
-                      <motion.div
-                        className="absolute inset-0 rounded-[22px] pointer-events-none"
-                        animate={{ boxShadow: ["0 0 0px rgba(251,191,36,0)", "0 0 16px rgba(251,191,36,0.1)", "0 0 0px rgba(251,191,36,0)"] }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                      />
-                    )}
-                    <div className="relative flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-white">{alert.title}</p>
-                      <div className="flex items-center gap-1.5">
-                        {alert.status === "red" && (
-                          <motion.span
-                            animate={{ opacity: [0.4, 1, 0.4] }}
-                            transition={{ duration: 1.2, repeat: Infinity }}
-                            className="h-2 w-2 rounded-full bg-rose-400"
-                          />
-                        )}
-                        <Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-cyan-400/10 text-sm font-semibold text-cyan-100">
+                            {item.order}
+                          </div>
+                          <div>
+                            <div className="text-lg font-semibold text-white">
+                              {item.title}
+                            </div>
+                            <div className="mt-1 text-sm text-slate-400">
+                              发起人：{item.sender} &nbsp;&nbsp; 置信度：
+                              <span className="text-cyan-200">
+                                {item.confidence}
+                              </span>
+                              &nbsp;&nbsp; 预估影响：
+                              <span className="text-emerald-300">
+                                {item.impact}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-sm text-slate-500">
+                          {item.timestamp}
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            if (item.type === "scenario") {
+                              runQueueApprove(item.id);
+                            } else {
+                              persistDispatch.mutate(agentInput);
+                              setQueueState(prev => ({
+                                ...prev,
+                                [item.id]: "approved",
+                              }));
+                            }
+                          }}
+                          disabled={
+                            confirmDecision.isPending ||
+                            persistDispatch.isPending
+                          }
+                          className="h-9 rounded-xl bg-emerald-500 text-emerald-950 hover:bg-emerald-400"
+                        >
+                          批准
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            setQueueState(prev => ({
+                              ...prev,
+                              [item.id]: "rejected",
+                            }));
+                            toast.success("该项已标记为驳回，等待调整。");
+                          }}
+                          className="h-9 rounded-xl border border-cyan-400/16 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]"
+                        >
+                          驳回
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            if (item.type === "scenario") {
+                              setSelectedScenarioId(item.id);
+                              setEvidenceTab("model");
+                            }
+                            toast.success("已切换到对应方案，可继续修改参数。");
+                          }}
+                          className="h-9 rounded-xl border border-cyan-400/16 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]"
+                        >
+                          修改
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => persistDispatch.mutate(agentInput)}
+                          disabled={persistDispatch.isPending}
+                          className="h-9 rounded-xl border border-amber-400/18 bg-amber-400/[0.08] text-amber-100 hover:bg-amber-400/[0.14]"
+                        >
+                          生成工单
+                        </Button>
+                        {item.status ? (
+                          <div className="ml-auto rounded-full border border-cyan-400/12 px-3 py-1 text-xs text-cyan-100">
+                            {queueStatusLabel[item.status]}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
-                    <p className="relative mt-4 text-[12px] leading-6 text-slate-300">{alert.summary}</p>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-        </TechPanel>
+                  ))}
+                </div>
+              </ScrollArea>
+            </Panel>
 
-        <TechPanel>
-          <div className="grid gap-4 md:grid-cols-3">
-            {(alertsData?.items ?? []).map((alert: AlertCard, alertIndex: number) => {
-              const colors = getAlertColors(alert.status);
-              return (
-                <motion.button
-                  key={alert.alertId}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: alertIndex * 0.08, duration: 0.4 }}
-                  onClick={() => setActiveAlert(alert)}
-                  whileHover={{ y: -3, transition: { duration: 0.2 } }}
-                  whileTap={{ scale: 0.97 }}
-                  className={`group relative rounded-[22px] border p-4 text-left transition-all ${colors.panel}`}
-                >
-                  {alert.status === "red" && (
-                    <motion.div
-                      className="absolute inset-0 rounded-[22px] pointer-events-none"
-                      animate={{ boxShadow: ["0 0 0px rgba(251,113,133,0)", "0 0 20px rgba(251,113,133,0.12)", "0 0 0px rgba(251,113,133,0)"] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: alertIndex * 0.3 }}
-                    />
-                  )}
-                  <div className="relative flex items-center justify-between gap-3"><p className="text-sm font-semibold text-white">{alert.title}</p><Badge className={`rounded-full px-2 py-1 text-[10px] ${colors.badge}`}>{alert.status === "red" ? current.alertStatusRed : alert.status === "yellow" ? current.alertStatusYellow : current.alertStatusGreen}</Badge></div>
-                  <p className="relative mt-3 text-[12px] leading-6 text-slate-300">{alert.summary}</p>
-                  <p className="relative mt-3 text-[12px] text-slate-400">{current.impactScope}：{alert.impactScope}</p>
-                  <p className="relative mt-1 text-[12px] text-slate-400">{current.estimatedLoss}：¥{alert.estimatedLoss.toLocaleString()}</p>
-                </motion.button>
-              );
-            })}
-          </div>
-        </TechPanel>
-      </div>
+            <Panel
+              title={`证据与数据溯源（${selectedPlanLabel}）`}
+              eyebrow="Evidence & Traceability"
+            >
+              <div className="flex gap-2">
+                {[
+                  { key: "data" as const, label: "数据来源" },
+                  { key: "model" as const, label: "模型与算法" },
+                  { key: "audit" as const, label: "分析过程" },
+                ].map(tab => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setEvidenceTab(tab.key)}
+                    className={cn(
+                      "rounded-xl border px-3 py-2 text-sm transition",
+                      evidenceTab === tab.key
+                        ? "border-cyan-300/35 bg-cyan-400/[0.08] text-cyan-100"
+                        : "border-cyan-400/12 bg-white/[0.03] text-slate-300 hover:border-cyan-300/22"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="xl:col-span-2 grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
-          <TechPanel className="p-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Device Ready</p>
-            <h4 className="mt-3 text-xl font-bold tracking-tight text-white">工业平板与战房大屏适配</h4>
-            <p className="mt-3 text-[13px] leading-6 text-slate-400">当前布局已按移动端、工业平板和桌面战房进行分层编排：移动端优先显示关键 KPI，平板端保持双列执行卡片，桌面端延续全量分析工作台。</p>
-          </TechPanel>
-          <TechPanel className="p-5">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-cyan-300/70">Notification Entry</p>
-            <h4 className="mt-3 text-xl font-bold tracking-tight text-white">企业微信 / 短信告警升级链路</h4>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-white">企业微信提醒</p>
-                  <Badge className="border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">{notificationStatus?.wecom ?? "待触发"}</Badge>
-                </div>
-                <p className="mt-3 text-[13px] leading-6 text-slate-400">红色预警与超时升级会在派单落库或执行回执升级时自动触发企业微信机器人通知；未配置密钥时会自动记录为 skipped。</p>
-              </div>
-              <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-white">短信提醒</p>
-                  <Badge className="border border-cyan-400/20 bg-cyan-400/10 text-cyan-100">{notificationStatus?.sms ?? "待触发"}</Badge>
-                </div>
-                <p className="mt-3 text-[13px] leading-6 text-slate-400">短信链路会在高风险预警与工单超时升级时向负责人推送摘要，落库与回执升级均会写入通知投递记录。</p>
-              </div>
-            </div>
-          </TechPanel>
-        </div>
-
-        <TechPanel>
-          <div className="flex h-full flex-col gap-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-emerald-300/60">Dispatch & Feedback</p>
-                <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">自动派单调度与执行反馈</h4>
-                <p className="mt-3 text-[13px] leading-6 text-slate-400">系统会把当前模拟结果转换成标准化 JSON 工单，并同步展示厂长、司机、仓储管理员三类角色的执行状态与超时升级信号。</p>
-              </div>
-              <Badge className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${effectiveDispatchData?.escalation ? "border-rose-400/20 bg-rose-400/10 text-rose-100" : "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"}`}>{effectiveDispatchData?.escalation ? "已触发超时升级" : "执行链路正常"}</Badge>
-            </div>
-            <div className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Dispatch Summary</p>
-                  <p className="mt-3 text-sm leading-7 text-slate-300">{effectiveDispatchData?.summary ?? "等待派单数据返回"}</p>
-                </div>
-                <Button
-                  type="button"
-                  onClick={persistCurrentDispatch}
-                  disabled={persistDispatch.isPending}
-                  className="rounded-full bg-cyan-500/90 px-4 text-slate-950 hover:bg-cyan-400"
-                >
-                  {persistDispatch.isPending ? "正在落库与通知..." : "落库并通知负责人"}
-                </Button>
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
-                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Persistence</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{persistDispatch.data?.persistence.persisted ? "已写入数据库" : workspace?.lifecycle.hasPersistedDispatch ? "历史已落库" : "待落库"}</p>
-                </div>
-                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Closure</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{workspace?.executionSummary.closureRate ?? 0}%</p>
-                </div>
-                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Completed</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{workspace?.executionSummary.completedCount ?? 0}</p>
-                </div>
-                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Escalated</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{workspace?.executionSummary.escalatedCount ?? 0}</p>
-                </div>
-                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">WeCom</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{notificationStatus?.wecom ?? "待触发"}</p>
-                </div>
-                <div className="rounded-2xl border border-white/[0.06] bg-slate-950/40 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">SMS</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{notificationStatus?.sms ?? "待触发"}</p>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-[24px] border border-white/[0.06] bg-slate-950/60 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">Work Order JSON</p>
-              <pre className="mt-3 overflow-x-auto text-[12px] leading-6 text-slate-300">{dispatchJson}</pre>
-            </div>
-          </div>
-        </TechPanel>
-
-        <TechPanel>
-          <div className="flex h-full flex-col gap-4">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-emerald-300/60">Execution Tracker</p>
-              <h4 className="mt-3 text-2xl font-bold tracking-tight text-white">角色执行反馈与状态追踪</h4>
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              {persistedFeedback.map(item => (
-                <div key={`${item.role}-${item.orderId}`} className="rounded-[22px] border border-white/[0.06] bg-white/[0.025] p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-base font-semibold text-white">{item.role}</p>
-                      <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-slate-500">{item.priority}</p>
+              <div className="mt-4 rounded-2xl border border-cyan-400/12 bg-[#061223]/70">
+                {evidenceTab === "data" ? (
+                  <div className="divide-y divide-cyan-400/8">
+                    <div className="grid grid-cols-[1.1fr,1fr,0.9fr,0.6fr] gap-3 px-4 py-3 text-xs uppercase tracking-[0.2em] text-slate-500">
+                      <div>数据源</div>
+                      <div>范围</div>
+                      <div>时效性</div>
+                      <div>贡献度</div>
                     </div>
-                    <Badge className={`rounded-full px-2 py-1 text-[10px] ${getRoleStatusBadgeClass(item.status)}`}>{item.status}</Badge>
+                    {evidenceRows.map(row => (
+                      <div
+                        key={row.name}
+                        className="grid grid-cols-[1.1fr,1fr,0.9fr,0.6fr] gap-3 px-4 py-3 text-sm"
+                      >
+                        <div className="font-medium text-white">{row.name}</div>
+                        <div className="text-slate-300">{row.scope}</div>
+                        <div className="text-slate-400">{row.freshness}</div>
+                        <div className="font-semibold text-cyan-200">
+                          {row.contribution}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="mt-4 space-y-3 text-[13px] leading-6 text-slate-400">
-                    <p><span className="font-semibold text-slate-200">ETA：</span>{item.etaMinutes} 分钟</p>
-                    <p><span className="font-semibold text-slate-200">说明：</span>{item.note}</p>
-                    <p><span className="font-semibold text-slate-200">工单：</span>{item.orderId}</p>
-                  </div>
-                  <div className="mt-4 grid gap-2">
-                    <Button type="button" variant="outline" className="rounded-full border-white/[0.12] bg-white/[0.03] text-slate-100 hover:bg-white/[0.08]" onClick={() => updateRoleReceipt(item.role, "已接单", item.orderId)} disabled={updateDispatchReceiptMutation.isPending}>确认接单</Button>
-                    <Button type="button" variant="outline" className="rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-50 hover:bg-emerald-400/20" onClick={() => updateRoleReceipt(item.role, "已完成", item.orderId)} disabled={updateDispatchReceiptMutation.isPending}>完成签收</Button>
-                    <Button type="button" variant="outline" className="rounded-full border-rose-400/20 bg-rose-400/10 text-rose-50 hover:bg-rose-400/20" onClick={() => updateRoleReceipt(item.role, "超时升级", item.orderId)} disabled={updateDispatchReceiptMutation.isPending}>超时升级</Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </TechPanel>
-      </div>
+                ) : null}
 
-      <div className="fixed inset-x-4 bottom-4 z-20 md:hidden">
-        <div className="grid grid-cols-3 gap-2 rounded-[24px] border border-white/10 bg-slate-950/80 p-2 shadow-[0_24px_80px_rgba(2,6,23,0.45)] backdrop-blur-xl">
-          <div className="rounded-2xl bg-white/[0.04] px-3 py-2 text-center">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">预警</p>
-            <p className="mt-1 text-sm font-semibold text-white">{alertsData?.items.length ?? 0}</p>
+                {evidenceTab === "model" ? (
+                  <div className="space-y-4 p-4 text-sm leading-7 text-slate-300">
+                    <div className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4">
+                      <div className="mb-2 flex items-center gap-2 text-white">
+                        <Database className="h-4 w-4 text-cyan-200" />
+                        量化决策核心逻辑
+                      </div>
+                      <div>
+                        方案收益 = 预计售价 - 保本价；保本价 = 当前单位成本 +
+                        未来持有成本；预计售价 = 现货价 + 期货映射价修正 +
+                        季节性修正 + 供给修正。
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4">
+                      <div className="mb-2 flex items-center gap-2 text-white">
+                        <ScanSearch className="h-4 w-4 text-cyan-200" />
+                        当前方案真实性审查
+                      </div>
+                      <div className="space-y-3">
+                        {realismChecks.map(item => (
+                          <div
+                            key={item.label}
+                            className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-white">
+                                {item.label}
+                              </span>
+                              <span
+                                className={cn(
+                                  "font-semibold",
+                                  item.tone === "emerald"
+                                    ? "text-emerald-300"
+                                    : item.tone === "amber"
+                                      ? "text-amber-300"
+                                      : "text-red-300"
+                                )}
+                              >
+                                {item.value}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-slate-400">
+                              {item.detail}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {evidenceTab === "audit" ? (
+                  <div className="space-y-3 p-4">
+                    {(auditLogs ?? []).slice(0, 5).map(log => (
+                      <div
+                        key={log.id}
+                        className="rounded-2xl border border-cyan-400/12 bg-white/[0.03] p-4"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-lg font-semibold text-white">
+                            {log.actionType}
+                          </div>
+                          <div className="text-sm text-slate-500">
+                            {formatDateTime(log.createdAt)}
+                          </div>
+                        </div>
+                        <div className="mt-2 text-sm text-slate-300">
+                          {log.decision}
+                        </div>
+                        <div className="mt-3 text-sm text-slate-400">
+                          {log.afterValue}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </Panel>
+
+            <Panel title="下一步建议动作" eyebrow="Next Actions">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-2xl border border-cyan-400/12 bg-white/[0.03] px-4 py-3">
+                  <div>
+                    <div className="text-lg font-semibold text-white">
+                      审核并确认当前首选方案
+                    </div>
+                    <div className="text-sm text-slate-400">
+                      基于 {selectedPlanLabel} 与实时证据链完成批示
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      selectedScenario &&
+                      runQueueApprove(selectedScenario.scenarioId)
+                    }
+                    disabled={!selectedScenario || confirmDecision.isPending}
+                    className="rounded-xl bg-cyan-500 text-slate-950 hover:bg-cyan-400"
+                  >
+                    去处理
+                  </Button>
+                </div>
+
+                <div className="flex items-center justify-between rounded-2xl border border-cyan-400/12 bg-white/[0.03] px-4 py-3">
+                  <div>
+                    <div className="text-lg font-semibold text-white">
+                      生成执行工单并分配责任人
+                    </div>
+                    <div className="text-sm text-slate-400">
+                      将策略结果落到厂长、司机、仓储管理员链路
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => persistDispatch.mutate(agentInput)}
+                    disabled={persistDispatch.isPending}
+                    className="rounded-xl border border-cyan-400/16 bg-white/[0.05] text-cyan-100 hover:bg-white/[0.08]"
+                  >
+                    去生成
+                  </Button>
+                </div>
+
+                <div className="flex items-center justify-between rounded-2xl border border-cyan-400/12 bg-white/[0.03] px-4 py-3">
+                  <div>
+                    <div className="text-lg font-semibold text-white">
+                      设置监控指标与预警规则
+                    </div>
+                    <div className="text-sm text-slate-400">
+                      围绕利润偏差、库龄、产能负荷和异常升级持续盯盘
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setEvidenceTab("model");
+                      toast.success("已切换到模型与校验视图，可继续审查规则。");
+                    }}
+                    className="rounded-xl border border-cyan-400/16 bg-white/[0.05] text-cyan-100 hover:bg-white/[0.08]"
+                  >
+                    去设置
+                  </Button>
+                </div>
+              </div>
+            </Panel>
           </div>
-          <div className="rounded-2xl bg-white/[0.04] px-3 py-2 text-center">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">工单</p>
-            <p className="mt-1 text-sm font-semibold text-white">{effectiveDispatchData?.workOrders.length ?? 0}</p>
-          </div>
-          <div className="rounded-2xl bg-white/[0.04] px-3 py-2 text-center">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Agent</p>
-            <p className="mt-1 text-sm font-semibold text-white">{aiAgents.data?.agents.length ?? 3}</p>
+        </main>
+
+        <div className="px-3 pb-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className={cn(panelClassName, "px-4 py-3")}>
+              <div className="flex items-center gap-2 text-slate-400">
+                <Package className="h-4 w-4 text-cyan-200" />
+                <span>库存批次</span>
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-white">
+                {selectedBatch?.weightKg
+                  ? `${formatNumber(selectedBatch.weightKg)} kg`
+                  : "--"}
+              </div>
+              <div className="mt-1 text-sm text-slate-400">
+                库龄 {selectedBatch?.ageDays ?? "--"} 天
+              </div>
+            </div>
+
+            <div className={cn(panelClassName, "px-4 py-3")}>
+              <div className="flex items-center gap-2 text-slate-400">
+                <Factory className="h-4 w-4 text-cyan-200" />
+                <span>行情基线</span>
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-white">
+                {liveHogQuote ? `${liveHogQuote.price} 元/公斤` : "--"}
+              </div>
+              <div className="mt-1 text-sm text-slate-400">
+                玉米 {cornQuote?.price ?? "--"} / 豆粕{" "}
+                {soymealQuote?.price ?? "--"}
+              </div>
+            </div>
+
+            <div className={cn(panelClassName, "px-4 py-3")}>
+              <div className="flex items-center gap-2 text-slate-400">
+                <Truck className="h-4 w-4 text-cyan-200" />
+                <span>执行闭环</span>
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-white">
+                {workspace
+                  ? `${workspace.executionSummary.completedCount}/${workspace.executionSummary.totalOrders}`
+                  : "--"}
+              </div>
+              <div className="mt-1 text-sm text-slate-400">
+                闭环率{" "}
+                {workspace
+                  ? `${workspace.executionSummary.closureRate.toFixed(1)}%`
+                  : "--"}
+              </div>
+            </div>
+
+            <div className={cn(panelClassName, "px-4 py-3")}>
+              <div className="flex items-center gap-2 text-slate-400">
+                <Clock3 className="h-4 w-4 text-cyan-200" />
+                <span>系统时钟</span>
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-white">
+                {formatTime(now)}
+              </div>
+              <div className="mt-1 text-sm text-slate-400">
+                {isLoading
+                  ? "正在加载..."
+                  : `当前日期 ${formatDateTime(now).slice(0, 10)}`}
+              </div>
+            </div>
           </div>
         </div>
       </div>
-
-      <Dialog open={Boolean(activeAlert)} onOpenChange={open => !open && setActiveAlert(null)}>
-        <DialogContent className="max-w-2xl rounded-[28px] border-white/10 bg-[#081122] text-white">
-          <DialogHeader>
-            <DialogTitle>{activeAlert?.title ?? current.alertTitle}</DialogTitle>
-            <DialogDescription className="text-slate-400">{current.closeHint}</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.impactScope}</p><p className="mt-3 text-sm leading-7 text-slate-200">{activeAlert?.impactScope}</p></div>
-            <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.estimatedLoss}</p><p className="mt-3 text-sm leading-7 text-slate-200">¥{activeAlert?.estimatedLoss.toLocaleString() ?? "--"}</p></div>
-            <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.aiRecommendation}</p><p className="mt-3 text-sm leading-7 text-slate-200">{activeAlert?.aiRecommendation}</p></div>
-            <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.actionOwner}</p><p className="mt-3 text-sm leading-7 text-slate-200">{activeAlert?.actionOwner}</p></div>
-          </div>
-          <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{current.rootCause}</p><p className="mt-3 text-sm leading-7 text-slate-200">{activeAlert?.rootCause}</p></div>
-        </DialogContent>
-      </Dialog>
-    </PlatformShell>
+    </div>
   );
 }

@@ -27,6 +27,9 @@ export type SessionPayload = {
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
 const GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
 const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfoWithJwt`;
+const DEV_SESSION_SECRET =
+  "cp-ai-brain-development-session-secret-change-before-production";
+let warnedAboutDevSessionSecret = false;
 
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
@@ -156,7 +159,22 @@ class SDKServer {
 
   private getSessionSecret() {
     const secret = ENV.cookieSecret;
-    return new TextEncoder().encode(secret);
+    if (secret.length >= 32) {
+      return new TextEncoder().encode(secret);
+    }
+
+    if (ENV.isProduction) {
+      throw new Error("JWT_SECRET must be configured with at least 32 characters in production");
+    }
+
+    if (!warnedAboutDevSessionSecret) {
+      console.warn(
+        "[Auth] JWT_SECRET is missing or too short; using a development-only session secret."
+      );
+      warnedAboutDevSessionSecret = true;
+    }
+
+    return new TextEncoder().encode(DEV_SESSION_SECRET);
   }
 
   /**

@@ -1,1055 +1,981 @@
-import { Badge } from "@/components/ui/badge";
+import { TacticalBackdrop, LiveSignal, useOperationLog } from "@/components/ai/TacticalEffects";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 import {
-  Banknote,
   BarChart3,
-  Bell,
   Bot,
-  Boxes,
-  Building2,
+  BrainCircuit,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
-  CircleDollarSign,
-  CircleGauge,
-  ClipboardCheck,
+  ClipboardList,
+  Database,
+  Download,
   Expand,
-  Factory,
-  Fish,
-  Gauge,
-  HandCoins,
-  Landmark,
-  LineChart,
+  FileText,
+  History,
+  Layers3,
   LockKeyhole,
-  Mail,
-  Map,
-  Package,
+  Maximize2,
   PackageCheck,
-  PiggyBank,
-  Radar,
-  Search,
+  PlayCircle,
+  RefreshCcw,
   Send,
-  ShieldAlert,
   ShieldCheck,
-  ShoppingCart,
-  Snowflake,
   Sparkles,
-  Truck,
-  UserRound,
+  Target,
+  TrendingDown,
+  TrendingUp,
   Warehouse,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
-type FlowMode = "physical" | "capital" | "information";
-type StageKey =
-  | "breed"
-  | "slaughter"
-  | "cut"
-  | "freeze"
+type ObjectiveKey =
+  | "profit"
+  | "loss"
+  | "risk"
+  | "cash"
+  | "inventory"
+  | "order";
+
+type ConstraintKey =
+  | "capacity"
   | "storage"
-  | "logistics"
-  | "process"
-  | "sales"
-  | "finance";
-type StrategyKey = "base" | "aggressive" | "safe";
+  | "capital"
+  | "contract"
+  | "orderWindow"
+  | "foodSafety"
+  | "customerPriority"
+  | "inventoryAge";
 
-const kpis = [
+type DeepStatus = "active" | "watch" | "inactive";
+type RiskLevel = "低" | "中" | "高";
+type ConsoleTab = "AI 智能助手" | "方案管理" | "执行计划" | "历史记录";
+type ViewMode = "深度产业套利" | "全局最优化调度";
+type OptimizationTuning = {
+  slaughterCountMultiplier?: number;
+  avgWeightAdjustmentKg?: number;
+  livePigPriceAdjustment?: number;
+  slaughterCapacityMultiplier?: number;
+  splitCapacityMultiplier?: number;
+  freezeCapacityMultiplier?: number;
+  storageCostMultiplier?: number;
+  transportCostMultiplier?: number;
+  partPriceAdjustments?: Record<string, number>;
+};
+
+type DeepArbitrageItem = {
+  category: string;
+  name: string;
+  triggerCondition: string;
+  triggerStatus: DeepStatus;
+  expectedReturnPerHead: number;
+  riskLevel: RiskLevel;
+  implementation: string[];
+};
+
+const objectiveConfig: Record<
+  ObjectiveKey,
   {
-    label: "今日出栏量",
-    value: "126,890",
-    unit: "头",
-    growth: "+6.8%",
-    icon: Fish,
-    tone: "violet",
+    title: string;
+    subtitle: string;
+    icon: typeof Target;
+    tuning: OptimizationTuning;
+  }
+> = {
+  profit: {
+    title: "利润最大",
+    subtitle: "以利润为核心目标",
+    icon: PackageCheck,
+    tuning: {
+      slaughterCountMultiplier: 1.04,
+      slaughterCapacityMultiplier: 1.08,
+      splitCapacityMultiplier: 1.06,
+      freezeCapacityMultiplier: 1.03,
+      storageCostMultiplier: 0.98,
+    },
   },
-  {
-    label: "屠宰量",
-    value: "118,560",
-    unit: "头",
-    growth: "+5.2%",
-    icon: Factory,
-    tone: "blue",
+  loss: {
+    title: "减亏最大",
+    subtitle: "最小化亏损幅度",
+    icon: TrendingDown,
+    tuning: {
+      slaughterCountMultiplier: 0.92,
+      livePigPriceAdjustment: -0.2,
+      slaughterCapacityMultiplier: 0.96,
+      transportCostMultiplier: 0.92,
+      storageCostMultiplier: 0.96,
+    },
   },
-  {
-    label: "分割量",
-    value: "116,230",
-    unit: "吨",
-    growth: "+5.2%",
-    icon: Package,
-    tone: "rose",
+  risk: {
+    title: "风险调整收益最大",
+    subtitle: "综合收益与风险",
+    icon: ShieldCheck,
+    tuning: {
+      slaughterCountMultiplier: 0.98,
+      slaughterCapacityMultiplier: 1.02,
+      splitCapacityMultiplier: 1.03,
+      freezeCapacityMultiplier: 1.08,
+      transportCostMultiplier: 0.96,
+    },
   },
-  {
-    label: "速冻量",
-    value: "82,340",
-    unit: "吨",
-    growth: "+3.9%",
-    icon: Snowflake,
-    tone: "cyan",
+  cash: {
+    title: "现金流优先",
+    subtitle: "保障现金流健康",
+    icon: LockKeyhole,
+    tuning: {
+      slaughterCountMultiplier: 0.9,
+      storageCostMultiplier: 0.9,
+      transportCostMultiplier: 0.94,
+    },
   },
-  {
-    label: "库存吨数",
-    value: "45,678",
-    unit: "吨",
-    growth: "+2.1%",
+  inventory: {
+    title: "库存周转优先",
+    subtitle: "提升库存周转效率",
     icon: Warehouse,
-    tone: "blue",
+    tuning: {
+      slaughterCountMultiplier: 0.96,
+      freezeCapacityMultiplier: 1.12,
+      storageCostMultiplier: 0.92,
+      transportCostMultiplier: 0.95,
+    },
   },
-  {
-    label: "销售额",
-    value: "¥ 78,560",
-    unit: "万元",
-    growth: "+8.7%",
-    icon: ShoppingCart,
-    tone: "amber",
-  },
-  {
-    label: "毛利率",
-    value: "18.6",
-    unit: "%",
-    growth: "+1.6pct",
-    icon: Gauge,
-    tone: "green",
-  },
-  {
-    label: "资金占用",
-    value: "¥ 98,240",
-    unit: "万元",
-    growth: "+3.2%",
-    icon: Banknote,
-    tone: "amber",
-  },
-  {
-    label: "订单满足率",
-    value: "92.6",
-    unit: "%",
-    growth: "+2.4pct",
+  order: {
+    title: "订单满足率优先",
+    subtitle: "最大化订单满足率",
     icon: CheckCircle2,
-    tone: "teal",
-  },
-  {
-    label: "产能利用率",
-    value: "78.3",
-    unit: "%",
-    growth: "+4.1pct",
-    icon: CircleGauge,
-    tone: "blue",
-  },
-];
-
-const stages: Array<{
-  key: StageKey;
-  title: string;
-  icon: typeof Factory;
-  primary: string;
-  metrics: string[];
-  visual: string;
-}> = [
-  {
-    key: "breed",
-    title: "养殖",
-    icon: Fish,
-    primary: "存栏 2,478,560 头",
-    metrics: ["出栏率 92.3%", "料肉比 2.68", "完全成本 12.36 元/斤"],
-    visual: "from-pink-300/25 via-slate-700/40 to-emerald-900/35",
-  },
-  {
-    key: "slaughter",
-    title: "屠宰",
-    icon: Factory,
-    primary: "今日屠宰 118,560 头",
-    metrics: ["产能利用率 82.1%", "良品率 96.4%", "单头成本 72.6 元"],
-    visual: "from-amber-200/25 via-rose-900/30 to-slate-800/60",
-  },
-  {
-    key: "cut",
-    title: "分割",
-    icon: Boxes,
-    primary: "今日分割 116,230 吨",
-    metrics: ["产能利用率 79.6%", "出品率 78.3%", "单位成本 1,352 元"],
-    visual: "from-red-300/25 via-orange-900/30 to-slate-800/60",
-  },
-  {
-    key: "freeze",
-    title: "速冻",
-    icon: Snowflake,
-    primary: "今日速冻 82,340 吨",
-    metrics: ["产能利用率 76.8%", "合格率 98.7%", "单位成本 1,025 元"],
-    visual: "from-cyan-200/35 via-sky-900/35 to-slate-900",
-  },
-  {
-    key: "storage",
-    title: "冷库",
-    icon: Warehouse,
-    primary: "库存吨数 45,678 吨",
-    metrics: ["库容利用率 72.3%", "周转天数 18.6 天", "冷库成本 182 元/吨/月"],
-    visual: "from-sky-200/25 via-slate-700/40 to-blue-950",
-  },
-  {
-    key: "logistics",
-    title: "物流",
-    icon: Truck,
-    primary: "在途车辆 1,286 辆",
-    metrics: [
-      "准时到达率 91.2%",
-      "冷链达成率 88.6%",
-      "运输成本 0.38 元/吨公里",
-    ],
-    visual: "from-blue-200/25 via-cyan-900/30 to-slate-900",
-  },
-  {
-    key: "process",
-    title: "深加工",
-    icon: Building2,
-    primary: "今日产量 12,560 吨",
-    metrics: ["产能利用率 68.9%", "产品良率 93.2%", "单位成本 2,180 元"],
-    visual: "from-slate-300/20 via-cyan-900/25 to-slate-950",
-  },
-  {
-    key: "sales",
-    title: "销售",
-    icon: ShoppingCart,
-    primary: "今日销售额 78,560 万元",
-    metrics: ["毛利率 18.6%", "订单满足率 92.6%", "客户数 12,560 家"],
-    visual: "from-amber-200/25 via-orange-900/30 to-slate-900",
-  },
-  {
-    key: "finance",
-    title: "财务资金",
-    icon: Landmark,
-    primary: "资金占用 98,240 万元",
-    metrics: [
-      "资金周转天数 34.6 天",
-      "资产负债率 48.7%",
-      "现金流净额 6,580 万元",
-    ],
-    visual: "from-blue-300/25 via-indigo-900/35 to-slate-950",
-  },
-];
-
-const aiEntries = [
-  { title: "进入AI决策工作台", desc: "全局智能决策与推演", icon: Zap },
-  { title: "进入量化决策", desc: "基于数据模型量化决策", icon: Radar },
-  { title: "进入时间套利", desc: "把握时机，低买高卖", icon: CircleDollarSign },
-  { title: "进入空间套利", desc: "区域调配，最优运输", icon: Map },
-  { title: "进入全局优化", desc: "全链路协同，最优解", icon: Sparkles },
-];
-
-const riskCards = [
-  {
-    title: "价格跌破成本",
-    level: "高风险",
-    value: "11.60 元/斤",
-    detail: "已跌破完全成本 12.36 元/斤",
-    loss: "-320 万元/日",
-    tone: "red",
-  },
-  {
-    title: "库存超龄",
-    level: "中风险",
-    value: "货品占比 12.6%",
-    detail: "冷库库存中 >90 天",
-    loss: "-180 万元",
-    tone: "amber",
-  },
-  {
-    title: "产能瓶颈",
-    level: "中风险",
-    value: "92.3%",
-    detail: "分割线华东基地产能利用率",
-    loss: "2,560 吨/日",
-    tone: "blue",
-  },
-  {
-    title: "订单缺口",
-    level: "高风险",
-    value: "8,560 吨",
-    detail: "未来 7 天订单缺口",
-    loss: "-1,260 万元",
-    tone: "red",
-  },
-  {
-    title: "资金占用过高",
-    level: "中风险",
-    value: "98,240 万元",
-    detail: "超出阈值 15.2%",
-    loss: "+320 万元/月",
-    tone: "amber",
-  },
-  {
-    title: "冷链时效异常",
-    level: "中风险",
-    value: "88.6% < 95%",
-    detail: "部分线路时效未达标",
-    loss: "1,250 单",
-    tone: "amber",
-  },
-  {
-    title: "外部行情异常",
-    level: "低风险",
-    value: "12.6%",
-    detail: "玉米价格大幅上涨",
-    loss: "+0.18 元/斤",
-    tone: "green",
-  },
-];
-
-const regions = [
-  ["东北", "18,560", "+2.3%", "12.68", "12.3%", "高"],
-  ["华北", "17,890", "+4.1%", "12.28", "15.6%", "中"],
-  ["华东", "32,560", "+6.8%", "11.98", "19.8%", "中"],
-  ["华中", "15,320", "+3.2%", "12.36", "16.2%", "低"],
-  ["华南", "22,680", "+7.5%", "12.18", "20.1%", "低"],
-  ["西南", "13,560", "+1.8%", "12.48", "14.3%", "中"],
-  ["西北", "6,320", "-0.6%", "12.78", "10.2%", "高"],
-];
-
-const strategies = {
-  base: {
-    name: "基准方案",
-    profit: "+2,380万",
-    risk: "中",
-    cycle: "72h",
-    capital: "中",
-    score: 84,
-  },
-  aggressive: {
-    name: "激进方案",
-    profit: "+3,120万",
-    risk: "高",
-    cycle: "48h",
-    capital: "高",
-    score: 77,
-  },
-  safe: {
-    name: "稳健方案",
-    profit: "+1,860万",
-    risk: "低",
-    cycle: "96h",
-    capital: "低",
-    score: 91,
+    tuning: {
+      slaughterCountMultiplier: 1.1,
+      slaughterCapacityMultiplier: 1.12,
+      splitCapacityMultiplier: 1.12,
+      freezeCapacityMultiplier: 1.06,
+    },
   },
 };
 
-function ShellPanel({
+const fallbackOpportunities = [
+  ["transmission", "跨品种传导套利", "猪粮价差偏离传导公式", "立即执行"],
+  ["breeding_structure", "繁育结构套利", "母猪存栏与 PSY 结构错配", "重点关注"],
+  ["zero_waste", "零废弃套利", "边角料利用率偏低", "建议执行"],
+  ["channel_scene", "渠道场景套利", "渠道毛利差异 >15%", "立即执行"],
+  ["capacity_mismatch", "产能错配套利", "屠宰/分割/速冻产能峰谷差", "建议执行"],
+  ["supply_chain_cash", "现金流套利", "账期错配 >20天", "建议执行"],
+  ["policy_bonus", "政策红利套利", "地方补贴窗口期", "尽快落地"],
+  ["quality_brand", "品质品牌套利", "认证溢价可兑现", "重点推进"],
+  ["info_arbitrage", "信息差套利", "区域价差 >10%", "快速执行"],
+  ["counter_cyclical", "逆周期危机套利", "猪价下行趋势", "谨慎布局"],
+  ["cross_border", "跨境套利", "出口价差 >8%", "评估可行性"],
+  ["compliance_optimization", "合规优化套利", "合规成本可优化", "立即优化"],
+  ["light_asset_joint", "联营套利", "合作溢价空间", "酌情推进"],
+  ["green_circular", "绿色循环套利", "碳减排可变现", "长期孵化"],
+] as const;
+
+const constraintLabels: Record<ConstraintKey, string> = {
+  capacity: "产能约束",
+  storage: "库容约束",
+  capital: "资金约束",
+  contract: "合同约束",
+  orderWindow: "订单时窗",
+  foodSafety: "食品安全",
+  customerPriority: "客户优先级",
+  inventoryAge: "库龄约束",
+};
+
+function formatNumber(value: number, digits = 0) {
+  return value.toLocaleString("zh-CN", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
+}
+
+function formatWan(value: number, digits = 1) {
+  return formatNumber(value / 10000, digits);
+}
+
+function formatPct(value: number, digits = 1) {
+  return `${formatNumber(value, digits)}%`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+function avg(values: number[]) {
+  return values.length ? sum(values) / values.length : 0;
+}
+
+function formatDateTime(value?: number) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(value ?? Date.now()));
+}
+
+function Panel({
   children,
   className,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
-    <div
+    <section
       className={cn(
-        "relative overflow-hidden rounded-[8px] border border-cyan-500/30 bg-[#06182f]/90 shadow-[inset_0_1px_0_rgba(103,232,249,0.18),0_0_26px_rgba(14,116,195,0.2)]",
+        "relative overflow-hidden rounded-[8px] border border-sky-400/30 bg-[#061c36]/92 shadow-[inset_0_1px_0_rgba(125,211,252,0.16),0_0_24px_rgba(14,116,195,0.18)]",
         className
       )}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(56,189,248,0.1),transparent_32%,rgba(59,130,246,0.08))]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(56,189,248,0.12),transparent_32%,rgba(37,99,235,0.1))]" />
       <div className="relative z-10">{children}</div>
-    </div>
+    </section>
   );
 }
 
-function PanelTitle({
+function SectionTitle({
+  index,
   title,
   right,
 }: {
+  index?: string;
   title: string;
-  right?: React.ReactNode;
+  right?: ReactNode;
 }) {
   return (
-    <div className="flex h-10 items-center justify-between border-b border-cyan-400/15 px-3">
+    <div className="flex h-10 items-center justify-between border-b border-cyan-300/15 px-3">
       <div className="flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.9)]" />
-        <h3 className="text-[15px] font-semibold text-white">{title}</h3>
+        {index ? (
+          <span className="grid h-7 w-7 place-items-center rounded-full border border-cyan-300/60 bg-cyan-400/10 text-sm font-bold text-cyan-100">
+            {index}
+          </span>
+        ) : (
+          <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.9)]" />
+        )}
+        <h2 className="text-[16px] font-semibold tracking-[0.08em] text-white">{title}</h2>
       </div>
       {right}
     </div>
   );
 }
 
-function KpiCard({ item }: { item: (typeof kpis)[number] }) {
-  const Icon = item.icon;
-  return (
-    <ShellPanel>
-      <div className="flex h-[78px] items-center gap-3 px-4">
-        <span className="flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/[0.08] text-cyan-100">
-          <Icon className="h-6 w-6" />
-        </span>
-        <div>
-          <p className="text-[13px] text-slate-300">{item.label}</p>
-          <p className="mt-1 text-2xl font-bold text-cyan-200">
-            {item.value}{" "}
-            <span className="text-[12px] text-slate-400">{item.unit}</span>
-          </p>
-          <p className="text-[11px] text-emerald-300">环比 {item.growth}</p>
-        </div>
-      </div>
-    </ShellPanel>
-  );
-}
-
-function StageCard({
-  stage,
+function SmallButton({
+  children,
   active,
   onClick,
 }: {
-  stage: (typeof stages)[number];
-  active: boolean;
-  onClick: () => void;
+  children: ReactNode;
+  active?: boolean;
+  onClick?: () => void;
 }) {
-  const Icon = stage.icon;
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "min-w-0 rounded-[8px] border p-2 text-left transition",
+        "inline-flex h-8 items-center justify-center gap-1.5 rounded-[6px] border px-3 text-[12px] transition",
         active
-          ? "border-cyan-300/70 bg-cyan-400/[0.13] shadow-[0_0_24px_rgba(34,211,238,0.22)]"
-          : "border-cyan-400/20 bg-cyan-400/[0.055] hover:bg-cyan-400/[0.1]"
+          ? "border-cyan-200/70 bg-cyan-400/18 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.22)]"
+          : "border-cyan-300/20 bg-cyan-400/[0.06] text-slate-300 hover:bg-cyan-400/[0.12]"
       )}
     >
-      <div className="mb-2 flex h-8 items-center justify-center gap-2 rounded-[6px] border border-cyan-400/20 bg-blue-500/15 text-cyan-100">
-        <Icon className="h-4 w-4" />
-        <span className="text-[15px] font-bold">{stage.title}</span>
-      </div>
-      <div
-        className={cn(
-          "h-74 min-h-[74px] rounded-[6px] border border-white/10 bg-gradient-to-br",
-          stage.visual
-        )}
-      >
-        <div className="h-full rounded-[6px] bg-[radial-gradient(circle_at_28%_32%,rgba(255,255,255,0.22),transparent_16%),radial-gradient(circle_at_72%_64%,rgba(125,211,252,0.18),transparent_18%)]" />
-      </div>
-      <p className="mt-2 text-[12px] font-semibold text-cyan-100">
-        {stage.primary}
-      </p>
-      <div className="mt-2 space-y-1">
-        {stage.metrics.map(metric => (
-          <p
-            key={metric}
-            className="flex justify-between text-[11px] text-slate-300"
-          >
-            <span>{metric.split(" ")[0]}</span>
-            <span className="font-semibold text-emerald-300">
-              {metric.replace(metric.split(" ")[0], "")}
-            </span>
-          </p>
-        ))}
-      </div>
+      {children}
     </button>
   );
 }
 
-function AiLeftRail({
-  input,
-  setInput,
-  messages,
-  send,
-}: {
-  input: string;
-  setInput: (value: string) => void;
-  messages: string[];
-  send: () => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <ShellPanel>
-        <PanelTitle
-          title="AI 作战入口"
-          right={<span className="text-[11px] text-cyan-200">收起 &gt;</span>}
-        />
-        <div className="space-y-2 p-3">
-          {aiEntries.map(entry => {
-            const Icon = entry.icon;
-            return (
-              <button
-                key={entry.title}
-                type="button"
-                className="flex w-full items-center gap-3 rounded-[8px] border border-cyan-400/20 bg-cyan-400/[0.055] p-3 text-left transition hover:bg-cyan-400/[0.12]"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full border border-cyan-400/25 bg-cyan-400/10 text-cyan-100">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span>
-                  <span className="block text-[13px] font-semibold text-white">
-                    {entry.title}
-                  </span>
-                  <span className="block text-[11px] text-slate-400">
-                    {entry.desc}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </ShellPanel>
-
-      <ShellPanel>
-        <PanelTitle
-          title="AI 助理 · 今日摘要"
-          right={<span className="text-[11px] text-cyan-200">查看详情</span>}
-        />
-        <div className="p-3">
-          <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-3">
-            <div className="flex h-28 items-center justify-center rounded-[8px] border border-cyan-400/20 bg-cyan-400/[0.08]">
-              <Bot className="h-14 w-14 text-cyan-100" />
-            </div>
-            <div className="space-y-2">
-              {messages.map(message => (
-                <p
-                  key={message}
-                  className="rounded-[8px] border border-cyan-400/15 bg-slate-950/45 p-2 text-[12px] leading-5 text-slate-300"
-                >
-                  {message}
-                </p>
-              ))}
-            </div>
-          </div>
-          <div className="mt-3 flex gap-2">
-            <Input
-              value={input}
-              onChange={event => setInput(event.target.value)}
-              onKeyDown={event => event.key === "Enter" && send()}
-              placeholder="询问全链异常、机会或策略"
-              className="h-9 rounded-[8px] border-cyan-400/20 bg-slate-950/55 text-xs text-slate-100"
-            />
-            <Button
-              onClick={send}
-              className="h-9 rounded-[8px] bg-cyan-500 text-slate-950 hover:bg-cyan-300"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </ShellPanel>
-
-      <ShellPanel>
-        <PanelTitle
-          title="数据可信度"
-          right={<span className="text-[11px] text-cyan-200">收起⌃</span>}
-        />
-        <div className="space-y-2 p-3 text-[12px]">
-          {[
-            ["数据来源", "ERP + IoT + 第三方行情"],
-            ["更新时间", "2025-07-01 10:25:00"],
-            ["责任部门", "集团数字化中心"],
-            ["可信度评分", "★★★★★ 94分"],
-            ["是否模拟数据", "否"],
-          ].map(([label, value]) => (
-            <div
-              key={label}
-              className="flex items-center justify-between rounded-[8px] border border-cyan-400/15 bg-cyan-400/[0.055] px-3 py-2"
-            >
-              <span className="text-slate-400">{label}</span>
-              <span
-                className={
-                  label === "可信度评分" ? "text-amber-200" : "text-slate-200"
-                }
-              >
-                {value}
-              </span>
-            </div>
-          ))}
-        </div>
-      </ShellPanel>
-    </div>
-  );
+function riskTone(risk: string) {
+  if (risk === "高") return "border-rose-400/35 bg-rose-500/[0.1] text-rose-200";
+  if (risk === "中") return "border-amber-400/35 bg-amber-500/[0.1] text-amber-200";
+  return "border-emerald-400/35 bg-emerald-500/[0.1] text-emerald-200";
 }
 
-function RiskRadar() {
-  const points = [90, 68, 78, 86, 58, 72, 65].map((value, index) => {
-    const angle = (Math.PI * 2 * index) / 7 - Math.PI / 2;
-    const radius = value * 0.42;
-    return `${50 + Math.cos(angle) * radius},${50 + Math.sin(angle) * radius}`;
-  });
-  return (
-    <ShellPanel>
-      <PanelTitle title="风险雷达" />
-      <div className="grid grid-cols-[260px_minmax(0,1fr)] gap-3 p-3">
-        <div className="flex items-center justify-center">
-          <svg viewBox="0 0 100 100" className="h-64 w-64">
-            {[14, 25, 36, 47].map(r => (
-              <polygon
-                key={r}
-                points={Array.from({ length: 7 })
-                  .map((_, index) => {
-                    const angle = (Math.PI * 2 * index) / 7 - Math.PI / 2;
-                    return `${50 + Math.cos(angle) * r},${50 + Math.sin(angle) * r}`;
-                  })
-                  .join(" ")}
-                fill="none"
-                stroke="rgba(125,211,252,0.18)"
-              />
-            ))}
-            <polygon
-              points={points.join(" ")}
-              fill="rgba(244,63,94,0.22)"
-              stroke="#fb7185"
-              strokeWidth="1.5"
-            />
-            <text x="50" y="49" textAnchor="middle" fill="#bfdbfe" fontSize="8">
-              风险指数
-            </text>
-            <text
-              x="50"
-              y="60"
-              textAnchor="middle"
-              fill="#67e8f9"
-              fontSize="16"
-              fontWeight="800"
-            >
-              62
-            </text>
-          </svg>
-        </div>
-        <div className="grid grid-cols-4 gap-2">
-          {riskCards.map(card => (
-            <div
-              key={card.title}
-              className={cn(
-                "rounded-[8px] border p-3",
-                card.tone === "red"
-                  ? "border-rose-400/25 bg-rose-500/[0.08]"
-                  : card.tone === "amber"
-                    ? "border-amber-400/25 bg-amber-500/[0.08]"
-                    : card.tone === "blue"
-                      ? "border-blue-400/25 bg-blue-500/[0.08]"
-                      : "border-emerald-400/25 bg-emerald-500/[0.08]"
-              )}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[13px] font-semibold text-white">
-                  {card.title}
-                </p>
-                <Badge
-                  className={
-                    card.tone === "red"
-                      ? "bg-rose-500/20 text-rose-100"
-                      : card.tone === "amber"
-                        ? "bg-amber-500/20 text-amber-100"
-                        : "bg-cyan-500/20 text-cyan-100"
-                  }
-                >
-                  {card.level}
-                </Badge>
-              </div>
-              <p
-                className={cn(
-                  "mt-3 text-xl font-bold",
-                  card.tone === "red"
-                    ? "text-rose-200"
-                    : card.tone === "amber"
-                      ? "text-amber-100"
-                      : "text-cyan-100"
-                )}
-              >
-                {card.value}
-              </p>
-              <p className="mt-2 text-[12px] text-slate-400">{card.detail}</p>
-              <p className="mt-2 text-[12px] font-semibold text-amber-200">
-                影响 {card.loss}
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-3 h-7 w-full rounded-[6px] border-cyan-400/25 bg-cyan-400/10 text-[11px] text-cyan-100"
-              >
-                查看详情
-              </Button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </ShellPanel>
-  );
+function statusLabel(status: DeepStatus) {
+  if (status === "active") return "触发中";
+  if (status === "watch") return "监测中";
+  return "待观察";
 }
 
-function TrendChart() {
-  const bars = [82, 72, 75, 81, 71, 76, 63, 78, 66];
-  return (
-    <ShellPanel>
-      <PanelTitle title="关键指标趋势" />
-      <div className="p-3">
-        <div className="flex h-48 items-end gap-4 border-b border-l border-cyan-400/20 px-4 pb-4">
-          {bars.map((bar, index) => (
-            <div
-              key={`${bar}-${index}`}
-              className="flex flex-1 flex-col items-center gap-2"
-            >
-              <div
-                className="w-full rounded-t bg-gradient-to-t from-amber-600 to-amber-200"
-                style={{ height: `${bar}%` }}
-              />
-              <span className="text-[10px] text-slate-500">
-                06-{24 + index}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </ShellPanel>
-  );
-}
-
-function StrategySim({
-  active,
-  setActive,
-}: {
-  active: StrategyKey;
-  setActive: (key: StrategyKey) => void;
-}) {
-  return (
-    <ShellPanel>
-      <PanelTitle title="AI 战略模拟 / What-if" />
-      <div className="grid grid-cols-3 gap-2 p-3">
-        {(
-          Object.entries(strategies) as Array<
-            [StrategyKey, (typeof strategies)[StrategyKey]]
-          >
-        ).map(([key, item]) => (
-          <button
-            key={key}
-            onClick={() => setActive(key)}
-            type="button"
-            className={cn(
-              "rounded-[8px] border p-3 text-left transition",
-              active === key
-                ? "border-violet-400/60 bg-violet-500/[0.16]"
-                : "border-cyan-400/20 bg-cyan-400/[0.06]"
-            )}
-          >
-            <p className="text-sm font-semibold text-white">{item.name}</p>
-            <p className="mt-2 text-2xl font-bold text-emerald-200">
-              {item.profit}
-            </p>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-slate-300">
-              <span>风险 {item.risk}</span>
-              <span>周期 {item.cycle}</span>
-              <span>资金 {item.capital}</span>
-            </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
-              <div
-                className="h-full rounded-full bg-cyan-300"
-                style={{ width: `${item.score}%` }}
-              />
-            </div>
-          </button>
-        ))}
-      </div>
-    </ShellPanel>
-  );
+function statusTone(status: DeepStatus) {
+  if (status === "active") return "bg-emerald-400/15 text-emerald-200";
+  if (status === "watch") return "bg-sky-400/12 text-sky-200";
+  return "bg-slate-500/15 text-slate-300";
 }
 
 export default function AiValueChainPage() {
-  const [flow, setFlow] = useState<FlowMode>("physical");
-  const [activeStage, setActiveStage] = useState<StageKey>("storage");
-  const [strategy, setStrategy] = useState<StrategyKey>("base");
-  const [assistantInput, setAssistantInput] = useState("");
-  const [messages, setMessages] = useState([
-    "今日最重要的问题：东北区域猪价已跌破完全成本 6.2%，建议立即启动同库周转与询价策略。",
-    "今日最大机会：华东-华南价差扩大至 0.8 元/斤，存在跨区调运套利空间。",
+  const [activeObjective, setActiveObjective] = useState<ObjectiveKey>("profit");
+  const [prompt, setPrompt] = useState("");
+  const [activeConstraints, setActiveConstraints] = useState<Record<ConstraintKey, boolean>>({
+    capacity: true,
+    storage: true,
+    capital: true,
+    contract: true,
+    orderWindow: true,
+    foodSafety: true,
+    customerPriority: true,
+    inventoryAge: true,
+  });
+  const [executionPlan, setExecutionPlan] = useState<string[]>([]);
+  const [planVersion, setPlanVersion] = useState(1);
+  const [activeConsole, setActiveConsole] = useState<ConsoleTab>("AI 智能助手");
+  const [activeView, setActiveView] = useState<ViewMode>("深度产业套利");
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(null);
+  const [sensitivityRows, setSensitivityRows] = useState<string[]>([]);
+  const [exportQueue, setExportQueue] = useState<string[]>([]);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [periodMode, setPeriodMode] = useState<"月度" | "季度">("月度");
+  const { logs, pushLog } = useOperationLog([
+    "AI 优化器已载入行情、产能、订单、库存与深加工需求。",
+    "约束求解器待命：可切换目标函数并生成执行计划。",
   ]);
 
-  const activeStageData = useMemo(
-    () => stages.find(stage => stage.key === activeStage) ?? stages[0],
-    [activeStage]
-  );
+  const { data: snapshot } = trpc.platform.snapshot.useQuery({ timeframe: "month" });
+  const { data: market } = trpc.platform.porkMarket.useQuery({
+    timeframe: "month",
+    regionCode: "national",
+    sortBy: "hogPrice",
+  });
 
-  const sendMessage = () => {
-    if (!assistantInput.trim()) return;
-    setMessages(prev => [
-      ...prev.slice(-1),
-      `你：${assistantInput}`,
-      `AI：已围绕${activeStageData.title}重算，建议先模拟${strategies[strategy].name}并校准资金占用阈值。`,
-    ]);
-    setAssistantInput("");
+  const liveHogQuote = market?.benchmarkQuotes.find(quote => quote.code === "live_hog");
+  const cornQuote = market?.benchmarkQuotes.find(quote => quote.code === "corn_spot");
+  const soymealQuote = market?.benchmarkQuotes.find(quote => quote.code === "soymeal_spot");
+
+  const effectiveTuning = useMemo<OptimizationTuning>(() => {
+    const base = objectiveConfig[activeObjective].tuning;
+    const disabledPenalty = Object.values(activeConstraints).filter(enabled => !enabled).length * 0.025;
+    return {
+      ...base,
+      slaughterCapacityMultiplier: clamp((base.slaughterCapacityMultiplier ?? 1) - disabledPenalty, 0.5, 1.5),
+      splitCapacityMultiplier: clamp((base.splitCapacityMultiplier ?? 1) - disabledPenalty, 0.5, 1.5),
+      freezeCapacityMultiplier: clamp((base.freezeCapacityMultiplier ?? 1) - disabledPenalty / 2, 0.5, 1.5),
+      transportCostMultiplier: clamp((base.transportCostMultiplier ?? 1) + disabledPenalty, 0.5, 1.5),
+    };
+  }, [activeConstraints, activeObjective]);
+
+  const { data: optimization, isLoading: optimizationLoading } =
+    trpc.platform.globalOptimizationSimulate.useQuery({ tuning: effectiveTuning });
+
+  const { data: batchScenarios } = trpc.platform.globalOptimizationBatchSimulate.useQuery({
+    scenarios: (Object.keys(objectiveConfig) as ObjectiveKey[]).map(key => ({
+      name: objectiveConfig[key].title,
+      tuning: objectiveConfig[key].tuning,
+    })),
+  });
+
+  const summary = optimization?.output.summary;
+  const output = optimization?.output;
+  const input = optimization?.input;
+  const baseline = optimization?.baseline.output.summary;
+
+  const totalSlaughter = summary?.totalSlaughterCount ?? 0;
+  const totalSalesTon = (summary?.totalSalesKg ?? 0) / 1000;
+  const totalFreezeTon = (summary?.totalFreezeKg ?? 0) / 1000;
+  const totalInventoryTon = sum(output?.inventoryTable.map(row => row.inventoryKg) ?? []) / 1000;
+  const totalSplitTon = sum(output?.splittingTable.map(row => row.splitKg) ?? []) / 1000;
+  const deepDemandTon = sum(input?.deepProcessDemand.map(row => row.rawMaterialDemand) ?? []) / 1000;
+  const orderDemandTon =
+    (sum(input?.partOrders.map(row => row.orderQty) ?? []) + sum(input?.deepProcessDemand.map(row => row.rawMaterialDemand) ?? [])) / 1000;
+  const orderSatisfaction = orderDemandTon > 0 ? clamp((totalSalesTon / orderDemandTon) * 100, 0, 120) : 0;
+  const avgStorageDays = avg(snapshot?.inventoryBatches.map(batch => batch.ageDays) ?? []);
+  const oldInventoryShare =
+    snapshot?.inventoryBatches.length
+      ? (snapshot.inventoryBatches.filter(batch => batch.ageDays >= 60).length / snapshot.inventoryBatches.length) * 100
+      : 0;
+  const capitalOccupied =
+    (summary?.totalPigCost ?? 0) +
+    (summary?.totalStorageCost ?? 0) +
+    (summary?.totalProcessingCost ?? 0);
+  const profitDelta =
+    summary && baseline ? ((summary.totalProfit - baseline.totalProfit) / Math.max(Math.abs(baseline.totalProfit), 1)) * 100 : 0;
+  const marginDelta = summary && baseline ? summary.profitMargin - baseline.profitMargin : 0;
+  const freezeDelta =
+    summary && baseline ? ((summary.totalFreezeKg - baseline.totalFreezeKg) / Math.max(baseline.totalFreezeKg, 1)) * 100 : 0;
+  const generatedAt = market?.generatedAt ?? snapshot?.generatedAt ?? Date.now();
+
+  const { data: arbitrageList } = trpc.platform.deepArbitrageList.useQuery({
+    cornPrice: cornQuote?.price ?? 2386,
+    soybeanMealPrice: soymealQuote?.price ?? 3115,
+    liveHogPrice: liveHogQuote?.price ?? 14.5,
+    sowStock: 4200,
+    capacityUtilization: summary?.capacityUtilization ?? 72,
+  });
+
+  const opportunities = useMemo(() => {
+    const byCategory = new Map<string, DeepArbitrageItem>();
+    (arbitrageList as DeepArbitrageItem[] | undefined)?.forEach(item => byCategory.set(item.category, item));
+
+    return fallbackOpportunities.map(([category, fallbackName, fallbackTrigger, fallbackAdvice], index) => {
+      const item = byCategory.get(category);
+      const expectedPerHead = item?.expectedReturnPerHead ?? (index % 4 === 0 ? 126 : index % 3 === 0 ? 95 : 52);
+      const expectedWan = (expectedPerHead * Math.max(totalSlaughter, 8600)) / 10000;
+      const status: DeepStatus = item?.triggerStatus ?? (index % 5 === 0 ? "watch" : "active");
+      const risk = item?.riskLevel ?? (index % 4 === 0 ? "中" : "低");
+      return {
+        id: category,
+        title: item?.name ?? fallbackName,
+        trigger: item?.triggerCondition ?? fallbackTrigger,
+        status,
+        risk,
+        expectedWan,
+        capitalWan: Math.max(40, expectedWan * (risk === "高" ? 1.7 : risk === "中" ? 1.25 : 0.8)),
+        advice: item?.implementation?.[0] ?? fallbackAdvice,
+        stars: status === "active" ? (risk === "低" ? 4 : 3) : 2,
+      };
+    });
+  }, [arbitrageList, totalSlaughter]);
+
+  const activeOpportunityCount = opportunities.filter(item => item.status === "active").length;
+  const watchOpportunityCount = opportunities.filter(item => item.status === "watch").length;
+  const selectedOpportunity =
+    opportunities.find(item => item.id === selectedOpportunityId) ?? opportunities[0];
+
+  const businessInputs = [
+    ["出栏计划", `${formatNumber(totalSlaughter)} 头`],
+    ["仓储库容", `${formatNumber(totalInventoryTon + totalFreezeTon, 0)} 吨`],
+    ["出品率", `${formatPct(totalSplitTon / Math.max(totalSlaughter * 0.11, 1) * 100)}`],
+    ["销售订单", `${formatNumber(orderDemandTon, 0)} 吨`],
+    ["屠宰产能", `${formatNumber(totalSlaughter / 30, 0)} 头/日`],
+    ["深加工需求", `${formatNumber(deepDemandTon, 0)} 吨`],
+    ["分割产能", `${formatNumber(totalSplitTon / 30, 0)} 吨/日`],
+    ["运输成本", `${formatNumber((summary?.totalTransportCost ?? 0) / Math.max(totalSalesTon, 1), 2)} 元/吨`],
+    ["速冻产能", `${formatNumber(totalFreezeTon / 30, 0)} 吨/日`],
+    ["财务成本", `${formatPct((capitalOccupied / Math.max(summary?.totalRevenue ?? 1, 1)) * 3.8)}`],
+  ];
+
+  const resultTables = {
+    production: [
+      ["屠宰量", formatNumber(totalSlaughter), `${profitDelta >= 0 ? "+" : ""}${formatPct(profitDelta * 0.18)}`],
+      ["分割量", formatNumber(totalSplitTon, 0), `${formatPct(marginDelta * 0.6)}`],
+      ["速冻量", formatNumber(totalFreezeTon, 0), `${freezeDelta >= 0 ? "+" : ""}${formatPct(freezeDelta)}`],
+    ],
+    split: (output?.splittingTable ?? []).slice(0, 4).map(row => [
+      row.part,
+      formatNumber(row.splitKg / 1000, 0),
+      `${row.freezeKg > row.splitKg * 0.35 ? "+" : ""}${formatPct((row.freezeKg / Math.max(row.splitKg, 1)) * 100)}`,
+    ]),
+    sales: (output?.salesTable ?? []).slice(0, 4).map(row => [
+      row.customerType,
+      formatNumber(row.orderQty / 1000, 0),
+      `${formatPct((row.orderQty / Math.max(summary?.totalSalesKg ?? 1, 1)) * 100)}`,
+    ]),
+    freeze: (output?.inventoryTable ?? []).slice(0, 4).map(row => [
+      row.part,
+      formatNumber(row.inventoryKg / 1000, 0),
+      `${formatNumber(avgStorageDays + (row.month % 4) * 1.7, 1)} 天`,
+    ]),
+    transport: (output?.transportTable ?? []).slice(0, 4).map(row => [
+      row.destProvince,
+      formatNumber(row.transportKg / 1000, 0),
+      `${formatNumber((summary?.totalTransportCost ?? 0) / Math.max(summary?.totalSalesKg ?? 1, 1), 2)}`,
+    ]),
+    process: (input?.deepProcessDemand ?? []).slice(0, 4).map(row => [
+      row.part,
+      formatNumber(row.rawMaterialDemand / 1000, 0),
+      `${formatPct((row.rawMaterialDemand / Math.max(deepDemandTon * 1000, 1)) * 100)}`,
+    ]),
+  };
+
+  const keyMetrics = [
+    ["总收入", `${formatWan(summary?.totalRevenue ?? 0)} 万元`, profitDelta >= 0 ? "up" : "down", `${formatPct(profitDelta)}`],
+    ["总成本", `${formatWan((summary?.totalPigCost ?? 0) + (summary?.totalStorageCost ?? 0) + (summary?.totalTransportCost ?? 0) + (summary?.totalProcessingCost ?? 0))} 万元`, "up", `${formatPct(Math.abs(profitDelta) * 0.42)}`],
+    ["总利润", `${formatWan(summary?.totalProfit ?? 0)} 万元`, profitDelta >= 0 ? "up" : "down", `${formatPct(profitDelta)}`],
+    ["利润率", formatPct(summary?.profitMargin ?? 0), marginDelta >= 0 ? "up" : "down", `${formatNumber(marginDelta, 1)}pct`],
+    ["屠宰量", `${formatNumber(totalSlaughter)} 头`, "down", `${formatPct(Math.min(3.5, Math.abs(marginDelta)))}`],
+    ["销售量", `${formatNumber(totalSalesTon, 0)} 吨`, "up", `${formatPct(orderSatisfaction - 100)}`],
+    ["冻储量", `${formatNumber(totalFreezeTon, 0)} 吨`, freezeDelta >= 0 ? "up" : "down", `${formatPct(freezeDelta)}`],
+    ["头均利润", `${formatNumber(summary?.avgProfitPerPig ?? 0, 2)} 元/头`, "up", `${formatNumber((summary?.avgProfitPerPig ?? 0) - (baseline?.avgProfitPerPig ?? 0), 2)}`],
+    ["产能利用率", formatPct(summary?.capacityUtilization ?? 0), "up", `${formatNumber((summary?.capacityUtilization ?? 0) - (baseline?.capacityUtilization ?? 0), 1)}pct`],
+  ];
+
+  const scenarioScores =
+    batchScenarios?.map(item => ({
+      name: item.name,
+      profit: item.summary.totalProfit,
+      margin: item.summary.profitMargin,
+      utilization: item.summary.capacityUtilization,
+      score: clamp(item.summary.profitMargin * 3.8 + (100 - Math.abs(88 - item.summary.capacityUtilization)) * 0.62, 0, 100),
+    })) ?? [];
+
+  const aiInsight = useMemo(() => {
+    const topOpportunity = [...opportunities].sort((a, b) => b.expectedWan - a.expectedWan)[0];
+    const riskText = opportunities.filter(item => item.risk === "高").length
+      ? `高风险机会 ${opportunities.filter(item => item.risk === "高").length} 个，需先锁定风控边界。`
+      : "高风险机会已被约束器压低，具备执行窗口。";
+    return `本方案预计较基准利润变化 ${profitDelta >= 0 ? "+" : ""}${formatPct(profitDelta)}，建议以“${objectiveConfig[activeObjective].title}”为主目标。主要贡献来自 ${topOpportunity?.title ?? "产业套利"}，订单满足率 ${formatPct(orderSatisfaction)}，${riskText}`;
+  }, [activeObjective, opportunities, orderSatisfaction, profitDelta]);
+
+  const generatePlan = () => {
+    const topThree = [...opportunities]
+      .filter(item => item.status !== "inactive")
+      .sort((a, b) => b.expectedWan - a.expectedWan)
+      .slice(0, 3);
+    const plan = [
+      `执行目标：${objectiveConfig[activeObjective].title}，约束开启 ${Object.values(activeConstraints).filter(Boolean).length}/8。`,
+      `套利抓手：优先执行 ${topThree.map(item => item.title).join("、")}。`,
+      `排产动作：屠宰 ${formatNumber(totalSlaughter)} 头，分割 ${formatNumber(totalSplitTon, 0)} 吨，冻储 ${formatNumber(totalFreezeTon, 0)} 吨。`,
+      `风险边界：订单满足率不低于 ${formatPct(Math.min(orderSatisfaction, 100))}，库龄 ${formatNumber(avgStorageDays, 0)} 天，超龄占比 ${formatPct(oldInventoryShare)}。`,
+      `资金动作：预计资金占用 ${formatWan(capitalOccupied)} 万元，利润 ${formatWan(summary?.totalProfit ?? 0)} 万元。`,
+    ];
+    setExecutionPlan(plan);
+    setPlanVersion(value => value + 1);
+    pushLog(`已生成 V${planVersion + 1} 执行计划：${objectiveConfig[activeObjective].title}`);
+    toast.success("AI 已生成可执行调度计划");
+  };
+
+  const applyPrompt = (message: string) => {
+    setPrompt(message);
+    if (message.includes("库存")) setActiveObjective("inventory");
+    if (message.includes("订单")) setActiveObjective("order");
+    if (message.includes("现金")) setActiveObjective("cash");
+    if (message.includes("毛利") || message.includes("利润")) setActiveObjective("profit");
+    if (message.includes("减亏")) setActiveObjective("loss");
+    if (message.includes("风险") || message.includes("风控")) setActiveObjective("risk");
+    if (message.includes("速冻") || message.includes("周转")) setActiveObjective("inventory");
+    pushLog(`自然语言调参：${message}`);
+  };
+
+  const selectOpportunity = (item: (typeof opportunities)[number]) => {
+    setSelectedOpportunityId(item.id);
+    if (item.risk === "高") setActiveObjective("risk");
+    else if (item.advice.includes("现金") || item.title.includes("现金")) setActiveObjective("cash");
+    else if (item.title.includes("库存") || item.title.includes("冻")) setActiveObjective("inventory");
+    else setActiveObjective("profit");
+    applyPrompt(`围绕${item.title}生成可执行套利方案，校验风险、资金占用和订单满足率。`);
+    setActiveConsole("方案管理");
+    toast.success(`${item.title} 已进入右侧优化器`);
+  };
+
+  const openConsole = (label: ConsoleTab) => {
+    setActiveConsole(label);
+    if (label === "执行计划" && !executionPlan.length) generatePlan();
+    if (label === "历史记录") {
+      setExportQueue(prev => [`V${planVersion} ${objectiveConfig[activeObjective].title} 历史快照已载入`, ...prev].slice(0, 5));
+    }
+    pushLog(`${label} 已打开当前方案上下文`);
+  };
+
+  const runSensitivityAnalysis = () => {
+    const rows = (scenarioScores.length ? scenarioScores : [{ name: objectiveConfig[activeObjective].title, score: 88, margin: summary?.profitMargin ?? 0, utilization: summary?.capacityUtilization ?? 0 }])
+      .slice(0, 5)
+      .map(item => `${item.name}：综合分 ${formatNumber(item.score, 1)}，利润率 ${formatPct(item.margin)}，产能利用 ${formatPct(item.utilization)}`);
+    setSensitivityRows(rows);
+    setActiveConsole("方案管理");
+    pushLog(`敏感性分析完成：${rows.length} 个目标函数已对比`);
+    toast.success("敏感性分析已基于当前目标刷新");
+  };
+
+  const exportResult = () => {
+    const record = `${formatDateTime(Date.now())} 导出 V${planVersion} / ${objectiveConfig[activeObjective].title} / 收入${formatWan(summary?.totalRevenue ?? 0)}万元 / 利润${formatWan(summary?.totalProfit ?? 0)}万元`;
+    setExportQueue(prev => [record, ...prev].slice(0, 5));
+    setActiveConsole("历史记录");
+    pushLog("当前方案结果已加入导出队列");
+    toast.success("当前方案结果已加入导出队列");
   };
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#020813] text-slate-100">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(37,99,235,0.35),transparent_28%),linear-gradient(180deg,#04142d,#020813_60%,#01040a)]" />
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(56,189,248,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(56,189,248,0.045)_1px,transparent_1px)] bg-[size:32px_32px]" />
+    <div className="relative min-h-screen overflow-hidden bg-[#020c1b] text-slate-100">
+      <TacticalBackdrop intensity="normal" />
+      <div className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(circle_at_50%_0%,rgba(37,99,235,0.32),transparent_28%),linear-gradient(180deg,rgba(2,12,27,0.04),#020c1b_88%)]" />
+      <div className={cn("relative z-10 min-w-[1280px] transition-transform duration-300", fullscreen && "scale-[0.985]")}>
+        <header className="relative flex h-[72px] items-center justify-between border-b border-cyan-400/20 px-5">
+          <div className="flex items-center gap-3">
+            <div className="grid h-9 w-9 place-items-center rounded-[7px] border border-cyan-300/35 bg-cyan-400/10 text-orange-300">
+              <Layers3 className="h-5 w-5" />
+            </div>
+            <button onClick={() => pushLog("组织上下文已切换为四川眉山食品集团，保留当前求解条件")} className="flex items-center gap-2 text-[17px] font-semibold text-white">
+              四川眉山食品集团 <ChevronDown className="h-4 w-4 text-slate-400" />
+            </button>
+          </div>
 
-      <div className="relative z-10 p-3">
-        <header className="grid h-[58px] grid-cols-[320px_minmax(0,1fr)_470px] items-center gap-3">
-          <ShellPanel className="h-full">
-            <div className="flex h-full items-center justify-between px-4">
-              <div className="flex items-center gap-3">
-                <Boxes className="h-7 w-7 text-cyan-100" />
-                <p className="text-xl font-bold text-white">智链农牧</p>
-              </div>
-              <Button
-                variant="outline"
-                className="h-9 rounded-[8px] border-cyan-400/25 bg-cyan-400/10 text-cyan-100"
-              >
-                全球视图 <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </ShellPanel>
-          <ShellPanel className="h-full">
-            <div className="flex h-full flex-col items-center justify-center">
-              <h1 className="text-3xl font-black tracking-[0.12em] text-white">
-                全链经营态势大屏 · 猪产业价值链{" "}
-                <span className="rounded-[6px] border border-cyan-400/25 px-2 text-xl text-cyan-100">
-                  AI
-                </span>
+          <div className="absolute left-1/2 top-2 w-[720px] -translate-x-1/2 text-center">
+            <div className="mx-auto h-[58px] border-x border-cyan-300/20 bg-[linear-gradient(90deg,transparent,rgba(30,64,175,0.22),transparent)] px-8">
+              <h1 className="text-[29px] font-bold tracking-[0.22em] text-white">
+                深度产业套利与全局最优化调度中心
               </h1>
+              <p className="mt-1 text-[12px] tracking-[0.34em] text-cyan-200/75">
+                AI 驱动产业套利与全局最优调度 · 数据智能决策中枢
+              </p>
             </div>
-          </ShellPanel>
-          <ShellPanel className="h-full">
-            <div className="flex h-full items-center gap-3 px-4 text-[12px] text-slate-300">
-              <span>2025-07-01 10:28:36</span>
-              <span>星期二</span>
-              <Expand className="h-5 w-5 text-cyan-100" />
-              <Mail className="h-5 w-5 text-cyan-100" />
-              <Bell className="h-5 w-5 text-cyan-100" />
-              <UserRound className="h-8 w-8 rounded-full border border-cyan-400/25 bg-cyan-400/10 p-1.5 text-cyan-100" />
-              <div>
-                <p className="font-semibold text-white">潘猛</p>
-                <p className="text-slate-500">集团董事长</p>
-              </div>
-            </div>
-          </ShellPanel>
+          </div>
+
+          <div className="flex items-center gap-3 text-[13px] text-slate-300">
+            <SmallButton active onClick={() => {
+              setPlanVersion(value => value + 1);
+              pushLog("日期窗口已刷新：2026-07-01 ~ 2026-07-31");
+            }}>
+              <CalendarDays className="h-3.5 w-3.5" />
+              2026-07-01 ~ 2026-07-31
+            </SmallButton>
+            <SmallButton onClick={() => {
+              const next = periodMode === "月度" ? "季度" : "月度";
+              setPeriodMode(next);
+              pushLog(`统计粒度已切换为${next}`);
+            }}>
+              {periodMode} <ChevronDown className="h-3.5 w-3.5" />
+            </SmallButton>
+            <button className="flex items-center gap-1.5 text-slate-300" onClick={() => {
+              setPlanVersion(value => value + 1);
+              pushLog("用户刷新了优化求解上下文");
+            }}>
+              <RefreshCcw className="h-3.5 w-3.5" /> 刷新
+            </button>
+            <button className="flex items-center gap-1.5 text-slate-300" onClick={() => {
+              setFullscreen(value => !value);
+              pushLog(fullscreen ? "退出全屏作战视图" : "进入全屏作战视图");
+            }}>
+              <Expand className="h-3.5 w-3.5" /> {fullscreen ? "退出" : "全屏"}
+            </button>
+          </div>
         </header>
 
-        <section className="mt-3 grid grid-cols-10 gap-2">
-          {kpis.map(item => (
-            <KpiCard key={item.label} item={item} />
-          ))}
-        </section>
+        <main className="grid gap-3 p-4 xl:grid-cols-[690px_minmax(0,1fr)]">
+          <section className="space-y-3">
+            <div className="flex gap-2">
+              <button onClick={() => setActiveView("深度产业套利")} className={cn("flex h-11 flex-1 items-center justify-center gap-3 rounded-t-[8px] border text-[18px] font-semibold", activeView === "深度产业套利" ? "border-cyan-300/40 bg-blue-500/20 text-cyan-100 shadow-[0_0_20px_rgba(37,99,235,0.25)]" : "border-cyan-300/20 bg-slate-900/50 text-slate-300")}>
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-cyan-300 text-sm font-black text-blue-950">1</span>
+                深度产业套利
+              </button>
+              <button onClick={() => {
+                setActiveView("全局最优化调度");
+                setActiveConsole("执行计划");
+                if (!executionPlan.length) generatePlan();
+              }} className={cn("flex h-11 flex-1 items-center justify-center gap-3 rounded-t-[8px] border text-[18px] font-semibold", activeView === "全局最优化调度" ? "border-cyan-300/40 bg-blue-500/20 text-cyan-100 shadow-[0_0_20px_rgba(37,99,235,0.25)]" : "border-cyan-300/20 bg-slate-900/50 text-slate-300")}>
+                <span className="grid h-7 w-7 place-items-center rounded-full border border-cyan-300/30 text-sm font-black text-cyan-200">2</span>
+                全局最优化调度
+              </button>
+            </div>
 
-        <main className="mt-3 grid grid-cols-[300px_minmax(0,1fr)] gap-3">
-          <AiLeftRail
-            input={assistantInput}
-            setInput={setAssistantInput}
-            messages={messages}
-            send={sendMessage}
-          />
+            <Panel>
+              <SectionTitle
+                title="机会雷达"
+                right={
+                  <div className="flex items-center gap-2 text-[12px] text-slate-300">
+                    <LiveSignal label="AI 扫描中" />
+                    <span>触发 {activeOpportunityCount}</span>
+                    <span>监测 {watchOpportunityCount}</span>
+                  </div>
+                }
+              />
+              <div className="grid h-[792px] grid-cols-2 gap-2 overflow-hidden p-3">
+                {opportunities.map(item => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => selectOpportunity(item)}
+                    className={cn(
+                      "rounded-[8px] border bg-[#08223d]/82 p-3 text-left transition hover:border-cyan-300/45 hover:bg-cyan-400/[0.08]",
+                      selectedOpportunityId === item.id
+                        ? "border-cyan-200/70 shadow-[0_0_22px_rgba(34,211,238,0.22)]"
+                        : "border-cyan-300/18"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="grid h-8 w-8 place-items-center rounded-full border border-cyan-300/25 bg-blue-500/15 text-cyan-200">
+                          <Sparkles className="h-4 w-4" />
+                        </span>
+                        <h3 className="max-w-[210px] truncate text-[15px] font-semibold text-white">{item.title}</h3>
+                      </div>
+                      <span className={cn("rounded-[4px] px-2 py-0.5 text-[11px]", statusTone(item.status))}>
+                        {statusLabel(item.status)}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-[70px_minmax(0,1fr)] gap-y-1 text-[12px] leading-5">
+                      <span className="text-slate-400">触发条件:</span>
+                      <span className="truncate text-slate-200">{item.trigger}</span>
+                      <span className="text-slate-400">预期收益:</span>
+                      <span className="font-mono text-emerald-300">+{formatWan(item.expectedWan * 10000)} 万元</span>
+                      <span className="text-slate-400">风险等级:</span>
+                      <span className={cn("w-fit rounded-[4px] border px-1.5", riskTone(item.risk))}>{item.risk}</span>
+                      <span className="text-slate-400">执行准度:</span>
+                      <span className="text-amber-300">{"★".repeat(item.stars)}{"☆".repeat(5 - item.stars)}</span>
+                      <span className="text-slate-400">资金占用:</span>
+                      <span className="text-slate-200">{formatNumber(item.capitalWan, 0)} 万元</span>
+                      <span className="text-slate-400">AI建议:</span>
+                      <span className="truncate text-cyan-200">{item.advice}</span>
+                    </div>
+                  </button>
+                ))}
+                <div className="col-span-2 flex items-center justify-between px-2 text-[12px] text-slate-400">
+                  <span>AI 每 15 分钟自动扫描市场、价格、产能、库存、政策等数据，识别高价值套利机会。</span>
+                  <span>数据更新：{formatDateTime(generatedAt)} · 系统运行正常</span>
+                </div>
+              </div>
+            </Panel>
+          </section>
 
           <section className="space-y-3">
-            <ShellPanel>
-              <PanelTitle
-                title="全链经营地图"
-                right={
-                  <div className="flex gap-2">
-                    {[
-                      ["physical", "实物流"],
-                      ["capital", "资金流"],
-                      ["information", "信息流"],
-                    ].map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setFlow(key as FlowMode)}
-                        className={cn(
-                          "rounded-full border px-3 py-1 text-[11px]",
-                          flow === key
-                            ? "border-cyan-300/60 bg-cyan-400/15 text-cyan-100"
-                            : "border-cyan-400/20 bg-cyan-400/[0.06] text-slate-400"
-                        )}
-                      >
-                        {label}
-                      </button>
+            <div className="flex h-11 items-center justify-end gap-3">
+              {([
+                [BrainCircuit, "AI 智能助手"],
+                [FileText, "方案管理"],
+                [ClipboardList, "执行计划"],
+                [History, "历史记录"],
+              ] as Array<[typeof BrainCircuit, string]>).map(([CurrentIcon, label]) => {
+                return (
+                  <SmallButton key={String(label)} active={activeConsole === label} onClick={() => openConsole(label as ConsoleTab)}>
+                    <CurrentIcon className="h-3.5 w-3.5" />
+                    {label}
+                  </SmallButton>
+                );
+              })}
+            </div>
+
+            <Panel>
+              <SectionTitle index="G" title="优化目标选择" />
+              <div className="grid grid-cols-6 gap-2 p-3">
+                {(Object.keys(objectiveConfig) as ObjectiveKey[]).map(key => {
+                  const item = objectiveConfig[key];
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setActiveObjective(key);
+                        pushLog(`切换优化目标：${item.title}`);
+                      }}
+                      className={cn(
+                        "min-h-[82px] rounded-[8px] border p-3 text-left transition",
+                        activeObjective === key
+                          ? "border-cyan-200/70 bg-blue-500/20 shadow-[0_0_22px_rgba(37,99,235,0.24)]"
+                          : "border-cyan-300/18 bg-cyan-400/[0.055] hover:bg-cyan-400/[0.1]"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="grid h-8 w-8 place-items-center rounded-[6px] border border-cyan-300/25 bg-cyan-400/10 text-cyan-100">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="text-[15px] font-semibold text-white">{item.title}</span>
+                      </div>
+                      <p className="mt-2 text-[12px] text-slate-400">{item.subtitle}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </Panel>
+
+            <div className="grid gap-3 xl:grid-cols-[1.08fr_0.8fr_0.92fr]">
+              <Panel>
+                <SectionTitle title="输入约束条件" />
+                <div className="space-y-3 p-3">
+                  <div className="rounded-[8px] border border-cyan-300/15 bg-slate-950/30 p-3">
+                    <h3 className="mb-2 text-[14px] font-semibold text-cyan-100">业务输入</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {businessInputs.map(([label, value]) => (
+                        <div key={label} className="flex items-center justify-between rounded-[6px] border border-cyan-300/10 bg-cyan-400/[0.04] px-3 py-2 text-[12px]">
+                          <span className="text-slate-400">{label}</span>
+                          <span className="font-mono text-slate-100">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[8px] border border-cyan-300/15 bg-slate-950/30 p-3">
+                    <h3 className="mb-2 text-[14px] font-semibold text-cyan-100">约束条件</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(Object.keys(constraintLabels) as ConstraintKey[]).map(key => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() =>
+                            setActiveConstraints(prev => ({
+                              ...prev,
+                              [key]: !prev[key],
+                            }))
+                          }
+                          className={cn(
+                            "flex items-center justify-between rounded-[6px] border px-3 py-2 text-[12px]",
+                            activeConstraints[key]
+                              ? "border-cyan-300/20 bg-cyan-400/[0.08] text-cyan-100"
+                              : "border-slate-600/30 bg-slate-800/50 text-slate-500"
+                          )}
+                        >
+                          <span>{constraintLabels[key]}</span>
+                          <span className="rounded bg-blue-500/20 px-2 text-[11px]">
+                            {activeConstraints[key] ? "已启用" : "已关闭"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Panel>
+
+              <Panel>
+                <SectionTitle title="AI 自然语言调参" />
+                <div className="flex h-full flex-col p-3">
+                  <Textarea
+                    value={prompt}
+                    onChange={event => setPrompt(event.target.value)}
+                    placeholder="请输入调参需求，AI 将自动理解并优化方案"
+                    className="min-h-[170px] resize-none rounded-[8px] border-cyan-300/15 bg-slate-950/35 text-[13px] text-slate-100"
+                  />
+                  <div className="mt-auto grid grid-cols-3 gap-2 pt-3">
+                    {["优先降低库存", "保证广东订单", "提升现金流", "提高毛利率", "减少速冻库存", "优先高毛利渠道"].map(text => (
+                      <SmallButton key={text} onClick={() => applyPrompt(text)}>
+                        {text}
+                      </SmallButton>
                     ))}
+                  </div>
+                  <Button
+                    onClick={() => {
+                      applyPrompt(prompt || "按当前目标自动优化");
+                      setActiveConsole("方案管理");
+                      toast.success("AI 已解析调参意图并刷新求解参数");
+                    }}
+                    className="mt-3 h-9 rounded-[6px] bg-blue-600 text-white hover:bg-blue-500"
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    应用调参
+                  </Button>
+                </div>
+              </Panel>
+
+              <Panel>
+                <SectionTitle title={`优化结果（方案A - ${objectiveConfig[activeObjective].title}）`} />
+                <div className="grid grid-cols-3 gap-2 p-3">
+                  {[
+                    ["生产计划", resultTables.production],
+                    ["分割计划", resultTables.split],
+                    ["销售计划", resultTables.sales],
+                    ["冻储计划", resultTables.freeze],
+                    ["运输计划", resultTables.transport],
+                    ["深加工计划", resultTables.process],
+                  ].map(([title, rows]) => (
+                    <div key={String(title)} className="rounded-[8px] border border-cyan-300/15 bg-slate-950/30 p-2">
+                      <h3 className="mb-2 text-center text-[13px] font-semibold text-cyan-100">{String(title)}</h3>
+                      {(rows as string[][]).slice(0, 3).map(row => (
+                        <div key={row.join("-")} className="grid grid-cols-[1fr_0.9fr_0.8fr] border-t border-cyan-300/10 py-1.5 text-[12px]">
+                          <span className="truncate text-slate-400">{row[0]}</span>
+                          <span className="text-right font-mono text-slate-100">{row[1]}</span>
+                          <span className={cn("text-right font-mono", String(row[2]).includes("-") ? "text-rose-300" : "text-emerald-300")}>{row[2]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </div>
+
+            <Panel>
+              <SectionTitle
+                title="关键指标"
+                right={
+                  <div className="flex items-center gap-2 text-[12px] text-slate-300">
+                    {optimizationLoading ? "求解中..." : "方案已求解"}
+                    <Maximize2 className="h-3.5 w-3.5" />
                   </div>
                 }
               />
               <div className="grid grid-cols-9 gap-2 p-3">
-                {stages.map((stage, index) => (
-                  <div key={stage.key} className="relative">
-                    <StageCard
-                      stage={stage}
-                      active={activeStage === stage.key}
-                      onClick={() => setActiveStage(stage.key)}
-                    />
-                    {index < stages.length - 1 ? (
-                      <span className="absolute -right-4 top-14 z-20 text-3xl font-black text-blue-400">
-                        »
-                      </span>
-                    ) : null}
+                {keyMetrics.map(([label, value, trend, delta]) => (
+                  <div key={label} className="rounded-[8px] border border-cyan-300/18 bg-cyan-400/[0.055] p-3">
+                    <p className="text-[12px] text-slate-400">{label}</p>
+                    <p className="mt-2 truncate font-mono text-[20px] font-bold text-cyan-100">{value}</p>
+                    <p className={cn("mt-1 flex items-center gap-1 text-[12px]", trend === "up" ? "text-emerald-300" : "text-rose-300")}>
+                      {trend === "up" ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                      {delta}
+                    </p>
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-4 gap-2 px-3 pb-3">
-                <div className="rounded-[8px] border border-cyan-400/15 bg-cyan-400/[0.055] p-3">
-                  <p className="text-[11px] text-slate-400">当前关注环节</p>
-                  <p className="mt-1 text-lg font-bold text-white">
-                    {activeStageData.title}
-                  </p>
-                </div>
-                <div className="rounded-[8px] border border-cyan-400/15 bg-cyan-400/[0.055] p-3">
-                  <p className="text-[11px] text-slate-400">当前流向</p>
-                  <p className="mt-1 text-lg font-bold text-cyan-100">
-                    {flow === "physical"
-                      ? "实物流"
-                      : flow === "capital"
-                        ? "资金流"
-                        : "信息流"}
-                  </p>
-                </div>
-                <div className="rounded-[8px] border border-cyan-400/15 bg-cyan-400/[0.055] p-3">
-                  <p className="text-[11px] text-slate-400">AI建议</p>
-                  <p className="mt-1 text-lg font-bold text-emerald-200">
-                    先处理瓶颈
-                  </p>
-                </div>
-                <Button
-                  onClick={() =>
-                    toast.success(
-                      `${activeStageData.title} 作战方案已进入模拟队列`
-                    )
-                  }
-                  className="h-full rounded-[8px] bg-cyan-500 text-slate-950 hover:bg-cyan-300"
-                >
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  生成作战方案
-                </Button>
-              </div>
-            </ShellPanel>
+            </Panel>
 
-            <div className="grid grid-cols-[1.15fr_0.85fr] gap-3">
-              <RiskRadar />
-              <div className="space-y-3">
-                <StrategySim active={strategy} setActive={setStrategy} />
-                <ShellPanel>
-                  <PanelTitle title="外部行情" />
-                  <div className="grid grid-cols-3 gap-2 p-3">
-                    {[
-                      ["生猪(元/斤)", "16.82", "+8.6%"],
-                      ["玉米(元/吨)", "2,560", "-2.6%"],
-                      ["豆粕(元/吨)", "3,280", "+1.8%"],
-                    ].map(([name, price, change]) => (
-                      <div
-                        key={name}
-                        className="rounded-[8px] border border-cyan-400/15 bg-cyan-400/[0.055] p-3"
-                      >
-                        <p className="text-[12px] text-slate-400">{name}</p>
-                        <p className="mt-2 text-lg font-bold text-white">
-                          {price}
-                        </p>
-                        <p
-                          className={
-                            change.startsWith("+")
-                              ? "text-emerald-300"
-                              : "text-rose-300"
-                          }
-                        >
-                          {change}
-                        </p>
+            <div className="grid gap-3 xl:grid-cols-[1fr_0.74fr]">
+              <Panel>
+                <SectionTitle title="AI 洞察建议" />
+                <div className="flex items-center gap-4 p-3">
+                  <div className="grid h-16 w-16 place-items-center rounded-[8px] border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
+                    <Bot className="h-9 w-9" />
+                  </div>
+                  <p className="flex-1 text-[14px] leading-7 text-slate-200">{aiInsight}</p>
+                  <Button
+                    onClick={generatePlan}
+                    className="h-14 min-w-[220px] rounded-[8px] bg-blue-600 text-[18px] font-semibold text-white shadow-[0_0_24px_rgba(37,99,235,0.35)] hover:bg-blue-500"
+                  >
+                    生成执行计划
+                    <PlayCircle className="ml-3 h-6 w-6" />
+                  </Button>
+                </div>
+              </Panel>
+
+              <Panel>
+                <SectionTitle title={`作战记录与方案对比 · ${activeConsole}`} />
+                <div className="grid grid-cols-[0.9fr_1.1fr] gap-2 p-3">
+                  <div className="space-y-1.5">
+                    {selectedOpportunity ? (
+                      <div className="rounded-[6px] border border-emerald-300/18 bg-emerald-400/[0.06] px-2 py-1.5 text-[12px] leading-5 text-emerald-100">
+                        当前机会：{selectedOpportunity.title}，预期收益 +{formatWan(selectedOpportunity.expectedWan * 10000)} 万元，风险 {selectedOpportunity.risk}
+                      </div>
+                    ) : null}
+                    {scenarioScores.slice(0, 6).map(item => (
+                      <div key={item.name} className="rounded-[6px] border border-cyan-300/12 bg-slate-950/30 px-2 py-1.5">
+                        <div className="flex justify-between text-[12px]">
+                          <span className="text-slate-300">{item.name}</span>
+                          <span className="font-mono text-emerald-300">{formatNumber(item.score, 1)}</span>
+                        </div>
+                        <div className="mt-1 h-1 rounded-full bg-slate-800">
+                          <div className="h-full rounded-full bg-cyan-300" style={{ width: `${item.score}%` }} />
+                        </div>
                       </div>
                     ))}
                   </div>
-                  <div className="space-y-2 px-3 pb-3 text-[12px] text-slate-300">
-                    {[
-                      "07-01 农业农村部：6月份生猪产能环比下降 1.2%",
-                      "06-30 国家发改委：即将启动中央储备冻猪肉收储",
-                      "06-29 玉米期货主力合约上涨 1.2%，创一月新高",
-                    ].map(news => (
-                      <p
-                        key={news}
-                        className="rounded-[8px] border border-cyan-400/15 bg-slate-950/35 px-3 py-2"
-                      >
-                        {news}
-                      </p>
+                  <div className="space-y-1.5">
+                    {activeConsole === "历史记录" && exportQueue.length ? exportQueue.map(item => (
+                      <div key={item} className="rounded-[6px] border border-blue-300/15 bg-blue-400/[0.055] px-2 py-1.5 text-[12px] leading-5 text-slate-200">
+                        {item}
+                      </div>
+                    )) : activeConsole === "方案管理" && sensitivityRows.length ? sensitivityRows.map(item => (
+                      <div key={item} className="rounded-[6px] border border-violet-300/15 bg-violet-400/[0.055] px-2 py-1.5 text-[12px] leading-5 text-slate-200">
+                        {item}
+                      </div>
+                    )) : executionPlan.length ? executionPlan.map(item => (
+                      <div key={item} className="rounded-[6px] border border-emerald-300/15 bg-emerald-400/[0.055] px-2 py-1.5 text-[12px] leading-5 text-slate-200">
+                        {item}
+                      </div>
+                    )) : logs.slice(0, 5).map(item => (
+                      <div key={item} className="rounded-[6px] border border-cyan-300/12 bg-slate-950/30 px-2 py-1.5 text-[12px] text-slate-300">
+                        {item}
+                      </div>
                     ))}
                   </div>
-                </ShellPanel>
-              </div>
+                </div>
+              </Panel>
             </div>
 
-            <div className="grid grid-cols-[0.95fr_1.05fr_0.9fr] gap-3">
-              <TrendChart />
-              <ShellPanel>
-                <PanelTitle title="区域经营对比" />
-                <div className="p-3">
-                  <table className="w-full table-fixed text-left text-[12px]">
-                    <thead className="text-slate-400">
-                      <tr>
-                        {[
-                          "区域",
-                          "出栏量",
-                          "环比",
-                          "养殖成本",
-                          "毛利率",
-                          "风险",
-                        ].map(h => (
-                          <th
-                            key={h}
-                            className="border-b border-cyan-400/15 px-2 py-2"
-                          >
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {regions.map(row => (
-                        <tr
-                          key={row[0]}
-                          className="border-b border-cyan-400/10"
-                        >
-                          {row.map((cell, index) => (
-                            <td
-                              key={`${row[0]}-${index}`}
-                              className={cn(
-                                "px-2 py-1.5",
-                                index === 2 &&
-                                  (cell.startsWith("+")
-                                    ? "text-emerald-300"
-                                    : "text-rose-300"),
-                                index === 5 &&
-                                  (cell === "高"
-                                    ? "text-rose-300"
-                                    : cell === "中"
-                                      ? "text-amber-200"
-                                      : "text-cyan-200")
-                              )}
-                            >
-                              {cell}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </ShellPanel>
-              <ShellPanel>
-                <PanelTitle title="人机协同执行" />
-                <div className="grid grid-cols-2 gap-2 p-3">
-                  {[
-                    ["AI识别", "7个异常"],
-                    ["人工审批", "14条策略"],
-                    ["自动派单", "93个工单"],
-                    ["闭环回传", "92.6%"],
-                  ].map(([label, value]) => (
-                    <div
-                      key={label}
-                      className="rounded-[8px] border border-cyan-400/15 bg-cyan-400/[0.055] p-3"
-                    >
-                      <p className="text-[12px] text-slate-400">{label}</p>
-                      <p className="mt-2 text-xl font-bold text-white">
-                        {value}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <div className="px-3 pb-3">
-                  <Button
-                    className="h-9 w-full rounded-[8px] bg-blue-600 hover:bg-blue-500"
-                    onClick={() => toast.success("已生成跨部门作战工单")}
-                  >
-                    <ClipboardCheck className="mr-2 h-4 w-4" />
-                    一键生成跨部门工单
-                  </Button>
-                </div>
-              </ShellPanel>
-            </div>
+            <footer className="flex items-center justify-between rounded-[8px] border border-cyan-300/20 bg-[#061c36]/80 px-3 py-2 text-[12px] text-slate-400">
+              <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5">
+                  <Database className="h-3.5 w-3.5 text-emerald-300" />
+                  数据更新：{formatDateTime(generatedAt)}
+                </span>
+                <span>真实数据源：行情快照、库存批次、全局优化样本、深度套利模型</span>
+                <span>真实性审查：订单、产能、库容、资金与食品安全约束已联动</span>
+              </div>
+              <div className="flex gap-2">
+                <SmallButton onClick={runSensitivityAnalysis}>
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  敏感性分析
+                </SmallButton>
+                <SmallButton onClick={exportResult}>
+                  <Download className="h-3.5 w-3.5" />
+                  导出结果
+                </SmallButton>
+              </div>
+            </footer>
           </section>
         </main>
       </div>

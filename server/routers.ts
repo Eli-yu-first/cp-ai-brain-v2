@@ -387,11 +387,23 @@ export const appRouter = router({
             storageMonths: z.number().int().min(1).max(10).optional(),
             decisionDate: z.string().optional(),
             mode: z.enum(["base", "cost_up", "price_down", "window_extend"]).optional(),
+            batchCode: z.string().optional(),
+            customHoldDays: z.number().int().min(15).max(180).optional(),
           })
           .optional(),
       )
-      .query(({ input }) => {
-        return simulateFuturesStorageDecision(input ?? {});
+      .query(async ({ input }) => {
+        const request = input ?? {};
+        const marketSnapshot = await buildPorkMarketSnapshot("month", "national", "hogPrice");
+        const selectedBatch =
+          marketSnapshot.inventoryBatches.find(item => item.batchCode === request.batchCode) ??
+          marketSnapshot.inventoryBatches[0];
+        return simulateFuturesStorageDecision({
+          ...request,
+          batch: selectedBatch,
+          availableBatches: marketSnapshot.inventoryBatches,
+          marketGeneratedAt: marketSnapshot.generatedAt,
+        });
       }),
     spatialArbitrageSimulate: protectedProcedure
       .input(

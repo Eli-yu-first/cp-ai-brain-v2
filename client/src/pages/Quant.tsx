@@ -444,7 +444,7 @@ export default function QuantPage() {
                 {[
                   ["产品名称", data?.batch.partName ?? "-"],
                   ["规格", "10kg/箱"],
-                  ["质量等级", data?.batch.concentration > 60 ? "关注 (B)" : "合格 (A)"],
+                  ["质量等级", (data?.batch.concentration ?? 0) > 60 ? "关注 (B)" : "合格 (A)"],
                   ["批次状态", "可用"],
                   ["备注", "-"],
                 ].map(([label, value]) => (
@@ -599,7 +599,7 @@ export default function QuantPage() {
 
             <TechPanel className="p-4">
               <div className="grid gap-3 md:grid-cols-5">
-                <Button onClick={() => setPendingScenarioId(decisionWorkspace.selected.scenarioId ?? recommendedScenario?.scenarioId ?? null)} className="bg-emerald-600 text-white hover:bg-emerald-500">
+                <Button onClick={() => setPendingScenarioId(decisionWorkspace.selected.id ?? recommendedScenario?.scenarioId ?? null)} className="bg-emerald-600 text-white hover:bg-emerald-500">
                   <CheckCircle2 className="mr-2 h-4 w-4" />确认{decisionWorkspace.selected.action}
                 </Button>
                 <Button onClick={() => setSelectedPlanId(recommendedScenario?.scenarioId ?? "sell-now")} className="bg-blue-600 text-white hover:bg-blue-500">

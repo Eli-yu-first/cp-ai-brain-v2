@@ -50,6 +50,27 @@ describe("simulateFuturesStorageDecision", () => {
     expect(costUp.ai.auditNotes.length).toBeGreaterThanOrEqual(3);
   });
 
+  it("builds batch-level battle plans from inventory economics", () => {
+    const result = simulateFuturesStorageDecision({
+      batchCode: "CP-PK-240418-A1",
+      customHoldDays: 45,
+    });
+
+    expect(result.batch.batchCode).toBe("CP-PK-240418-A1");
+    expect(result.plans.map(plan => plan.key)).toEqual([
+      "sell_now",
+      "hold_1m",
+      "hold_2m",
+      "hold_3m",
+      "custom",
+    ]);
+    expect(result.selectedPlan.netIncome).toEqual(
+      Math.round(result.selectedPlan.netProfitPerKg * result.batch.weightKg),
+    );
+    expect(result.pricePrediction).toHaveLength(7);
+    expect(result.workflow.at(-1)?.stage).toBe("待操作");
+  });
+
   it("exposes the decision model through the protected platform tRPC router", async () => {
     const caller = appRouter.createCaller(createContext());
     const result = await caller.platform.futuresStorageDecisionSimulate({

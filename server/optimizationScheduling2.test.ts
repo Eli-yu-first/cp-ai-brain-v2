@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { solveOptimization, generateAIDecision, generateEnhancedOptimization, generateEnhancedAIDecision } from "./globalOptimization";
+import { solveOptimization, generateAIDecision } from "./globalOptimization";
 import { sampleOptimizationInput } from "../shared/globalOptimization";
 import {
   excelCostRows,
@@ -117,7 +117,7 @@ describe("solveOptimization", () => {
   it("should have consistent profit calculation in profit table", () => {
     const result = solveOptimization(sampleOptimizationInput);
     for (const row of result.profitTable) {
-      const expectedProfit = row.revenue - row.pigCost - row.storageCost - row.transportCost - row.processingCost;
+      const expectedProfit = row.revenue - row.pigCost - row.storageCost - row.transportCost - row.slaughterCost - row.splitCost - row.packageCost - row.freezeCost - row.processingCost;
       expect(Math.abs(row.profit - expectedProfit)).toBeLessThan(0.02);
     }
   });

@@ -381,10 +381,11 @@ export default function AiSystemBlueprintPage() {
                 [" 智能运行", liveStats.uptime, "实时监控与响应", Clock3, "cyan" as Tone],
               ].map(([label, value, sub, Icon, tone]) => {
                 const toneDef = TONE[tone as Tone];
+                const IconComponent = Icon as typeof LayoutDashboard;
                 return (
                   <div key={String(label)} className="mb-2 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-3">
                     <span className={cn("grid h-10 w-10 place-items-center rounded-xl border", toneDef.border, toneDef.bg)}>
-                      <Icon className={cn("h-5 w-5", toneDef.text)} />
+                      <IconComponent className={cn("h-5 w-5", toneDef.text)} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="font-mono text-2xl font-black text-white">{String(value)}<span className="ml-1 text-sm text-slate-400">{String(label)}</span></p>

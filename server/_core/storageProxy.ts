@@ -1,5 +1,7 @@
 import type { Express } from "express";
+import { HttpError } from "@shared/_core/errors";
 import { ENV } from "./env";
+import { sdk } from "./sdk";
 import { assertValidStorageKey } from "./storageKey";
 
 export function registerStorageProxy(app: Express) {
@@ -16,6 +18,7 @@ export function registerStorageProxy(app: Express) {
     }
 
     try {
+      await sdk.authenticateRequest(req);
       const key = assertValidStorageKey(rawKey);
       const forgeUrl = new URL(
         "v1/storage/presign/get",
@@ -45,6 +48,10 @@ export function registerStorageProxy(app: Express) {
     } catch (err) {
       if (err instanceof Error && err.message === "Invalid storage key") {
         res.status(400).send("Invalid storage key");
+        return;
+      }
+      if (err instanceof HttpError && (err.statusCode === 401 || err.statusCode === 403)) {
+        res.status(401).send("Unauthorized");
         return;
       }
       console.error("[StorageProxy] failed:", err);

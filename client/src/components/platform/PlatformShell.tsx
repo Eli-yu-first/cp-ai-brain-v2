@@ -25,9 +25,13 @@ import {
   Workflow,
   BrainCircuit,
   Map,
+  Network,
   Timer,
   X,
   Target,
+  Factory,
+  Umbrella,
+  PiggyBank,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
@@ -50,11 +54,15 @@ const navIcons = [
   BrainCircuit,
   Crosshair,
   ClipboardCheck,
+  Network,
+  Factory,
+  PiggyBank,
   LineChart,
   LockKeyhole,
   Timer,
   Map,
   Target,
+  Umbrella,
   ShieldCheck,
   Workflow,
   UsersRound,
@@ -116,6 +124,12 @@ export function PlatformShell({
       shortLabel: "WR",
     },
     {
+      id: "ai-system-blueprint",
+      label: t("nav.aiSystemBlueprint"),
+      href: "/ai-system-blueprint",
+      shortLabel: "BP",
+    },
+    {
       id: "ai-value-chain",
       label: t("nav.aiValueChain"),
       href: "/ai-value-chain",
@@ -126,6 +140,18 @@ export function PlatformShell({
       label: t("nav.aiDispatchExecution"),
       href: "/ai-dispatch-execution",
       shortLabel: "DX",
+    },
+    {
+      id: "ai-factory-execution",
+      label: t("nav.aiFactoryExecution"),
+      href: "/ai-factory-execution",
+      shortLabel: "FX",
+    },
+    {
+      id: "ai-futures-storage-decision",
+      label: t("nav.aiFuturesStorageDecision"),
+      href: "/ai-futures-storage-decision",
+      shortLabel: "FS",
     },
     {
       id: "ai-strategy-simulation",
@@ -156,6 +182,12 @@ export function PlatformShell({
       label: t("nav.financialArbitrage"),
       href: "/financial-arbitrage",
       shortLabel: "FA",
+    },
+    {
+      id: "prediction-market-insurance",
+      label: t("nav.predictionMarketInsurance"),
+      href: "/prediction-market-insurance",
+      shortLabel: "PMI",
     },
     {
       id: "professional-arbitrage",

@@ -144,6 +144,12 @@ const translations: TranslationBranch = {
       ja: "AI作戦システム",
       th: "ห้องบัญชาการ AI",
     },
+    aiSystemBlueprint: {
+      zh: "AI 全景蓝图",
+      en: "AI Blueprint",
+      ja: "AI全景図",
+      th: "พิมพ์เขียว AI",
+    },
     aiValueChain: {
       zh: "AI 价值链",
       en: "AI Value Chain",
@@ -155,6 +161,18 @@ const translations: TranslationBranch = {
       en: "AI Dispatch",
       ja: "AI派遣実行",
       th: "การมอบหมาย AI",
+    },
+    aiFactoryExecution: {
+      zh: "AI 工厂执行",
+      en: "AI Factory Ops",
+      ja: "AI工場実行",
+      th: "การปฏิบัติการโรงงาน AI",
+    },
+    aiFuturesStorageDecision: {
+      zh: "AI 收储研判",
+      en: "AI Storage Futures",
+      ja: "AI備蓄判断",
+      th: "AI วิเคราะห์คลังสำรอง",
     },
     aiStrategySimulation: {
       zh: "AI 战略模拟",
@@ -191,6 +209,12 @@ const translations: TranslationBranch = {
       en: "Financial Arbitrage",
       ja: "金融裁定",
       th: "อาร์บิทราจทางการเงิน",
+    },
+    predictionMarketInsurance: {
+      zh: "预测保险",
+      en: "Prediction Insurance",
+      ja: "予測保険",
+      th: "ประกันตลาดพยากรณ์",
     },
     professionalArbitrage: {
       zh: "专业组合套利",

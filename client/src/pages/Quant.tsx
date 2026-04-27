@@ -14,18 +14,53 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
-import { CheckCircle2, CircleAlert, Sigma, ShieldAlert, Sparkles, Zap } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  CheckCircle2,
+  CircleAlert,
+  ClipboardCheck,
+  FileText,
+  HelpCircle,
+  History,
+  LineChart as LineChartIcon,
+  RefreshCw,
+  Save,
+  Search,
+  Sigma,
+  ShieldAlert,
+  Sparkles,
+  TrendingUp,
+  UserRound,
+  Zap,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 type RoleCode = "admin" | "strategist" | "executor";
+type DecisionStatus = "待决策" | "已保存" | "待审批" | "已生成工单";
+
+const formatMoney = (value: number) => `¥${Math.round(value).toLocaleString()}`;
 
 export default function QuantPage() {
   const [batchCode, setBatchCode] = useState("CP-PK-240418-A1");
   const [operatorRole, setOperatorRole] = useState<RoleCode>("strategist");
   const [pendingScenarioId, setPendingScenarioId] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState("sell-now");
+  const [customDays, setCustomDays] = useState(45);
+  const [decisionStatus, setDecisionStatus] = useState<DecisionStatus>("待决策");
   const { language } = useLanguage();
 
   const copy = {
@@ -258,6 +293,97 @@ export default function QuantPage() {
     return [...data.scenarios].sort((a, b) => b.netProfitPerKg - a.netProfitPerKg)[0] ?? null;
   }, [data]);
 
+  const decisionWorkspace = useMemo(() => {
+    if (!data?.batch) return null;
+    const batch = data.batch;
+    const monthlyCarryCost = batch.storageCostPerMonth + batch.capitalCostPerMonth + batch.lossCostPerMonth;
+    const immediateProfitPerKg = Number((batch.currentSpotPrice - batch.unitCost).toFixed(2));
+    const immediateTotalProfit = Math.round(immediateProfitPerKg * batch.weightKg);
+    const serverPlans = (data.scenarios ?? []).map((scenario, index) => {
+      const totalProfit = Math.round(scenario.netProfitPerKg * batch.weightKg);
+      const capitalCost = Math.max(1, batch.unitCost * batch.weightKg);
+      const annualized = Number((((totalProfit / capitalCost) * (365 / Math.max(30, scenario.holdMonths * 30))) * 100).toFixed(2));
+      return {
+        id: scenario.scenarioId,
+        title: `持有${scenario.holdMonths}个月`,
+        badge: `方案${index + 2}`,
+        days: scenario.holdMonths * 30,
+        scenarioId: scenario.scenarioId,
+        action: scenario.action,
+        netIncome: totalProfit,
+        annualized,
+        profitPerKg: scenario.netProfitPerKg,
+        breakEven: scenario.breakEvenPrice,
+        expected: scenario.expectedSellPrice,
+        riskScore: scenario.riskScore,
+        riskLevel: scenario.riskLevel,
+        reason: scenario.reason,
+      };
+    });
+    const customMonths = customDays / 30;
+    const customExpected = Number((batch.currentSpotPrice + (batch.futuresMappedPrice - batch.currentSpotPrice) * 0.78 + batch.seasonalAdjustment + customMonths * 0.18).toFixed(2));
+    const customBreakEven = Number((batch.unitCost + monthlyCarryCost * customMonths).toFixed(2));
+    const customProfitPerKg = Number((customExpected - customBreakEven).toFixed(2));
+    const customTotalProfit = Math.round(customProfitPerKg * batch.weightKg);
+    const plans = [
+      {
+        id: "sell-now",
+        title: "立即出售",
+        badge: "方案1",
+        days: 0,
+        action: "出售",
+        netIncome: immediateTotalProfit,
+        annualized: Number(((immediateProfitPerKg / Math.max(batch.unitCost, 1)) * 365 * 100).toFixed(2)),
+        profitPerKg: immediateProfitPerKg,
+        breakEven: batch.unitCost,
+        expected: batch.currentSpotPrice,
+        riskScore: Math.max(10, Math.round(batch.ageDays * 0.35)),
+        riskLevel: "低",
+        reason: "当前价格已覆盖批次成本，立即出售可锁定现金流并降低库龄风险。",
+      },
+      ...serverPlans,
+      {
+        id: "custom",
+        title: "自定义周期",
+        badge: "方案5",
+        days: customDays,
+        action: customProfitPerKg > 0 ? "持有" : "出售",
+        netIncome: customTotalProfit,
+        annualized: Number((((customTotalProfit / Math.max(batch.unitCost * batch.weightKg, 1)) * (365 / Math.max(customDays, 1))) * 100).toFixed(2)),
+        profitPerKg: customProfitPerKg,
+        breakEven: customBreakEven,
+        expected: customExpected,
+        riskScore: Math.min(92, Math.round(batch.ageDays * 0.62 + customDays * 0.34 + batch.concentration * 0.12)),
+        riskLevel: customDays > 60 ? "中" : "低",
+        reason: "自定义周期基于期货映射价、季节因子、仓储资金成本和库龄风险进行外推。",
+      },
+    ];
+    const selected = plans.find(plan => plan.id === selectedPlanId) ?? plans[0]!;
+    const forecast = [0, 7, 15, 30, 45, 60, 90].map(day => {
+      const projected = Number((batch.currentSpotPrice + (batch.futuresMappedPrice - batch.currentSpotPrice) * Math.min(1, day / 90) + batch.seasonalAdjustment * Math.min(1, day / 45)).toFixed(2));
+      const breakEven = Number((batch.unitCost + monthlyCarryCost * (day / 30)).toFixed(2));
+      return {
+        label: day === 0 ? "今日" : `+${day}天`,
+        predicted: projected,
+        futures: Number((batch.futuresMappedPrice - Math.max(0, (90 - day) * 0.003)).toFixed(2)),
+        currentCost: batch.unitCost,
+        breakEven,
+      };
+    });
+    return { plans, selected, forecast, monthlyCarryCost };
+  }, [customDays, data, selectedPlanId]);
+
+  const handleDecisionOperation = (next: DecisionStatus) => {
+    setDecisionStatus(next);
+    if (next === "已保存") {
+      toast.success("模拟方案已保存，可用于后续对比复盘。");
+    } else if (next === "待审批") {
+      toast.success("方案已提交审批流，等待风控与负责人确认。");
+    } else {
+      toast.success("执行工单已生成：库存、财务、销售同步接收。");
+    }
+  };
+
   return (
     <PlatformShell eyebrow={copy.eyebrow} title={copy.title} pageId="quant">
       <SectionHeader
@@ -266,6 +392,295 @@ export default function QuantPage() {
         description={copy.sectionDesc}
         aside={<div className="data-chip text-[12px]">{copy.formulaSignal}</div>}
       />
+
+      {decisionWorkspace && (
+        <div className="mb-6 grid gap-4 xl:grid-cols-[300px_1fr_320px]">
+          <div className="space-y-4">
+            <TechPanel className="p-4">
+              <h3 className="mb-4 text-sm font-semibold text-white">批次信息查询</h3>
+              <div className="space-y-3 text-sm">
+                <label className="block">
+                  <span className="mb-1 block text-xs text-slate-500">批次号</span>
+                  <div className="flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-slate-950/60 px-3 text-slate-200">
+                    <span className="min-w-0 flex-1 truncate">{batchCode}</span>
+                    <Search className="h-4 w-4 text-cyan-300" />
+                  </div>
+                </label>
+                <div>
+                  <span className="mb-1 block text-xs text-slate-500">部位</span>
+                  <Select value={batchCode} onValueChange={setBatchCode}>
+                    <SelectTrigger className="h-10 rounded-lg border-white/10 bg-slate-950/60 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-[16px] border-white/10 bg-slate-950 text-slate-100">
+                      {snapshot?.inventoryBatches.map(batch => (
+                        <SelectItem key={batch.batchCode} value={batch.batchCode}>
+                          {batch.partName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {[
+                  ["仓库", data?.batch.warehouse ?? "-"],
+                  ["入库日期", "2025-06-20"],
+                  ["库龄", `${data?.batch.ageDays ?? 0} 天`],
+                  ["数量", `${Math.round((data?.batch.weightKg ?? 0) / 1000).toLocaleString()} 吨`],
+                  ["当前成本", `¥${data?.batch.unitCost.toFixed(2)} /kg`],
+                  ["当前价", `¥${data?.batch.currentSpotPrice.toFixed(2)} /kg`],
+                  ["期货映射价", `¥${data?.batch.futuresMappedPrice.toFixed(2)} /kg`],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-center justify-between rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2">
+                    <span className="text-slate-500">{label}</span>
+                    <span className="font-mono text-slate-200">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </TechPanel>
+
+            <TechPanel className="p-4">
+              <h3 className="mb-3 text-sm font-semibold text-white">批次详情</h3>
+              <div className="space-y-2 text-sm text-slate-400">
+                {[
+                  ["产品名称", data?.batch.partName ?? "-"],
+                  ["规格", "10kg/箱"],
+                  ["质量等级", data?.batch.concentration > 60 ? "关注 (B)" : "合格 (A)"],
+                  ["批次状态", "可用"],
+                  ["备注", "-"],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between border-b border-white/8 py-2">
+                    <span>{label}</span>
+                    <span className="text-slate-200">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </TechPanel>
+          </div>
+
+          <div className="space-y-4">
+            <TechPanel className="p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-white">方案对比分析 <span className="text-slate-500">（基于当前数据与AI预测）</span></h3>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1">预测模型：AI-Price v3.2</span>
+                  <Button size="sm" variant="outline" onClick={() => toast.success("已重新预测方案收益。")} className="h-8 border-cyan-500/30 bg-cyan-500/10 text-cyan-200">
+                    <RefreshCw className="mr-1 h-3.5 w-3.5" />重新预测
+                  </Button>
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-5">
+                {decisionWorkspace.plans.map(plan => {
+                  const active = decisionWorkspace.selected.id === plan.id;
+                  return (
+                    <button
+                      key={plan.id}
+                      onClick={() => setSelectedPlanId(plan.id)}
+                      className={cn(
+                        "min-h-[118px] rounded-2xl border p-3 text-left transition-all",
+                        active ? "border-emerald-300/50 bg-emerald-500/[0.12] shadow-[0_0_24px_rgba(16,185,129,0.18)]" : "border-blue-500/25 bg-blue-950/30 hover:border-cyan-400/40",
+                      )}
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <Badge className={active ? "bg-emerald-400 text-slate-950" : "border-blue-500/30 bg-blue-500/15 text-blue-200"}>{plan.badge}</Badge>
+                        {active ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : null}
+                      </div>
+                      <p className="text-lg font-black text-white">{plan.title}</p>
+                      {plan.id === "custom" ? (
+                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                          <span>持有</span>
+                          <input
+                            value={customDays}
+                            onChange={event => setCustomDays(Math.min(120, Math.max(1, Number(event.target.value) || 1)))}
+                            className="h-7 w-14 rounded border border-white/10 bg-slate-950 px-2 text-center font-mono text-cyan-200"
+                          />
+                          <span>天</span>
+                        </div>
+                      ) : null}
+                      <div className="mt-3 space-y-1 text-xs">
+                        <div className="flex justify-between"><span className="text-slate-500">净收益</span><span className="font-mono text-cyan-200">{formatMoney(plan.netIncome)}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">年化收益</span><span className="font-mono text-emerald-300">{plan.annualized.toFixed(2)}%</span></div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </TechPanel>
+
+            <div className="grid gap-4 lg:grid-cols-[.9fr_1fr]">
+              <TechPanel className="p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">{decisionWorkspace.selected.badge} · {decisionWorkspace.selected.title}</h3>
+                  <span className="text-xs text-slate-500">预计出库日期：{decisionWorkspace.selected.days === 0 ? "今日" : `+${decisionWorkspace.selected.days}天`}</span>
+                </div>
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-white/8">
+                    {[
+                      ["当前单位成本", "批次当前成本", data?.batch.unitCost.toFixed(2), "含采购+加工+入库费用"],
+                      ["仓储成本", "仓储费率×库龄/周期", (decisionWorkspace.monthlyCarryCost * decisionWorkspace.selected.days / 30).toFixed(2), "含冷链、库租、能耗"],
+                      ["资金成本", "资金占用成本", (data?.batch.capitalCostPerMonth ?? 0).toFixed(2), "年化资金成本"],
+                      ["未来保本价", "成本+持有成本", decisionWorkspace.selected.breakEven.toFixed(2), "基于方案周期"],
+                      ["预计售价", "AI价格预测", decisionWorkspace.selected.expected.toFixed(2), "基于期货+现货+库存因子"],
+                      ["单吨净收益", "价差×1000", (decisionWorkspace.selected.profitPerKg * 1000).toFixed(0), "-"],
+                      ["总收益", "单吨净收益×数量", decisionWorkspace.selected.netIncome.toLocaleString(), "-"],
+                      ["年化收益率", "收益/资金成本×365", `${decisionWorkspace.selected.annualized.toFixed(2)}%`, "-"],
+                    ].map(row => (
+                      <tr key={row[0]}>
+                        <td className="py-2 text-slate-400">{row[0]}</td>
+                        <td className="py-2 text-slate-500">{row[1]}</td>
+                        <td className="py-2 text-right font-mono text-emerald-300">{row[2]}</td>
+                        <td className="py-2 text-right text-slate-500">{row[3]}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TechPanel>
+
+              <TechPanel className="p-4">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                  <LineChartIcon className="h-4 w-4 text-cyan-300" />未来价格预测趋势 <span className="text-xs text-slate-500">（元/kg）</span>
+                </h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={decisionWorkspace.forecast}>
+                    <CartesianGrid stroke="rgba(255,255,255,.08)" strokeDasharray="3 3" />
+                    <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                    <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} domain={["dataMin - 0.5", "dataMax + 0.5"]} />
+                    <Tooltip contentStyle={{ background: "#071426", border: "1px solid rgba(56,189,248,.2)", borderRadius: 12 }} />
+                    <Line dataKey="predicted" name="预测售价" stroke="#2dd4bf" strokeWidth={2.5} dot={{ r: 3 }} />
+                    <Line dataKey="futures" name="期货映射价" stroke="#60a5fa" strokeDasharray="4 4" strokeWidth={2} dot={false} />
+                    <Line dataKey="currentCost" name="当前成本" stroke="#facc15" strokeDasharray="3 5" strokeWidth={2} dot={false} />
+                    <Line dataKey="breakEven" name="保本价" stroke="#fb923c" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </TechPanel>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[.95fr_1fr]">
+              <TechPanel className="p-4">
+                <h3 className="mb-3 text-sm font-semibold text-white">风险评估（{decisionWorkspace.selected.title}）</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    ["库龄风险", Math.min(100, data?.batch.ageDays ?? 0), `库龄 ${data?.batch.ageDays ?? 0} 天`, "emerald"],
+                    ["价格风险", Math.min(100, Math.abs((data?.batch.futuresMappedPrice ?? 0) - (data?.batch.currentSpotPrice ?? 0)) * 15), "价格波动率", "amber"],
+                    ["集中度风险", data?.batch.concentration ?? 0, `占上库库存 ${data?.batch.concentration ?? 0}%`, "amber"],
+                    ["期限风险", decisionWorkspace.selected.days, `持有期限 ${decisionWorkspace.selected.days} 天`, "emerald"],
+                  ].map(([label, value, sub, tone]) => (
+                    <div key={String(label)} className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-slate-300">{String(label)}</span>
+                        <span className={cn("font-mono text-lg font-black", tone === "amber" ? "text-amber-300" : "text-emerald-300")}>{Number(value).toFixed(0)}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">{String(sub)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.07] p-4">
+                  <p className="text-3xl font-black text-emerald-300">{decisionWorkspace.selected.riskScore}<span className="text-sm text-slate-500">/100</span></p>
+                  <p className="mt-1 text-sm text-emerald-200">{decisionWorkspace.selected.riskLevel}风险 · 整体风险可控，建议执行</p>
+                </div>
+              </TechPanel>
+
+              <TechPanel className="p-4">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                  <Sparkles className="h-4 w-4 text-cyan-300" />AI 决策解释（{decisionWorkspace.selected.title}）
+                </h3>
+                <div className="flex gap-4">
+                  <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-cyan-500/30 bg-cyan-500/10">
+                    <Sparkles className="h-8 w-8 text-cyan-200" />
+                  </div>
+                  <div className="space-y-2 text-sm leading-relaxed text-slate-300">
+                    <p><strong className="text-emerald-300">结论：</strong>{decisionWorkspace.selected.action === "出售" ? "推荐执行立即出售/释放库存。" : `推荐执行${decisionWorkspace.selected.title}。`}</p>
+                    <p>{decisionWorkspace.selected.reason}</p>
+                    <p>预计净收益 {formatMoney(decisionWorkspace.selected.netIncome)}，保本价 {decisionWorkspace.selected.breakEven.toFixed(2)} 元/kg，预测售价 {decisionWorkspace.selected.expected.toFixed(2)} 元/kg。</p>
+                    <p>是否需要审批：<strong className="text-emerald-300">{decisionWorkspace.selected.riskLevel === "高" ? "需要" : "不需要"} ✓</strong></p>
+                  </div>
+                </div>
+              </TechPanel>
+            </div>
+
+            <TechPanel className="p-4">
+              <div className="grid gap-3 md:grid-cols-5">
+                <Button onClick={() => setPendingScenarioId(decisionWorkspace.selected.scenarioId ?? recommendedScenario?.scenarioId ?? null)} className="bg-emerald-600 text-white hover:bg-emerald-500">
+                  <CheckCircle2 className="mr-2 h-4 w-4" />确认{decisionWorkspace.selected.action}
+                </Button>
+                <Button onClick={() => setSelectedPlanId(recommendedScenario?.scenarioId ?? "sell-now")} className="bg-blue-600 text-white hover:bg-blue-500">
+                  <CalendarDays className="mr-2 h-4 w-4" />确认持有
+                </Button>
+                <Button onClick={() => handleDecisionOperation("待审批")} className="bg-violet-600 text-white hover:bg-violet-500">
+                  <ClipboardCheck className="mr-2 h-4 w-4" />提交审批
+                </Button>
+                <Button onClick={() => handleDecisionOperation("已保存")} variant="outline" className="border-white/10 bg-white/[0.04] text-slate-200">
+                  <Save className="mr-2 h-4 w-4" />保存模拟方案
+                </Button>
+                <Button onClick={() => handleDecisionOperation("已生成工单")} variant="outline" className="border-white/10 bg-white/[0.04] text-slate-200">
+                  <FileText className="mr-2 h-4 w-4" />生成工单
+                </Button>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">温馨提示：确认后将生成执行工单并锁定当前策略数据，用于后续审计与复盘。</p>
+            </TechPanel>
+          </div>
+
+          <aside className="space-y-4">
+            <TechPanel className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-white">决策记录</h3>
+                <Badge className="bg-emerald-500/15 text-emerald-200">{decisionStatus}</Badge>
+              </div>
+              {[
+                ["策略版本", "v2.4.1", "当前"],
+                ["创建时间", "2025-07-01 10:28:36", ""],
+                ["创建人", operatorRole === "admin" ? "管理员" : "潘猛", ""],
+                ["数据依照", "2025-07-01 10:28:30", ""],
+                ["预测模型", "AI-Price v3.2", ""],
+                ["方案状态", decisionStatus, ""],
+              ].map(([label, value, tag]) => (
+                <div key={label} className="flex justify-between border-b border-white/8 py-2 text-sm">
+                  <span className="text-slate-500">{label}</span>
+                  <span className="text-slate-200">{value} {tag ? <span className="ml-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-300">{tag}</span> : null}</span>
+                </div>
+              ))}
+            </TechPanel>
+
+            <TechPanel className="p-4">
+              <h3 className="mb-4 text-sm font-semibold text-white">审批流与操作记录</h3>
+              {[
+                ["发起", "提交方案", "10:28:36", "提交方案：" + decisionWorkspace.selected.title],
+                ["系统校验", "风险校验通过", "10:28:37", "规划校验通过"],
+                ["AI解释生成", "已生成AI决策解释", "10:28:38", "推荐方案：" + decisionWorkspace.selected.title],
+                ["待操作", "等待用户操作", "10:28:38", decisionStatus],
+              ].map(([stage, title, time, desc], index) => (
+                <div key={stage} className="relative mb-3 pl-8">
+                  <div className={cn("absolute left-0 top-1 grid h-6 w-6 place-items-center rounded-full border", index < 3 ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-200" : "border-amber-400/40 bg-amber-500/15 text-amber-200")}>
+                    {index + 1}
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
+                    <div className="flex justify-between text-xs"><span className="text-cyan-200">{title}</span><span className="text-slate-500">{time}</span></div>
+                    <p className="mt-1 text-xs text-slate-400">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </TechPanel>
+
+            <TechPanel className="p-4">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                <History className="h-4 w-4 text-cyan-300" />历史决策记录（近30天）
+              </h3>
+              {[
+                ["06-30", "持有2个月", "已完成", 812913],
+                ["06-29", "立即出售", "已完成", 623451],
+                ["06-27", "持有1个月", "已完成", 531882],
+                ["06-25", "立即出售", "已完成", 412680],
+              ].map(row => (
+                <div key={row.join("-")} className="grid grid-cols-4 border-b border-white/8 py-2 text-xs text-slate-400">
+                  <span>{row[0]}</span>
+                  <span>{row[1]}</span>
+                  <span className="text-emerald-300">{row[2]}</span>
+                  <span className="text-right font-mono text-slate-200">{Number(row[3]).toLocaleString()}</span>
+                </div>
+              ))}
+            </TechPanel>
+          </aside>
+        </div>
+      )}
 
       <TechPanel className="mb-6 overflow-visible">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">

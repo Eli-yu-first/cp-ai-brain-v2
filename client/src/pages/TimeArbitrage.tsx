@@ -5,11 +5,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BrainCircuit,
   CalendarDays,
+  CheckCircle2,
+  ClipboardCheck,
+  FileText,
   LayersIcon,
   LineChart as LineChartIcon,
   PiggyBank,
@@ -25,6 +29,8 @@ import {
   Zap,
   Sparkles,
   Package,
+  AlertTriangle,
+  WalletCards,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -98,6 +104,33 @@ const DEFAULT_OPTIMIZATION: OptimizationConfig = {
 
 const PLAN_COLORS = ["#06b6d4", "#a78bfa", "#f59e0b"];
 
+const RISK_TONES = {
+  emerald: {
+    panel: "border-emerald-500/20 bg-emerald-500/[0.05]",
+    iconWrap: "bg-emerald-500/15",
+    icon: "text-emerald-300",
+    badge: "bg-emerald-500/15 text-emerald-300",
+    bar: "bg-emerald-400",
+    value: "text-emerald-300",
+  },
+  rose: {
+    panel: "border-rose-500/20 bg-rose-500/[0.05]",
+    iconWrap: "bg-rose-500/15",
+    icon: "text-rose-300",
+    badge: "bg-rose-500/15 text-rose-300",
+    bar: "bg-rose-400",
+    value: "text-rose-300",
+  },
+  amber: {
+    panel: "border-amber-500/20 bg-amber-500/[0.05]",
+    iconWrap: "bg-amber-500/15",
+    icon: "text-amber-300",
+    badge: "bg-amber-500/15 text-amber-300",
+    bar: "bg-amber-400",
+    value: "text-amber-300",
+  },
+} as const;
+
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
@@ -136,6 +169,11 @@ export default function TimeArbitragePage() {
   // 多方案对比
   const [savedPlans, setSavedPlans] = useState<PlanSnapshot[]>([]);
   const [optimization, setOptimization] = useState<OptimizationConfig>(DEFAULT_OPTIMIZATION);
+  const [activeDuration, setActiveDuration] = useState(3);
+  const [strategyName, setStrategyName] = useState("2025-07 时间套利策略方案");
+  const [strategyNote, setStrategyNote] = useState("");
+  const [approvalRoute, setApprovalRoute] = useState("运营总监审批 → 执行排程");
+  const [approvalStatus, setApprovalStatus] = useState<"草稿" | "已保存" | "待审批" | "已生成任务">("草稿");
 
   const endMonth = ((startMonth - 1 + storageDuration - 1) % 12) + 1;
 
@@ -250,6 +288,54 @@ export default function TimeArbitragePage() {
     };
   }, [simulation, spotPrice, storageTons]);
 
+  const warRoom = useMemo(() => {
+    if (!simulation) return null;
+    const durations = [1, 2, 3, 4].map(duration => {
+      const idx = Math.min(duration, simulation.futurePriceCurve.length - 1);
+      const predictedPrice = simulation.futurePriceCurve[idx] ?? spotPrice;
+      const holdingCostPerTon = Math.round(holdingCost * duration * 1000);
+      const breakevenPerTon = Math.round((spotPrice + holdingCost * duration) * 1000);
+      const expectedProfitPerTon = Math.round((predictedPrice - spotPrice - holdingCost * duration) * 1000);
+      const profitRate = Number(((expectedProfitPerTon / Math.max(breakevenPerTon, 1)) * 100).toFixed(1));
+      const winRate = Math.max(42, Math.min(92, Math.round(54 + duration * 6 + Math.max(expectedProfitPerTon, 0) / 80)));
+      const irr = Number((profitRate * (12 / Math.max(duration, 1))).toFixed(1));
+      const score = Math.max(0, Math.min(100, Math.round(winRate * 0.55 + Math.max(0, profitRate) * 2.4 + (duration === 3 ? 8 : 0))));
+      return {
+        duration,
+        month: MONTH_NAMES[((startMonth - 1 + duration) % 12) + 1] ?? `${duration}月`,
+        predictedPrice: Math.round(predictedPrice * 1000),
+        holdingCostPerTon,
+        breakevenPerTon,
+        expectedProfitPerTon,
+        profitRate,
+        winRate,
+        irr,
+        score,
+      };
+    });
+    const best = [...durations].sort((a, b) => b.score - a.score)[0] ?? durations[0]!;
+    const batches = [
+      { id: "BATCH-250601-01", category: "品牌全装猪", inDate: "2025-06-01", age: 30, tons: 4280, cost: 3720, grade: "A", status: "良好", action: "建议收储（3个月）" },
+      { id: "BATCH-250528-02", category: "品牌鲜装重", inDate: "2025-05-28", age: 34, tons: 3880, cost: 3650, grade: "A-", status: "良好", action: "分批释放（2个月）" },
+      { id: "BATCH-250515-03", category: "冻薄", inDate: "2025-05-15", age: 47, tons: 2150, cost: 3980, grade: "B+", status: "良好", action: "建议出售（1个月）" },
+      { id: "BATCH-250425-04", category: "散重", inDate: "2025-04-25", age: 67, tons: 6120, cost: 3410, grade: "B", status: "良好", action: "建议出售（立即）" },
+      { id: "BATCH-250418-05", category: "深加工品", inDate: "2025-04-18", age: 74, tons: 3760, cost: 3320, grade: "A-", status: "良好", action: "分批释放（2个月）" },
+    ];
+    const totalTons = batches.reduce((sum, batch) => sum + batch.tons, 0);
+    const weightedCost = Math.round(batches.reduce((sum, batch) => sum + batch.tons * batch.cost, 0) / Math.max(totalTons, 1));
+    return {
+      durations,
+      best,
+      batches,
+      totalTons,
+      weightedCost,
+      currentCostPerTon: Math.round(spotPrice * 1000),
+      futurePeakPerTon: Math.round(Math.max(...simulation.futurePriceCurve) * 1000),
+      riskAdjustedReturnTon: Math.max(0, best.expectedProfitPerTon - Math.round((simulation.analytics?.stressLoss ?? 0) / Math.max(storageTons, 1))),
+      fundUsed: Math.round((spotPrice * storageTons * 1000) / 10000),
+    };
+  }, [holdingCost, simulation, spotPrice, startMonth, storageTons]);
+
   // 收储期高亮
   const arbitrageWindow = simulation?.arbitrageWindow;
   const windowStartLabel = arbitrageWindow ? MONTH_NAMES[arbitrageWindow.startMonth] : null;
@@ -292,6 +378,19 @@ export default function TimeArbitragePage() {
       summaryProfit: `${stats.maxTotalProfit > 0 ? "+" : ""}${stats.maxTotalProfit}万元`,
       summaryMetric: `${stats.maxProfitMonth}月出货 / +${stats.maxProfit.toFixed(2)}元·kg`,
     });
+  };
+
+  const handleApprovalAction = (next: "已保存" | "待审批" | "已生成任务") => {
+    setApprovalStatus(next);
+    if (next === "已保存") {
+      handleSavePlan();
+      toast.success("策略已保存到方案管理");
+    } else if (next === "待审批") {
+      handlePersist();
+      toast.success("已提交审批流");
+    } else {
+      toast.success("已生成执行任务：仓储、资金、销售同步接收");
+    }
   };
 
   return (
@@ -404,6 +503,287 @@ export default function TimeArbitragePage() {
               </TechPanel>
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {warRoom && (
+        <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
+          <TechPanel className="rounded-[24px] p-5 xl:col-span-7">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-400/80">Operational War Room</p>
+                <h3 className="mt-1 text-xl font-bold text-white">时间套利作战中心</h3>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {["全部品类", "全部批次", `${startMonth}月起`, "1-4个月"].map(item => (
+                  <span key={item} className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-300">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-6">
+              {[
+                { label: "当前成本（吨）", value: warRoom.currentCostPerTon, suffix: "元", icon: PiggyBank, tone: "text-blue-300" },
+                { label: "未来售价预测（吨）", value: warRoom.futurePeakPerTon, suffix: "元", icon: TrendingUp, tone: "text-emerald-300" },
+                { label: "持有成本（吨/月）", value: Math.round(holdingCost * 1000), suffix: "元", icon: TimerReset, tone: "text-violet-300" },
+                { label: "风险调整收益（吨）", value: warRoom.riskAdjustedReturnTon, suffix: "元", icon: ShieldAlert, tone: "text-amber-300" },
+                { label: "最佳出货月", value: `${warRoom.best.month}`, suffix: "", icon: CalendarDays, tone: "text-emerald-300" },
+                { label: "年化收益（预期）", value: warRoom.best.irr, suffix: "%", icon: LineChartIcon, tone: "text-indigo-300" },
+              ].map(item => {
+                const Icon = item.icon;
+                return (
+                  <motion.div
+                    key={item.label}
+                    whileHover={{ y: -2 }}
+                    className="rounded-2xl border border-white/10 bg-[#071b31]/80 p-3"
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <Icon className={`h-4 w-4 ${item.tone}`} />
+                      <span className="text-[10px] text-slate-500">i</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">{item.label}</p>
+                    <p className={`mt-1 font-mono text-2xl font-black ${item.tone}`}>
+                      {typeof item.value === "number" ? <NumberTicker value={item.value} decimals={item.suffix === "%" ? 1 : 0} /> : item.value}
+                      <span className="ml-1 text-xs text-slate-500">{item.suffix}</span>
+                    </p>
+                  </motion.div>
+                );
+              })}
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[1.1fr_.9fr]">
+              <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.04] p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-white">持有时长方案对比</h4>
+                  <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[11px] font-semibold text-emerald-300">
+                    最优：{warRoom.best.duration}个月
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] text-center text-xs">
+                    <thead className="text-slate-500">
+                      <tr>
+                        <th className="px-2 py-2 text-left">持有方案</th>
+                        {warRoom.durations.map(item => (
+                          <th key={item.duration} className={cn("px-2 py-2", activeDuration === item.duration && "text-cyan-300")}>
+                            {item.duration}个月<br />({item.month})
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ["预测售价（元/吨）", "predictedPrice"],
+                        ["持有成本（元/吨）", "holdingCostPerTon"],
+                        ["盈亏平衡线（元/吨）", "breakevenPerTon"],
+                        ["预期利润（元/吨）", "expectedProfitPerTon"],
+                        ["利润率（相对成本）", "profitRate"],
+                        ["胜率（概率）", "winRate"],
+                        ["年化收益（IRR）", "irr"],
+                        ["综合评分（满分100）", "score"],
+                      ].map(([label, key]) => (
+                        <tr key={label} className="border-t border-white/8">
+                          <td className="px-2 py-2 text-left text-slate-400">{label}</td>
+                          {warRoom.durations.map(item => {
+                            const value = item[key as keyof typeof item] as number;
+                            const isBest = item.duration === warRoom.best.duration;
+                            return (
+                              <td
+                                key={`${label}-${item.duration}`}
+                                className={cn(
+                                  "cursor-pointer px-2 py-2 font-mono",
+                                  isBest ? "bg-cyan-500/10 text-emerald-300" : "text-slate-300",
+                                  activeDuration === item.duration && "outline outline-1 outline-cyan-400/30"
+                                )}
+                                onClick={() => setActiveDuration(item.duration)}
+                              >
+                                {key === "profitRate" || key === "irr" || key === "winRate"
+                                  ? `${Number(value).toFixed(1)}%`
+                                  : Number(value).toLocaleString()}
+                                {isBest && key === "score" ? <span className="ml-1 rounded bg-amber-500/20 px-1 text-[10px] text-amber-300">最优</span> : null}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
+                <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                  <Sparkles className="h-4 w-4 text-emerald-300" />
+                  AI 策略建议
+                </h4>
+                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] p-5 text-center">
+                  <p className="text-[12px] text-emerald-200">最优策略</p>
+                  <p className="mt-1 text-3xl font-black tracking-wide text-emerald-300">建议收储（{warRoom.best.duration}个月）</p>
+                  <p className="mt-2 text-sm text-slate-300">置信度 {warRoom.best.score}% · 综合评分 {warRoom.best.score}/100</p>
+                </div>
+                <ul className="mt-4 space-y-2 text-[12px] leading-relaxed text-slate-300">
+                  <li><CheckCircle2 className="mr-1.5 inline h-3.5 w-3.5 text-emerald-300" />预计 {warRoom.best.month} 售价达到 {warRoom.best.predictedPrice.toLocaleString()} 元/吨。</li>
+                  <li><CheckCircle2 className="mr-1.5 inline h-3.5 w-3.5 text-emerald-300" />收储 {warRoom.best.duration} 个月预期利润 {warRoom.best.expectedProfitPerTon.toLocaleString()} 元/吨。</li>
+                  <li><CheckCircle2 className="mr-1.5 inline h-3.5 w-3.5 text-emerald-300" />仓储与资金占用仍在风险预算之内。</li>
+                  <li><CheckCircle2 className="mr-1.5 inline h-3.5 w-3.5 text-emerald-300" />库存质量良好，储存风险可控。</li>
+                </ul>
+              </div>
+            </div>
+          </TechPanel>
+
+          <div className="space-y-4 xl:col-span-5">
+            <TechPanel className="rounded-[24px] p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-white">风险评估</h3>
+                <span className="text-[11px] text-slate-500">更新时间：10:30</span>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: "价格波动风险", value: 28.7, sub: "未来30天波动率", icon: TrendingDown, level: "中等", tone: "orange" },
+                  { label: "亏损风险", value: 27.3, sub: "跌破盈亏平衡概率", icon: AlertTriangle, level: "中等", tone: "red" },
+                  { label: "资金占用风险", value: Math.min(99, warRoom.fundUsed / 1000), sub: `占用资金 ${warRoom.fundUsed.toLocaleString()} 万元`, icon: WalletCards, level: "中等", tone: "orange" },
+                  { label: "仓储与产能约束", value: simulation?.optimizationPlan.summary.averageUtilization ?? 68.2, sub: "库容利用率", icon: Warehouse, level: "低", tone: "green" },
+                ].map(item => {
+                  const Icon = item.icon;
+                  const tone = item.tone === "green" ? RISK_TONES.emerald : item.tone === "red" ? RISK_TONES.rose : RISK_TONES.amber;
+                  return (
+                    <div key={item.label} className={cn("rounded-2xl border p-3", tone.panel)}>
+                      <div className="flex items-center gap-3">
+                        <div className={cn("grid h-10 w-10 place-items-center rounded-full", tone.iconWrap)}>
+                          <Icon className={cn("h-5 w-5", tone.icon)} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-semibold text-slate-200">{item.label}</p>
+                            <span className={cn("rounded px-2 py-0.5 text-xs", tone.badge)}>{item.level}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-500">{item.sub}</p>
+                          <div className="mt-2 flex items-center gap-3">
+                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-800">
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(item.value, 100)}%` }} className={cn("h-full", tone.bar)} />
+                            </div>
+                            <span className={cn("font-mono text-lg font-black", tone.value)}>{item.value.toFixed(1)}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </TechPanel>
+
+            <TechPanel className="rounded-[24px] p-5">
+              <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
+                <ClipboardCheck className="h-4 w-4 text-cyan-300" />
+                策略审批与执行
+                <span className="ml-auto rounded-full bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-300">{approvalStatus}</span>
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs text-slate-500">策略名称</label>
+                  <input value={strategyName} onChange={e => setStrategyName(e.target.value)} className="h-9 w-full rounded-lg border border-white/10 bg-slate-950/50 px-3 text-sm text-slate-200 outline-none focus:border-cyan-400/50" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-slate-500">策略备注</label>
+                  <textarea value={strategyNote} onChange={e => setStrategyNote(e.target.value)} maxLength={200} placeholder="请输入策略备注（非必填）" className="h-20 w-full resize-none rounded-lg border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-slate-200 outline-none focus:border-cyan-400/50" />
+                  <p className="mt-1 text-right text-[10px] text-slate-600">{strategyNote.length}/200</p>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-slate-500">审批流程</label>
+                  <select value={approvalRoute} onChange={e => setApprovalRoute(e.target.value)} className="h-9 w-full rounded-lg border border-white/10 bg-slate-950/50 px-3 text-sm text-slate-200 outline-none">
+                    <option>运营总监审批 → 执行排程</option>
+                    <option>财务负责人审批 → 总经理审批</option>
+                    <option>风控复核 → 仓储执行</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <Button onClick={() => handleApprovalAction("已保存")} variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20">
+                    <Save className="mr-2 h-4 w-4" />保存策略
+                  </Button>
+                  <Button onClick={() => handleApprovalAction("已生成任务")} className="bg-blue-600 text-white hover:bg-blue-500">
+                    <FileText className="mr-2 h-4 w-4" />生成执行任务
+                  </Button>
+                  <Button onClick={() => handleApprovalAction("待审批")} className="col-span-2 bg-amber-500 text-slate-950 hover:bg-amber-400">
+                    <ClipboardCheck className="mr-2 h-4 w-4" />提交审批
+                  </Button>
+                </div>
+              </div>
+            </TechPanel>
+          </div>
+
+          <TechPanel className="rounded-[24px] p-5 xl:col-span-8">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-white">库存批次明细</h3>
+              <span className="text-xs text-slate-500">批次数：{warRoom.batches.length} · 总数量：{warRoom.totalTons.toLocaleString()} 吨 · 加权平均成本：{warRoom.weightedCost.toLocaleString()} 元/吨</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[850px] text-center text-xs">
+                <thead className="bg-slate-900/60 text-slate-500">
+                  <tr>
+                    {["批次号", "品类", "入库日期", "库龄(天)", "数量(吨)", "仓库", "加权成本", "质量等级", "当前状态", "建议动作"].map(head => (
+                      <th key={head} className="border border-white/8 px-3 py-2">{head}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {warRoom.batches.map((batch, index) => (
+                    <tr key={batch.id} className="border-t border-white/8 text-slate-300">
+                      <td className="px-3 py-2 font-mono">{batch.id}</td>
+                      <td className="px-3 py-2">{batch.category}</td>
+                      <td className="px-3 py-2">{batch.inDate}</td>
+                      <td className="px-3 py-2">{batch.age}</td>
+                      <td className="px-3 py-2 font-mono">{batch.tons.toLocaleString()}</td>
+                      <td className="px-3 py-2">{["成都仓", "重庆仓", "西安仓", "郑州仓", "南京仓"][index]}</td>
+                      <td className="px-3 py-2 font-mono">{batch.cost.toLocaleString()}</td>
+                      <td className="px-3 py-2">{batch.grade}</td>
+                      <td className="px-3 py-2 text-emerald-300">{batch.status}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          onClick={() => {
+                            setActiveDuration(batch.action.includes("3") ? 3 : batch.action.includes("2") ? 2 : 1);
+                            toast.success(`已聚焦 ${batch.id} 的${batch.action}`);
+                          }}
+                          className={cn(
+                            "rounded-md border px-2 py-1",
+                            batch.action.includes("收储")
+                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                              : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                          )}
+                        >
+                          {batch.action}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </TechPanel>
+
+          <TechPanel className="rounded-[24px] p-5 xl:col-span-4">
+            <h3 className="mb-4 text-sm font-semibold text-white">审批流程（需审批）</h3>
+            <div className="flex items-center justify-between gap-2">
+              {[
+                ["提交申请", approvalStatus === "待审批" || approvalStatus === "已生成任务" ? "已提交" : "待提交"],
+                ["部门负责人", approvalStatus === "已生成任务" ? "已处理" : "未处理"],
+                ["财务负责人", approvalStatus === "已生成任务" ? "已处理" : "未处理"],
+                ["总经理", approvalStatus === "已生成任务" ? "已处理" : "未处理"],
+              ].map(([label, status], index) => (
+                <div key={label} className="flex flex-1 items-center">
+                  <div className="min-w-0 text-center">
+                    <div className={cn("mx-auto grid h-9 w-9 place-items-center rounded-full border", status === "已处理" || status === "已提交" ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-200" : "border-slate-600 bg-slate-900 text-slate-500")}>
+                      {index + 1}
+                    </div>
+                    <p className="mt-2 truncate text-xs text-slate-300">{label}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">{status}</p>
+                  </div>
+                  {index < 3 ? <div className="mx-2 h-px flex-1 bg-cyan-400/30" /> : null}
+                </div>
+              ))}
+            </div>
+          </TechPanel>
         </div>
       )}
 

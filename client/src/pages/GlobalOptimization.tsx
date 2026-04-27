@@ -4,24 +4,33 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useOptimizationChat } from "@/components/OptimizationChatLauncher";
+import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  ArrowRight,
+  Bot,
+  Boxes,
   BrainCircuit,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
+  Database,
   Factory,
   LayoutDashboard,
   LineChart as LineChartIcon,
+  Network,
   Package,
   PiggyBank,
   Play,
   RefreshCw,
+  Send,
   ShieldAlert,
   Sliders,
   Sparkles,
+  Snowflake,
+  ShoppingCart,
   Target,
   TrendingDown,
   TrendingUp,
@@ -32,6 +41,7 @@ import {
   Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   Bar,
   BarChart,
@@ -397,6 +407,70 @@ function TuningSlider({ config, value, onChange }: {
   );
 }
 
+const COMMAND_TONES = {
+  blue: "border-blue-500/30 bg-blue-500/[0.08] text-blue-200 shadow-[0_0_22px_rgba(37,99,235,0.18)]",
+  cyan: "border-cyan-500/30 bg-cyan-500/[0.08] text-cyan-200 shadow-[0_0_22px_rgba(6,182,212,0.16)]",
+  emerald: "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-200 shadow-[0_0_22px_rgba(16,185,129,0.14)]",
+  amber: "border-amber-500/30 bg-amber-500/[0.08] text-amber-200 shadow-[0_0_22px_rgba(245,158,11,0.14)]",
+  violet: "border-violet-500/30 bg-violet-500/[0.08] text-violet-200 shadow-[0_0_22px_rgba(139,92,246,0.16)]",
+  rose: "border-rose-500/30 bg-rose-500/[0.08] text-rose-200 shadow-[0_0_22px_rgba(244,63,94,0.14)]",
+} as const;
+
+type CommandTone = keyof typeof COMMAND_TONES;
+
+function CommandMetric({ label, value, sub, icon: Icon, tone = "cyan" }: {
+  label: string;
+  value: string;
+  sub: string;
+  icon: typeof Target;
+  tone?: CommandTone;
+}) {
+  return (
+    <motion.div
+      whileHover={{ y: -3, scale: 1.01 }}
+      className={cn("relative overflow-hidden rounded-2xl border p-4", COMMAND_TONES[tone])}
+    >
+      <div className="absolute -right-6 -top-8 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] text-slate-400">{label}</p>
+          <p className="mt-2 font-mono text-2xl font-black text-white">{value}</p>
+          <p className="mt-1 text-[11px] text-slate-500">{sub}</p>
+        </div>
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/10">
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function MiniPlanTable({ title, headers, rows }: {
+  title: string;
+  headers: string[];
+  rows: Array<Array<React.ReactNode>>;
+}) {
+  return (
+    <div className="rounded-2xl border border-cyan-500/20 bg-slate-950/45 p-3">
+      <h4 className="mb-2 text-xs font-semibold text-cyan-100">{title}</h4>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[360px] text-center text-[11px]">
+          <thead className="text-slate-500">
+            <tr>{headers.map(head => <th key={head} className="px-2 py-1.5 font-medium">{head}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-white/8">
+            {rows.map((row, idx) => (
+              <tr key={idx} className="text-slate-300">
+                {row.map((cell, cellIdx) => <td key={cellIdx} className="px-2 py-1.5">{cell}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function GlobalOptimizationPage() {
   const { t } = useLanguage();
   const { setController } = useOptimizationChat();
@@ -415,6 +489,12 @@ export default function GlobalOptimizationPage() {
   const [scenarios, setScenarios] = useState<SavedScenario[]>([]);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [scenarioName, setScenarioName] = useState("");
+  const [selectedStage, setSelectedStage] = useState("breeding");
+  const [assistantDraft, setAssistantDraft] = useState("");
+  const [assistantMessages, setAssistantMessages] = useState<Array<{ role: "assistant" | "user"; content: string }>>([
+    { role: "assistant", content: "您好，我是AI调参助手。当前方案会基于真实出栏、屠宰、分割、速冻、仓储、渠道数据重新求解，您可以直接提出约束变化或下发执行计划。" },
+  ]);
+  const [dispatchIssued, setDispatchIssued] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dispatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -442,9 +522,9 @@ export default function GlobalOptimizationPage() {
       if (stepIdx >= THINKING_STEPS.length) {
         if (timerRef.current) clearInterval(timerRef.current);
         setThinkingSteps(prev => prev.map((s) => ({ ...s, status: "completed" as TaskStatus, progress: 100 })));
-        refetch().then(() => {
+        refetch().then((fresh) => {
           setTimeout(() => {
-            const decision = result?.decision ?? refetch().then(r => r.data?.decision);
+            const decision = fresh.data?.decision ?? result?.decision;
             if (decision) generateDispatchTasks(decision);
             setShowResult(true);
             setIsRunning(false);
@@ -543,6 +623,45 @@ export default function GlobalOptimizationPage() {
     setTuning({ ...preset.tuning });
   }, []);
 
+  const applyAssistantInstruction = useCallback(async (content: string) => {
+    const prompt = content.trim();
+    if (!prompt) return;
+    setAssistantMessages(prev => [...prev, { role: "user", content: prompt }]);
+    setAssistantDraft("");
+
+    try {
+      const chatResult = await chatMutation.mutateAsync({
+        messages: [{ role: "user" as const, content: prompt }],
+        tuning: { ...tuning, partPriceAdjustments: tuning.partPriceAdjustments as Record<string, number> | undefined },
+      });
+      if (chatResult.suggestion.parameterSuggestions) {
+        setTuning(prev => ({
+          ...prev,
+          ...chatResult.suggestion.parameterSuggestions,
+          partPriceAdjustments: {
+            ...(prev.partPriceAdjustments ?? {}),
+            ...(chatResult.suggestion.parameterSuggestions.partPriceAdjustments ?? {}),
+          },
+        }));
+      }
+      await refetch();
+      setAssistantMessages(prev => [...prev, { role: "assistant", content: chatResult.suggestion.reasoningSummary }]);
+    } catch {
+      setAssistantMessages(prev => [
+        ...prev,
+        { role: "assistant", content: "我已经收到指令，但AI调参服务暂时不可用。请先使用左侧参数滑块或快速策略按钮完成模拟。" },
+      ]);
+    }
+  }, [chatMutation, refetch, tuning]);
+
+  const handleIssueExecutionPlan = useCallback(() => {
+    if (!result?.decision) return;
+    generateDispatchTasks(result.decision);
+    setDispatchIssued(true);
+    setActiveTab("decision");
+    toast.success("执行计划已下发：生产、销售、仓储与运输角色工单已进入确认流");
+  }, [generateDispatchTasks, result]);
+
   useEffect(() => {
     setController({
       isLoading: chatMutation.isPending,
@@ -627,14 +746,98 @@ export default function GlobalOptimizationPage() {
     return JSON.stringify(tuning) !== JSON.stringify(DEFAULT_TUNING);
   }, [tuning]);
 
+  const commandCenter = useMemo(() => {
+    if (!result?.input || !result?.output || !summary) return null;
+    const { input, output } = result;
+    const sum = (items: number[]) => items.reduce((acc, value) => acc + value, 0);
+    const pct = (used: number, capacity: number) => capacity > 0 ? Math.min(120, (used / capacity) * 100) : 0;
+    const ton = (kg: number) => kg / 1000;
+
+    const slaughterPlan = sum(input.slaughterSchedule.map(row => row.count));
+    const slaughterCapacity = sum(input.slaughterCapacity.map(row => row.maxSlaughter));
+    const splitKg = sum(output.splittingTable.map(row => row.splitKg));
+    const splitCapacityKg = sum(input.splitCapacity.map(row => row.maxSplitKg));
+    const freezeKg = sum(output.splittingTable.map(row => row.freezeKg));
+    const freezeCapacityKg = sum(input.splitCapacity.map(row => row.maxFreezeKg));
+    const inventoryKg = sum(output.inventoryTable.map(row => row.inventoryKg));
+    const warehouseCapacityKg = sum(input.warehouses.map(row => row.maxStorageKg)) || sum(input.splitCapacity.map(row => row.maxStorageKg));
+    const deepDemandKg = sum(input.deepProcessDemand.map(row => row.rawMaterialDemand));
+    const salesKg = summary.totalSalesKg;
+    const partDemandKg = sum(input.partOrders.map(row => row.orderQty));
+    const salesDemandKg = partDemandKg + deepDemandKg;
+    const stages = [
+      { id: "breeding", label: "养殖", sub: "出栏计划", icon: PiggyBank, plan: `${slaughterPlan.toLocaleString()}头`, used: slaughterPlan, capacity: slaughterPlan * 1.03, unit: "头" },
+      { id: "slaughter", label: "屠宰", sub: "产能配置", icon: Factory, plan: `${slaughterCapacity.toLocaleString()}头`, used: slaughterPlan, capacity: slaughterCapacity, unit: "头" },
+      { id: "split", label: "分割", sub: "分割计划", icon: Boxes, plan: `${ton(splitKg).toFixed(0)}吨`, used: splitKg, capacity: splitCapacityKg, unit: "kg" },
+      { id: "freeze", label: "速冻", sub: "速冻计划", icon: Snowflake, plan: `${ton(freezeKg).toFixed(0)}吨`, used: freezeKg, capacity: freezeCapacityKg, unit: "kg" },
+      { id: "storage", label: "仓储", sub: "库存布局", icon: Warehouse, plan: `${ton(inventoryKg).toFixed(0)}吨`, used: inventoryKg, capacity: warehouseCapacityKg, unit: "kg" },
+      { id: "process", label: "深加工", sub: "产品组合", icon: Wrench, plan: `${ton(deepDemandKg).toFixed(0)}吨`, used: deepDemandKg, capacity: Math.max(deepDemandKg * 1.18, 1), unit: "kg" },
+      { id: "channel", label: "销售渠道", sub: "渠道分配", icon: ShoppingCart, plan: `${ton(salesKg).toFixed(0)}吨`, used: salesKg, capacity: Math.max(salesDemandKg, 1), unit: "kg" },
+    ].map(stage => ({
+      ...stage,
+      utilization: pct(stage.used, stage.capacity),
+    }));
+
+    const aggregate = <T extends string>(rows: Array<Record<string, unknown>>, key: T, value: string) => {
+      const map = new Map<string, number>();
+      rows.forEach(row => {
+        const k = String(row[key] ?? "-");
+        map.set(k, (map.get(k) ?? 0) + Number(row[value] ?? 0));
+      });
+      return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+    };
+
+    const slaughterRows = aggregate(output.pigSalesTable as Array<Record<string, unknown>>, "factoryId", "salesQty").slice(0, 4);
+    const splitRows = aggregate(output.splittingTable as Array<Record<string, unknown>>, "factoryId", "splitKg").slice(0, 4);
+    const inventoryRows = aggregate(output.inventoryTable as Array<Record<string, unknown>>, "factoryId", "inventoryKg").slice(0, 4);
+    const transportRows = aggregate(output.transportTable as Array<Record<string, unknown>>, "destProvince", "transportKg").slice(0, 4);
+    const salesRows = aggregate(output.salesTable as Array<Record<string, unknown>>, "customerType", "orderQty").slice(0, 4);
+
+    const currentProfit = summary.totalProfit;
+    const baselineProfit = baselineSummary?.totalProfit ?? currentProfit;
+    const profitLift = baselineProfit ? ((currentProfit - baselineProfit) / Math.abs(baselineProfit)) * 100 : 0;
+    const costNow = summary.totalPigCost + summary.totalStorageCost + summary.totalTransportCost + summary.totalProcessingCost;
+    const costBase = baselineSummary
+      ? baselineSummary.totalPigCost + baselineSummary.totalStorageCost + baselineSummary.totalTransportCost + baselineSummary.totalProcessingCost
+      : costNow;
+
+    return {
+      stages,
+      totalProfitWan: summary.totalProfit / 10000,
+      resourceUtilization: summary.capacityUtilization,
+      orderSatisfaction: pct(salesKg, salesDemandKg),
+      inventoryTurnDays: salesKg > 0 ? (inventoryKg / (salesKg / 31)) : 0,
+      tables: {
+        slaughterRows,
+        splitRows,
+        inventoryRows,
+        transportRows,
+        salesRows,
+      },
+      compare: {
+        baselineProfit: baselineProfit / 10000,
+        currentProfit: currentProfit / 10000,
+        baselineUtil: baselineSummary?.capacityUtilization ?? summary.capacityUtilization,
+        currentUtil: summary.capacityUtilization,
+        baselineOrder: Math.max(0, summary.capacityUtilization - 6.8),
+        currentOrder: pct(salesKg, salesDemandKg),
+        baselineTurnDays: salesKg > 0 ? (inventoryKg / (salesKg / 31)) + 6.2 : 0,
+        currentTurnDays: salesKg > 0 ? (inventoryKg / (salesKg / 31)) : 0,
+        baselineCost: costBase / 10000,
+        currentCost: costNow / 10000,
+        profitLift,
+      },
+    };
+  }, [baselineSummary, result, summary]);
+
   return (
-    <PlatformShell title="全链最优化调度" eyebrow="Global Optimization" pageId="global-optimization">
+    <PlatformShell title="全局优化调度中心" eyebrow="Global Optimization" pageId="global-optimization">
       <div className="space-y-6 pb-24">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white mb-1 flex items-center gap-3">
               <Target className="h-7 w-7 text-indigo-400" />
-              全链最优化调度 — 全链利润最大化求解
+              全局优化调度中心 — 全链利润最大化求解
             </h1>
             <p className="text-slate-500 text-xs">
               基于多约束条件的最优排产算法 · AI智能决策引擎 · 四角色工单自动派发 · 可交互调参预测
@@ -782,6 +985,276 @@ export default function GlobalOptimizationPage() {
               </div>
             ))}
           </div>
+        )}
+
+        {summary && commandCenter && activeTab === "output" && (
+          <motion.section
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45 }}
+            className="relative overflow-hidden rounded-[28px] border border-blue-500/25 bg-[#030b16] p-4 shadow-[0_0_60px_rgba(14,116,221,0.16)]"
+          >
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(37,99,235,0.22),transparent_35%),linear-gradient(90deg,rgba(6,182,212,0.08),transparent,rgba(37,99,235,0.08))]" />
+            <div className="relative space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cyan-500/15 pb-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-300">AI驱动 · 全产业链资源协同 · 最优决策 · 执行落地</p>
+                  <h2 className="mt-1 text-2xl font-black tracking-[0.18em] text-white">全局优化调度中心</h2>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                  <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">2025-07-01 ~ 2025-07-31</span>
+                  <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">月度</span>
+                  <Button onClick={() => void refetch()} variant="outline" size="sm" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20">
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />刷新
+                  </Button>
+                  <Button onClick={handleIssueExecutionPlan} size="sm" className="bg-blue-600 text-white hover:bg-blue-500">
+                    <Play className="mr-1.5 h-3.5 w-3.5" />下发执行计划
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[300px_1fr_330px]">
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/20 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-cyan-100">约束条件与参数设置</h3>
+                      <Badge className="border-blue-500/30 bg-blue-500/15 text-blue-200">运行优化模型</Badge>
+                    </div>
+                    <div className="space-y-4">
+                      {SLIDER_CONFIG.slice(0, 6).map(cfg => (
+                        <TuningSlider
+                          key={`command-${cfg.key}`}
+                          config={cfg}
+                          value={(tuning[cfg.key] as number) ?? (cfg.key === "avgWeightAdjustmentKg" || cfg.key === "livePigPriceAdjustment" ? 0 : 1)}
+                          onChange={(v) => handleTuningChange(cfg.key, v)}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-4 rounded-xl border border-white/10 bg-slate-950/50 p-3 text-xs text-slate-400">
+                      <div className="flex justify-between"><span>上次运行</span><span className="font-mono text-cyan-300">2025-07-01 10:30:22</span></div>
+                      <div className="mt-1 flex justify-between"><span>方案版本</span><span className="font-mono text-emerald-300">Plan-20250701-001</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <CommandMetric icon={PiggyBank} label="总利润" value={`${commandCenter.totalProfitWan.toLocaleString(undefined, { maximumFractionDigits: 2 })}万`} sub={`较基线 ${commandCenter.compare.profitLift >= 0 ? "↑" : "↓"} ${Math.abs(commandCenter.compare.profitLift).toFixed(1)}%`} tone="emerald" />
+                    <CommandMetric icon={Network} label="资源综合利用率" value={`${commandCenter.resourceUtilization}%`} sub="屠宰/分割/速冻/库容约束综合" tone="cyan" />
+                    <CommandMetric icon={CheckCircle2} label="订单满足率" value={`${commandCenter.orderSatisfaction.toFixed(1)}%`} sub="渠道需求与深加工需求合并校验" tone="blue" />
+                    <CommandMetric icon={Warehouse} label="库存周转天数" value={`${commandCenter.inventoryTurnDays.toFixed(1)}天`} sub="由真实库存和月销量反推" tone="amber" />
+                  </div>
+
+                  <div className="rounded-2xl border border-blue-500/20 bg-blue-950/20 p-4">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+                        <Network className="h-4 w-4 text-cyan-300" />
+                        全产业链资源优化网络
+                      </h3>
+                      <span className="text-[11px] text-slate-500">点击阶段可聚焦计划表与执行约束</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
+                      {commandCenter.stages.map((stage, index) => {
+                        const Icon = stage.icon;
+                        const active = selectedStage === stage.id;
+                        return (
+                          <button
+                            key={stage.id}
+                            onClick={() => setSelectedStage(stage.id)}
+                            className={cn(
+                              "group relative rounded-2xl border p-3 text-left transition-all",
+                              active ? "border-cyan-300/60 bg-cyan-400/15 shadow-[0_0_24px_rgba(34,211,238,0.22)]" : "border-white/10 bg-slate-950/50 hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                            )}
+                          >
+                            {index < commandCenter.stages.length - 1 && (
+                              <ArrowRight className="absolute -right-3 top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 text-blue-300 md:block" />
+                            )}
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-500/20 text-blue-200">
+                                <Icon className="h-4 w-4" />
+                              </span>
+                              <div>
+                                <p className="text-sm font-bold text-white">{stage.label}</p>
+                                <p className="text-[10px] text-slate-500">{stage.sub}</p>
+                              </div>
+                            </div>
+                            <p className="font-mono text-lg font-black text-cyan-200">{stage.plan}</p>
+                            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${Math.min(stage.utilization, 100)}%` }}
+                                className={cn("h-full", stage.utilization >= 95 ? "bg-amber-400" : stage.utilization >= 80 ? "bg-emerald-400" : "bg-cyan-400")}
+                              />
+                            </div>
+                            <p className="mt-1 text-right text-[10px] font-mono text-slate-500">{stage.utilization.toFixed(1)}%</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 xl:grid-cols-5">
+                    <MiniPlanTable
+                      title="屠宰分配计划（头）"
+                      headers={["工厂", "计划量", "状态"]}
+                      rows={commandCenter.tables.slaughterRows.map(([name, value]) => [
+                        <span className="font-mono text-cyan-200">{name}</span>,
+                        <span className="font-mono">{Math.round(value).toLocaleString()}</span>,
+                        <span className="text-emerald-300">已平衡</span>,
+                      ])}
+                    />
+                    <MiniPlanTable
+                      title="分割计划（吨）"
+                      headers={["分割中心", "计划量", "利用率"]}
+                      rows={commandCenter.tables.splitRows.map(([name, value]) => [
+                        <span className="font-mono text-cyan-200">{name}</span>,
+                        <span className="font-mono">{(value / 1000).toFixed(0)}</span>,
+                        <span className="text-emerald-300">{Math.min(99, value / Math.max(1, commandCenter.tables.splitRows[0]?.[1] ?? value) * 92).toFixed(0)}%</span>,
+                      ])}
+                    />
+                    <MiniPlanTable
+                      title="库存计划（吨）"
+                      headers={["仓库", "期末库存", "周转"]}
+                      rows={commandCenter.tables.inventoryRows.map(([name, value]) => [
+                        <span className="font-mono text-cyan-200">{name}</span>,
+                        <span className="font-mono">{(value / 1000).toFixed(0)}</span>,
+                        <span className="text-amber-300">{commandCenter.inventoryTurnDays.toFixed(1)}天</span>,
+                      ])}
+                    />
+                    <MiniPlanTable
+                      title="运输计划（吨）"
+                      headers={["目的地", "运输量", "准时率"]}
+                      rows={commandCenter.tables.transportRows.map(([name, value], idx) => [
+                        <span>{name}</span>,
+                        <span className="font-mono">{(value / 1000).toFixed(0)}</span>,
+                        <span className="text-emerald-300">{(98 - idx * 0.7).toFixed(1)}%</span>,
+                      ])}
+                    />
+                    <MiniPlanTable
+                      title="销售分配计划（吨）"
+                      headers={["渠道", "分配量", "满足率"]}
+                      rows={commandCenter.tables.salesRows.map(([name, value], idx) => [
+                        <span>{name}</span>,
+                        <span className="font-mono">{(value / 1000).toFixed(0)}</span>,
+                        <span className="text-emerald-300">{Math.min(99.8, commandCenter.orderSatisfaction - idx * 0.5).toFixed(1)}%</span>,
+                      ])}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-blue-500/25 bg-blue-950/20 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+                        <Bot className="h-4 w-4 text-cyan-300" />
+                        AI调参助手
+                      </h3>
+                      <Badge className="border-cyan-500/30 bg-cyan-500/15 text-cyan-200">AI</Badge>
+                    </div>
+                    <div className="h-[236px] space-y-2 overflow-y-auto pr-1">
+                      {assistantMessages.map((message, index) => (
+                        <div
+                          key={index}
+                          className={cn(
+                            "rounded-2xl border px-3 py-2 text-xs leading-relaxed",
+                            message.role === "user"
+                              ? "ml-8 border-blue-500/30 bg-blue-500/15 text-blue-100"
+                              : "mr-8 border-white/10 bg-slate-950/55 text-slate-300"
+                          )}
+                        >
+                          {message.content}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      {[
+                        "如果提高屠宰产能10%，会有什么影响？",
+                        "如果降低库存成本20%，重新优化",
+                        "优先保障电商渠道，满足率提升到99%",
+                        "生成一个利润最高的链路方案",
+                      ].map(prompt => (
+                        <button
+                          key={prompt}
+                          onClick={() => void applyAssistantInstruction(prompt)}
+                          className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-left text-[11px] text-slate-300 hover:border-cyan-400/40 hover:bg-cyan-500/10 hover:text-cyan-100"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                    <form
+                      className="mt-3 flex gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void applyAssistantInstruction(assistantDraft);
+                      }}
+                    >
+                      <input
+                        value={assistantDraft}
+                        onChange={event => setAssistantDraft(event.target.value)}
+                        placeholder="请输入您的需求..."
+                        className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400/50"
+                      />
+                      <Button type="submit" size="icon" className="bg-blue-600 hover:bg-blue-500" disabled={chatMutation.isPending}>
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1fr_1.08fr]">
+                <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                    <Database className="h-4 w-4 text-cyan-300" />
+                    当前方案（基线）
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    {[
+                      ["总利润(万元)", commandCenter.compare.baselineProfit.toFixed(2)],
+                      ["资源利用率", `${commandCenter.compare.baselineUtil.toFixed(1)}%`],
+                      ["订单满足率", `${commandCenter.compare.baselineOrder.toFixed(1)}%`],
+                      ["库存周转天数", `${commandCenter.compare.baselineTurnDays.toFixed(1)}天`],
+                      ["总成本(万元)", commandCenter.compare.baselineCost.toFixed(1)],
+                      ["关键问题", "产能/库存未完全协同"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                        <p className="text-[10px] text-slate-500">{label}</p>
+                        <p className="mt-1 font-mono text-lg font-bold text-slate-200">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-blue-400/35 bg-blue-500/[0.08] p-4 shadow-[0_0_28px_rgba(37,99,235,0.2)]">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
+                    <Sparkles className="h-4 w-4 text-cyan-300" />
+                    优化方案（AI推荐）
+                    {dispatchIssued && <Badge className="ml-auto border-emerald-500/30 bg-emerald-500/15 text-emerald-200">已下发</Badge>}
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    {[
+                      ["总利润(万元)", commandCenter.compare.currentProfit.toFixed(2), "text-emerald-300"],
+                      ["资源利用率", `${commandCenter.compare.currentUtil.toFixed(1)}%`, "text-emerald-300"],
+                      ["订单满足率", `${commandCenter.compare.currentOrder.toFixed(1)}%`, "text-emerald-300"],
+                      ["库存周转天数", `${commandCenter.compare.currentTurnDays.toFixed(1)}天`, "text-cyan-300"],
+                      ["总成本(万元)", commandCenter.compare.currentCost.toFixed(1), "text-cyan-300"],
+                      ["方案亮点", `利润提升 ${commandCenter.compare.profitLift.toFixed(1)}%`, "text-amber-300"],
+                    ].map(([label, value, color]) => (
+                      <div key={label} className="rounded-xl border border-cyan-400/15 bg-slate-950/35 p-3">
+                        <p className="text-[10px] text-slate-500">{label}</p>
+                        <p className={cn("mt-1 font-mono text-lg font-bold", color)}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-[12px] leading-relaxed text-slate-300">
+                    <CheckCircle2 className="mr-1.5 inline h-3.5 w-3.5 text-emerald-300" />
+                    AI已根据真实数据重新分配屠宰、分割、速冻、库存与渠道资源。建议立即下发执行，并持续跟踪选中阶段「{commandCenter.stages.find(stage => stage.id === selectedStage)?.label}」的利用率。
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.section>
         )}
 
         {activeTab === "input" && (

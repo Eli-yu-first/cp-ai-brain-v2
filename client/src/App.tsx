@@ -14,8 +14,11 @@ import { TabProvider, useTabContext } from "./contexts/TabContext";
 import AuditPage from "./pages/Audit";
 import AiDecisionPage from "./pages/AiDecision";
 import AiDispatchExecutionPage from "./pages/AiDispatchExecution";
+import AiFactoryExecutionPage from "./pages/AiFactoryExecution";
 import AiGovernanceClosurePage from "./pages/AiGovernanceClosure";
+import AiFuturesStorageDecisionPage from "./pages/AiFuturesStorageDecision";
 import AiStrategySimulationPage from "./pages/AiStrategySimulation";
+import AiSystemBlueprintPage from "./pages/AiSystemBlueprint";
 import AiValueChainPage from "./pages/AiValueChain";
 import AiWarRoomPage from "./pages/AiWarRoom";
 import CpVenturePage from "./pages/CpVenture";
@@ -29,6 +32,7 @@ import TenantsPage from "./pages/Tenants";
 import TimeArbitragePage from "./pages/TimeArbitrage";
 import SpatialArbitragePage from "./pages/SpatialArbitrage";
 import FinancialArbitragePage from "./pages/FinancialArbitrage";
+import PredictionMarketInsurancePage from "./pages/PredictionMarketInsurance";
 import ProfessionalArbitragePage from "./pages/ProfessionalArbitrage";
 import GlobalOptimizationPage from "./pages/GlobalOptimization";
 
@@ -50,6 +54,11 @@ function PlatformRouter() {
     { id: "ai", href: "/ai", Component: AiDecisionPage },
     { id: "ai-war-room", href: "/ai-war-room", Component: AiWarRoomPage },
     {
+      id: "ai-system-blueprint",
+      href: "/ai-system-blueprint",
+      Component: AiSystemBlueprintPage,
+    },
+    {
       id: "ai-value-chain",
       href: "/ai-value-chain",
       Component: AiValueChainPage,
@@ -58,6 +67,16 @@ function PlatformRouter() {
       id: "ai-dispatch-execution",
       href: "/ai-dispatch-execution",
       Component: AiDispatchExecutionPage,
+    },
+    {
+      id: "ai-factory-execution",
+      href: "/ai-factory-execution",
+      Component: AiFactoryExecutionPage,
+    },
+    {
+      id: "ai-futures-storage-decision",
+      href: "/ai-futures-storage-decision",
+      Component: AiFuturesStorageDecisionPage,
     },
     {
       id: "ai-strategy-simulation",
@@ -83,6 +102,11 @@ function PlatformRouter() {
       id: "financial-arbitrage",
       href: "/financial-arbitrage",
       Component: FinancialArbitragePage,
+    },
+    {
+      id: "prediction-market-insurance",
+      href: "/prediction-market-insurance",
+      Component: PredictionMarketInsurancePage,
     },
     {
       id: "professional-arbitrage",

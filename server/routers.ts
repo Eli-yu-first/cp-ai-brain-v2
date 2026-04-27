@@ -38,6 +38,8 @@ import {
   type DeepArbitrageInput,
 } from "./deepArbitrage";
 import { simulateFinancialArbitrage } from "./financialArbitrage";
+import { simulateFuturesStorageDecision } from "./futuresStorageDecision";
+import { simulatePredictionMarketInsurance } from "./predictionMarketInsurance";
 import { simulateProfessionalArbitrage } from "./professionalArbitrage";
 import {
   createAuditLog,
@@ -374,6 +376,22 @@ export const appRouter = router({
         } catch {
           return fallback;
         }
+      }),
+    futuresStorageDecisionSimulate: protectedProcedure
+      .input(
+        z
+          .object({
+            currentHogPrice: z.number().min(1).max(40).optional(),
+            industryAverageCost: z.number().min(1).max(40).optional(),
+            monthlyStorageFee: z.number().min(0.01).max(2).optional(),
+            storageMonths: z.number().int().min(1).max(10).optional(),
+            decisionDate: z.string().optional(),
+            mode: z.enum(["base", "cost_up", "price_down", "window_extend"]).optional(),
+          })
+          .optional(),
+      )
+      .query(({ input }) => {
+        return simulateFuturesStorageDecision(input ?? {});
       }),
     spatialArbitrageSimulate: protectedProcedure
       .input(
@@ -939,6 +957,22 @@ export const appRouter = router({
       )
       .query(({ input }) => {
         return simulateProfessionalArbitrage(input ?? {});
+      }),
+    predictionMarketInsuranceSimulate: protectedProcedure
+      .input(
+        z
+          .object({
+            shipmentValueGbp: z.number().min(10_000).max(10_000_000).optional(),
+            delayDays: z.number().min(0).max(60).optional(),
+            dailyReroutePenaltyGbp: z.number().min(1_000).max(500_000).optional(),
+            promoLossGbp: z.number().min(1_000).max(1_000_000).optional(),
+            riskAppetite: z.enum(["conservative", "balanced", "aggressive"]).optional(),
+            selectedFactorIds: z.array(z.string()).optional(),
+          })
+          .optional(),
+      )
+      .query(({ input }) => {
+        return simulatePredictionMarketInsurance(input ?? {});
       }),
     aiChat: protectedProcedure
       .input(

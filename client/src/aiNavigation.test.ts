@@ -101,6 +101,30 @@ describe("AI decision navigation registration", () => {
     expect(language).toContain('en: "AI Value Chain"');
   });
 
+  it("registers the AI system blueprint page route and nav entry", () => {
+    const app = readProjectFile("client/src/App.tsx");
+    const shell = readProjectFile(
+      "client/src/components/platform/PlatformShell.tsx"
+    );
+    const language = readProjectFile("client/src/contexts/LanguageContext.tsx");
+
+    expect(app).toContain(
+      'import AiSystemBlueprintPage from "./pages/AiSystemBlueprint";'
+    );
+    expect(app).toContain('id: "ai-system-blueprint"');
+    expect(app).toContain('href: "/ai-system-blueprint"');
+    expect(app).toContain("Component: AiSystemBlueprintPage");
+    expectNavigationItem(shell, {
+      id: "ai-system-blueprint",
+      label: "nav.aiSystemBlueprint",
+      href: "/ai-system-blueprint",
+      shortLabel: "BP",
+    });
+    expect(language).toContain("aiSystemBlueprint: {");
+    expect(language).toContain('zh: "AI 全景蓝图"');
+    expect(language).toContain('en: "AI Blueprint"');
+  });
+
   it("registers the AI dispatch execution page route and nav entry", () => {
     const app = readProjectFile("client/src/App.tsx");
     const shell = readProjectFile(
@@ -123,6 +147,54 @@ describe("AI decision navigation registration", () => {
     expect(language).toContain("aiDispatchExecution: {");
     expect(language).toContain('zh: "AI 派单执行"');
     expect(language).toContain('en: "AI Dispatch"');
+  });
+
+  it("registers the AI factory execution page route and nav entry", () => {
+    const app = readProjectFile("client/src/App.tsx");
+    const shell = readProjectFile(
+      "client/src/components/platform/PlatformShell.tsx"
+    );
+    const language = readProjectFile("client/src/contexts/LanguageContext.tsx");
+
+    expect(app).toContain(
+      'import AiFactoryExecutionPage from "./pages/AiFactoryExecution";'
+    );
+    expect(app).toContain('id: "ai-factory-execution"');
+    expect(app).toContain('href: "/ai-factory-execution"');
+    expect(app).toContain("Component: AiFactoryExecutionPage");
+    expectNavigationItem(shell, {
+      id: "ai-factory-execution",
+      label: "nav.aiFactoryExecution",
+      href: "/ai-factory-execution",
+      shortLabel: "FX",
+    });
+    expect(language).toContain("aiFactoryExecution: {");
+    expect(language).toContain('zh: "AI 工厂执行"');
+    expect(language).toContain('en: "AI Factory Ops"');
+  });
+
+  it("registers the AI futures storage decision page route and nav entry", () => {
+    const app = readProjectFile("client/src/App.tsx");
+    const shell = readProjectFile(
+      "client/src/components/platform/PlatformShell.tsx"
+    );
+    const language = readProjectFile("client/src/contexts/LanguageContext.tsx");
+
+    expect(app).toContain(
+      'import AiFuturesStorageDecisionPage from "./pages/AiFuturesStorageDecision";'
+    );
+    expect(app).toContain('id: "ai-futures-storage-decision"');
+    expect(app).toContain('href: "/ai-futures-storage-decision"');
+    expect(app).toContain("Component: AiFuturesStorageDecisionPage");
+    expectNavigationItem(shell, {
+      id: "ai-futures-storage-decision",
+      label: "nav.aiFuturesStorageDecision",
+      href: "/ai-futures-storage-decision",
+      shortLabel: "FS",
+    });
+    expect(language).toContain("aiFuturesStorageDecision: {");
+    expect(language).toContain('zh: "AI 收储研判"');
+    expect(language).toContain('en: "AI Storage Futures"');
   });
 
   it("registers the AI strategy simulation page route and nav entry", () => {
@@ -171,6 +243,30 @@ describe("AI decision navigation registration", () => {
     expect(language).toContain("aiGovernanceClosure: {");
     expect(language).toContain('zh: "AI 闭环治理"');
     expect(language).toContain('en: "AI Governance"');
+  });
+
+  it("registers the prediction market insurance page route and nav entry", () => {
+    const app = readProjectFile("client/src/App.tsx");
+    const shell = readProjectFile(
+      "client/src/components/platform/PlatformShell.tsx"
+    );
+    const language = readProjectFile("client/src/contexts/LanguageContext.tsx");
+
+    expect(app).toContain(
+      'import PredictionMarketInsurancePage from "./pages/PredictionMarketInsurance";'
+    );
+    expect(app).toContain('id: "prediction-market-insurance"');
+    expect(app).toContain('href: "/prediction-market-insurance"');
+    expect(app).toContain("Component: PredictionMarketInsurancePage");
+    expectNavigationItem(shell, {
+      id: "prediction-market-insurance",
+      label: "nav.predictionMarketInsurance",
+      href: "/prediction-market-insurance",
+      shortLabel: "PMI",
+    });
+    expect(language).toContain("predictionMarketInsurance: {");
+    expect(language).toContain('zh: "预测保险"');
+    expect(language).toContain('en: "Prediction Insurance"');
   });
 
   it("defines multilingual nav.ai translations", () => {

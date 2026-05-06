@@ -24,6 +24,7 @@ import AiWarRoomPage from "./pages/AiWarRoom";
 import CpVenturePage from "./pages/CpVenture";
 import DeepArbitragePage from "./pages/DeepArbitrage";
 import Home from "./pages/Home";
+import LoginPage from "./pages/Login";
 import OverviewPage from "./pages/Overview";
 import PorkPage from "./pages/Pork";
 import PorkMapPage from "./pages/PorkMap";
@@ -137,6 +138,7 @@ function PlatformRouter() {
     return (
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/login" component={LoginPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
